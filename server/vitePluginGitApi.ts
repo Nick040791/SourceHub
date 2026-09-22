@@ -266,6 +266,23 @@ export function vitePluginGitApi(): Plugin {
               return sendJson(res, 200, { base, head, commits, diffs });
             }
 
+            // Generate description with Helper: POST /api/v1/repos/:name/pulls/generate-description
+            if (parts[2] === 'generate-description' && req.method === 'POST') {
+              const body = await readJsonBody(req);
+              const base = body.base || 'main';
+              const head = body.head || 'HEAD';
+              let commits = body.commits;
+              let diffs = body.diffs;
+              if (!commits || !diffs) {
+                [commits, diffs] = await Promise.all([
+                  gitService.getCommitsBetween(repoName, base, head),
+                  gitService.getBranchDiff(repoName, base, head),
+                ]);
+              }
+              const result = await agentService.generatePRDescription(repoName, base, head, commits, diffs);
+              return sendJson(res, 200, result);
+            }
+
             // GET /api/v1/repos/:name/pulls (list PRs)
             if (parts.length === 2 && req.method === 'GET') {
               const prRows = db.prepare(`

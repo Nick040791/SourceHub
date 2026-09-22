@@ -376,8 +376,11 @@ export class GitService {
   ): Promise<{ success: boolean; commitSha?: string; message: string }> {
     const repoPath = this.getRepoPath(name);
     try {
-      // 1. Checkout target branch
-      await runGit(repoPath, ['checkout', targetBranch]);
+      // 1. Checkout target branch if not already on it
+      const currentBranch = await this.getCurrentBranch(name);
+      if (currentBranch !== targetBranch) {
+        await runGit(repoPath, ['checkout', targetBranch]);
+      }
 
       // 2. Perform merge based on strategy
       if (strategy === 'squash') {

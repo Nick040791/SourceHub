@@ -101,6 +101,19 @@ export const api = {
     return await res.json();
   },
 
+  async generatePRDescription(
+    repoName: string,
+    data: { base: string; head: string; commits?: Commit[]; diffs?: DiffFile[] }
+  ): Promise<{ title?: string; description: string }> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/generate-description`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error('Failed to generate description with Helper');
+    return await res.json();
+  },
+
   async createPR(
     repoName: string,
     data: { title: string; body?: string; sourceBranch: string; targetBranch: string; isAgent?: boolean; agentRunId?: string }

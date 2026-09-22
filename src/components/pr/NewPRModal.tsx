@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { GitPullRequest, X, GitBranch, ArrowRight, CheckCircle2, Loader2 } from 'lucide-react';
+import { GitPullRequest, X, GitBranch, ArrowRight, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { api } from '../../services/api';
 import { Commit, DiffFile } from '../../types';
 
@@ -28,6 +28,7 @@ export const NewPRModal: React.FC<NewPRModalProps> = ({
   const [body, setBody] = useState('');
   const [isComparing, setIsComparing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
   const [commits, setCommits] = useState<Commit[]>([]);
   const [diffs, setDiffs] = useState<DiffFile[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +62,31 @@ export const NewPRModal: React.FC<NewPRModalProps> = ({
 
     return () => { isMounted = false; };
   }, [repoName, baseBranch, headBranch]);
+
+  const handleGenerateDescription = async () => {
+    if (!repoName || !baseBranch || !headBranch || baseBranch === headBranch) return;
+    setIsGeneratingDescription(true);
+    setError(null);
+    try {
+      const res = await api.generatePRDescription(repoName, {
+        base: baseBranch,
+        head: headBranch,
+        commits,
+        diffs,
+      });
+      if (res && res.description) {
+        setBody(res.description);
+      }
+      if (res && res.title && !title) {
+        setTitle(res.title);
+      }
+    } catch (err: any) {
+      console.error('Failed to generate PR description:', err);
+      setError(err.message || 'Failed to generate description with Helper');
+    } finally {
+      setIsGeneratingDescription(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -191,12 +217,33 @@ export const NewPRModal: React.FC<NewPRModalProps> = ({
           </div>
 
           <div className="space-y-1">
-            <label className="block text-hub-muted font-bold text-[11px] uppercase tracking-wider">
-              Description
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="block text-hub-muted font-bold text-[11px] uppercase tracking-wider">
+                Description
+              </label>
+              <button
+                type="button"
+                onClick={handleGenerateDescription}
+                disabled={isGeneratingDescription || baseBranch === headBranch}
+                className="text-xs text-purple-400 hover:text-purple-300 flex items-center space-x-1.5 disabled:opacity-50 transition-colors font-medium px-2 py-0.5 rounded bg-purple-950/40 border border-purple-800/50 hover:bg-purple-900/40"
+                title="Use Helper to analyze commits and diffs to generate a description"
+              >
+                {isGeneratingDescription ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span>Generating description with Helper...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3 h-3 text-purple-400" />
+                    <span>Generate description with Helper</span>
+                  </>
+                )}
+              </button>
+            </div>
             <textarea
-              rows={4}
-              placeholder="Explain the changes in this pull request..."
+              rows={5}
+              placeholder="Explain the changes in this pull request... or click 'Generate description with Helper'"
               value={body}
               onChange={(e) => setBody(e.target.value)}
               className="w-full bg-hub-bg border border-hub-border rounded p-2.5 text-hub-text focus:outline-none focus:border-hub-link"

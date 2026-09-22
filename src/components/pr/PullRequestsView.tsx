@@ -84,10 +84,24 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
     setIsMerging(true);
     try {
       await api.mergePR(repoName, selectedPR.id, mergeStrategy);
+      // Brief pause to allow Vite HMR/file-watcher to settle if working tree was modified
+      await new Promise(r => setTimeout(r, 600));
       await loadPRDetail(selectedPR.id);
       const prs = await api.fetchPRs(repoName);
       setPullRequests(prs);
     } catch (err: any) {
+      // If a transient network disconnect happened during Vite file watch restart, retry loading PR detail
+      if (err.message?.includes('NetworkError') || err.message?.includes('fetch') || err.name === 'TypeError') {
+        try {
+          await new Promise(r => setTimeout(r, 1200));
+          await loadPRDetail(selectedPR.id);
+          const prs = await api.fetchPRs(repoName);
+          setPullRequests(prs);
+          return;
+        } catch {
+          // If retry also failed, display error
+        }
+      }
       alert(`Merge error: ${err.message}`);
     } finally {
       setIsMerging(false);

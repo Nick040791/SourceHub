@@ -322,4 +322,85 @@ Operator Nicholas Beighley has requested a task. Analyze the request and provide
       WHERE id = ?
     `).run(JSON.stringify(['.sourcehub/agent-runs/' + slug + '.md']), runId);
   }
+
+  // 6. Generate PR Description using Ollama Helper
+  async generatePRDescription(
+    repoName: string,
+    baseBranch: string,
+    headBranch: string,
+    commits: any[] = [],
+    diffs: any[] = []
+  ): Promise<{ title: string; description: string }> {
+    const settings = this.getAISettings();
+    const ollamaUrl = settings.ollamaUrl || 'http://localhost:11434';
+    const model = settings.defaultModel || 'glm-5.3-flash:cloud';
+
+    const commitList = commits.map(c => `- ${c.shortSha || c.sha?.substring(0, 7)}: ${c.message}`).join('\n');
+    const fileList = diffs.slice(0, 15).map(d => `- ${d.filename} (+${d.additions} / -${d.deletions})`).join('\n');
+
+    const prompt = `You are SourceHub Helper, an expert AI software engineer.
+Generate a concise, professional GitHub-style Pull Request title and description in Markdown for these changes:
+Repository: ${repoName}
+Base branch: ${baseBranch}
+Head branch: ${headBranch}
+
+Commits:
+${commitList || 'No commits'}
+
+Files Modified:
+${fileList || 'No files listed'}
+
+Format your response strictly as:
+TITLE: <concise conventional title>
+### Summary
+<2-3 concise sentences explaining the changes and intent>
+
+### Key Changes
+<bullet points of key additions, updates, or fixes>
+
+### Verification
+<bullet points of how changes can be tested or verified>
+`;
+
+    try {
+      const res = await fetch(`${ollamaUrl}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          prompt,
+          stream: false,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const raw = (data.response || '').trim();
+        let title = '';
+        let description = raw;
+
+        if (raw.includes('TITLE:')) {
+          const lines = raw.split('\n');
+          const titleLineIdx = lines.findIndex(l => l.includes('TITLE:'));
+          if (titleLineIdx !== -1) {
+            title = lines[titleLineIdx].replace(/.*TITLE:\s*/, '').trim();
+            lines.splice(titleLineIdx, 1);
+            description = lines.join('\n').trim();
+          }
+        }
+
+        return {
+          title: title || (commits[0]?.message || `Merge ${headBranch} into ${baseBranch}`),
+          description: description || `### Summary\nPull request comparing \`${headBranch}\` into \`${baseBranch}\`.`,
+        };
+      }
+    } catch (e: any) {
+      console.warn('Could not generate PR description via Ollama:', e.message);
+    }
+
+    return {
+      title: commits[0]?.message || `Merge ${headBranch} into ${baseBranch}`,
+      description: `### Summary\nPull request comparing \`${headBranch}\` into \`${baseBranch}\`.\n\n### Commits\n${commitList}\n\n### Files Changed\n${fileList}`,
+    };
+  }
 }
