@@ -14,7 +14,8 @@ import {
   Sparkles,
   ArrowRight,
   Plus,
-  Loader2
+  Loader2,
+  XCircle
 } from 'lucide-react';
 import { PullRequest, PRReviewComment } from '../../types';
 import { api } from '../../services/api';
@@ -43,8 +44,12 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
   const [isLoadingPRs, setIsLoadingPRs] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [commentInput, setCommentInput] = useState('');
-  const [filterState, setFilterState] = useState<'open' | 'merged'>('open');
+  const [filterState, setFilterState] = useState<'open' | 'closed'>('open');
   const [showNewPRModal, setShowNewPRModal] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+  const [isReopening, setIsReopening] = useState(false);
+  const [isReviewing, setIsReviewing] = useState(false);
+  const [isAddressingComments, setIsAddressingComments] = useState(false);
 
   const loadPRs = async () => {
     setIsLoadingPRs(true);
@@ -108,6 +113,67 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
     }
   };
 
+  const handleClosePR = async () => {
+    if (!selectedPR) return;
+    setIsClosing(true);
+    try {
+      await api.closePR(repoName, selectedPR.id, commentInput.trim() || undefined);
+      setCommentInput('');
+      await loadPRDetail(selectedPR.id);
+      const prs = await api.fetchPRs(repoName);
+      setPullRequests(prs);
+    } catch (err: any) {
+      alert(`Close PR error: ${err.message}`);
+    } finally {
+      setIsClosing(false);
+    }
+  };
+
+  const handleReopenPR = async () => {
+    if (!selectedPR) return;
+    setIsReopening(true);
+    try {
+      await api.reopenPR(repoName, selectedPR.id);
+      await loadPRDetail(selectedPR.id);
+      const prs = await api.fetchPRs(repoName);
+      setPullRequests(prs);
+    } catch (err: any) {
+      alert(`Reopen PR error: ${err.message}`);
+    } finally {
+      setIsReopening(false);
+    }
+  };
+
+  const handleReviewWithHelper = async () => {
+    if (!selectedPR) return;
+    setIsReviewing(true);
+    try {
+      await api.reviewPRWithHelper(repoName, selectedPR.id);
+      await loadPRDetail(selectedPR.id);
+      const prs = await api.fetchPRs(repoName);
+      setPullRequests(prs);
+    } catch (err: any) {
+      alert(`Helper Review error: ${err.message}`);
+    } finally {
+      setIsReviewing(false);
+    }
+  };
+
+  const handleAskAgentToAddress = async () => {
+    if (!selectedPR) return;
+    setIsAddressingComments(true);
+    try {
+      await api.addressPRCommentsWithHelper(repoName, selectedPR.id);
+      await loadPRDetail(selectedPR.id);
+      const prs = await api.fetchPRs(repoName);
+      setPullRequests(prs);
+    } catch (err: any) {
+      alert(`Error addressing comments: ${err.message}`);
+    } finally {
+      setIsAddressingComments(false);
+    }
+  };
+
   const handleAddComment = async () => {
     if (!commentInput.trim() || !selectedPR) return;
     try {
@@ -116,21 +182,6 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
       await loadPRDetail(selectedPR.id);
     } catch (err: any) {
       alert(`Comment error: ${err.message}`);
-    }
-  };
-
-  const handleAskAgentToAddress = async () => {
-    if (!selectedPR) return;
-    try {
-      await api.addPRComment(
-        repoName,
-        selectedPR.id,
-        `🤖 **Helper notified:** Received review request to address recent comments. Spinning up container worktree against \`${selectedPR.sourceBranch}\`...`,
-        true
-      );
-      await loadPRDetail(selectedPR.id);
-    } catch (err: any) {
-      alert(`Error: ${err.message}`);
     }
   };
 
@@ -156,9 +207,9 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
           </button>
 
           <button 
-            onClick={() => setFilterState('merged')}
+            onClick={() => setFilterState('closed')}
             className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md font-medium border transition-colors ${
-              filterState === 'merged'
+              filterState === 'closed'
                 ? 'bg-hub-subtle text-hub-text border-hub-border font-bold' 
                 : 'text-hub-muted border-transparent hover:text-white'
             }`}
@@ -218,6 +269,8 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                       <span className="font-bold text-hub-text flex items-center space-x-1.5 truncate pr-2">
                         {pr.state === 'merged' ? (
                           <GitMerge className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                        ) : pr.state === 'closed' ? (
+                          <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
                         ) : (
                           <GitPullRequest className="w-3.5 h-3.5 text-hub-success-text shrink-0" />
                         )}
@@ -250,18 +303,67 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                     <h1 className="text-xl font-bold text-hub-text">
                       {selectedPR.title} <span className="text-hub-muted font-normal">#{selectedPR.id}</span>
                     </h1>
+
+                    <div className="flex items-center space-x-2 shrink-0">
+                      {selectedPR.state === 'open' && (
+                        <button
+                          onClick={handleReviewWithHelper}
+                          disabled={isReviewing}
+                          className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-purple-950/60 hover:bg-purple-900 border border-purple-700 text-purple-300 text-xs font-medium transition-colors disabled:opacity-50"
+                          title="Generate a full staff-engineer code review using Helper"
+                        >
+                          {isReviewing ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Reviewing...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                              <span>Review with Helper</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                      {selectedPR.state === 'open' ? (
+                        <button
+                          onClick={handleClosePR}
+                          disabled={isClosing}
+                          className="px-2.5 py-1.5 bg-hub-subtle hover:bg-red-950/60 text-red-400 hover:text-red-300 border border-hub-border hover:border-red-800 rounded text-xs font-medium flex items-center space-x-1 transition-colors disabled:opacity-50"
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                          <span>Close</span>
+                        </button>
+                      ) : selectedPR.state === 'closed' ? (
+                        <button
+                          onClick={handleReopenPR}
+                          disabled={isReopening}
+                          className="px-2.5 py-1.5 bg-hub-subtle hover:bg-green-950/60 text-hub-success-text border border-hub-border hover:border-green-800 rounded text-xs font-medium flex items-center space-x-1 transition-colors disabled:opacity-50"
+                        >
+                          <GitPullRequest className="w-3.5 h-3.5" />
+                          <span>Reopen</span>
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
 
                   <div className="flex items-center space-x-3 text-xs flex-wrap gap-y-2">
                     <span className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
                       selectedPR.state === 'merged'
                         ? 'bg-purple-900/60 text-purple-300 border border-purple-700'
+                        : selectedPR.state === 'closed'
+                        ? 'bg-red-900/60 text-red-300 border border-red-700'
                         : 'bg-green-900/60 text-hub-success-text border border-green-700'
                     }`}>
                       {selectedPR.state === 'merged' ? (
                         <>
                           <GitMerge className="w-3.5 h-3.5" />
                           <span>Merged</span>
+                        </>
+                      ) : selectedPR.state === 'closed' ? (
+                        <>
+                          <XCircle className="w-3.5 h-3.5" />
+                          <span>Closed</span>
                         </>
                       ) : (
                         <>
@@ -392,53 +494,93 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                         </div>
 
                         <div className="flex items-center space-x-2">
-                          <select
-                            value={mergeStrategy}
-                            onChange={(e) => setMergeStrategy(e.target.value as any)}
-                            disabled={selectedPR.state === 'merged'}
-                            className="bg-hub-bg border border-hub-border rounded px-2.5 py-1 text-xs text-hub-text font-medium focus:outline-none"
-                          >
-                            <option value="squash">Squash and merge (recommended)</option>
-                            <option value="merge">Create a merge commit (--no-ff)</option>
-                            <option value="rebase">Rebase and merge</option>
-                          </select>
+                          {selectedPR.state === 'closed' ? (
+                            <span className="text-xs text-red-400 font-medium px-2.5 py-1 bg-red-950/40 border border-red-800/50 rounded">
+                              Pull request is closed. Reopen to enable merging.
+                            </span>
+                          ) : (
+                            <>
+                              <select
+                                value={mergeStrategy}
+                                onChange={(e) => setMergeStrategy(e.target.value as any)}
+                                disabled={selectedPR.state === 'merged'}
+                                className="bg-hub-bg border border-hub-border rounded px-2.5 py-1 text-xs text-hub-text font-medium focus:outline-none"
+                              >
+                                <option value="squash">Squash and merge (recommended)</option>
+                                <option value="merge">Create a merge commit (--no-ff)</option>
+                                <option value="rebase">Rebase and merge</option>
+                              </select>
 
-                          <button
-                            onClick={handleMerge}
-                            disabled={isMerging || selectedPR.state === 'merged'}
-                            className={`px-3 py-1.5 rounded-md text-xs font-semibold text-white shadow-sm transition-colors flex items-center space-x-1.5 ${
-                              selectedPR.state === 'merged'
-                                ? 'bg-hub-border text-hub-muted cursor-not-allowed'
-                                : 'bg-hub-success hover:bg-green-700'
-                            }`}
-                          >
-                            {isMerging ? (
-                              <>
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                <span>Merging...</span>
-                              </>
-                            ) : selectedPR.state === 'merged' ? (
-                              <span>Merged</span>
-                            ) : (
-                              <span>Confirm Merge</span>
-                            )}
-                          </button>
+                              <button
+                                onClick={handleMerge}
+                                disabled={isMerging || selectedPR.state === 'merged'}
+                                className={`px-3 py-1.5 rounded-md text-xs font-semibold text-white shadow-sm transition-colors flex items-center space-x-1.5 ${
+                                  selectedPR.state === 'merged'
+                                    ? 'bg-hub-border text-hub-muted cursor-not-allowed'
+                                    : 'bg-hub-success hover:bg-green-700'
+                                }`}
+                              >
+                                {isMerging ? (
+                                  <>
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    <span>Merging...</span>
+                                  </>
+                                ) : selectedPR.state === 'merged' ? (
+                                  <span>Merged</span>
+                                ) : (
+                                  <span>Confirm Merge</span>
+                                )}
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
 
-                      {/* Helper Action */}
-                      <div className="pt-2 border-t border-hub-border/60 flex items-center justify-between">
+                      {/* Helper Actions */}
+                      <div className="pt-2 border-t border-hub-border/60 flex items-center justify-between flex-wrap gap-2">
                         <div className="flex items-center space-x-2 text-xs text-hub-muted">
                           <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-                          <span>Have Agent address comments?</span>
+                          <span>Helper automated review & resolution</span>
                         </div>
-                        <button
-                          onClick={handleAskAgentToAddress}
-                          className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-purple-950/60 hover:bg-purple-900 border border-purple-700 text-purple-300 text-xs font-medium transition-colors"
-                        >
-                          <Bot className="w-3.5 h-3.5" />
-                          <span>Address review comments</span>
-                        </button>
+                        <div className="flex items-center space-x-2">
+                          {selectedPR.state === 'open' && (
+                            <button
+                              onClick={handleReviewWithHelper}
+                              disabled={isReviewing}
+                              className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-purple-950/60 hover:bg-purple-900 border border-purple-700 text-purple-300 text-xs font-medium transition-colors disabled:opacity-50"
+                              title="Helper will inspect PR diff and files to provide a code review"
+                            >
+                              {isReviewing ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  <span>Reviewing with Helper...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                                  <span>Review PR with Helper</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+                          <button
+                            onClick={handleAskAgentToAddress}
+                            disabled={isAddressingComments || selectedPR.state !== 'open'}
+                            className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-purple-950/60 hover:bg-purple-900 border border-purple-700 text-purple-300 text-xs font-medium transition-colors disabled:opacity-50"
+                          >
+                            {isAddressingComments ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <span>Addressing comments...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Bot className="w-3.5 h-3.5" />
+                                <span>Address review comments</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -451,7 +593,28 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                         rows={3}
                         className="w-full bg-hub-bg border border-hub-border rounded-md p-2.5 text-xs text-hub-text focus:outline-none focus:border-hub-link"
                       />
-                      <div className="flex justify-end">
+                      <div className="flex items-center justify-end space-x-2">
+                        {selectedPR.state === 'open' ? (
+                          <button
+                            type="button"
+                            onClick={handleClosePR}
+                            disabled={isClosing}
+                            className="px-3 py-1 bg-hub-subtle hover:bg-red-950/60 text-red-400 hover:text-red-300 border border-hub-border hover:border-red-800 rounded text-xs font-semibold flex items-center space-x-1.5 transition-colors disabled:opacity-50"
+                          >
+                            <XCircle className="w-3.5 h-3.5" />
+                            <span>{isClosing ? 'Closing...' : commentInput.trim() ? 'Close with comment' : 'Close pull request'}</span>
+                          </button>
+                        ) : selectedPR.state === 'closed' ? (
+                          <button
+                            type="button"
+                            onClick={handleReopenPR}
+                            disabled={isReopening}
+                            className="px-3 py-1 bg-hub-subtle hover:bg-green-950/60 text-hub-success-text border border-hub-border hover:border-green-800 rounded text-xs font-semibold flex items-center space-x-1.5 transition-colors disabled:opacity-50"
+                          >
+                            <GitPullRequest className="w-3.5 h-3.5" />
+                            <span>{isReopening ? 'Reopening...' : 'Reopen pull request'}</span>
+                          </button>
+                        ) : null}
                         <button
                           onClick={handleAddComment}
                           disabled={!commentInput.trim()}

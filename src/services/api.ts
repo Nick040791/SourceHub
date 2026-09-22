@@ -156,6 +156,44 @@ export const api = {
     return await res.json();
   },
 
+  async closePR(repoName: string, id: number, comment?: string): Promise<void> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/${id}/close`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ comment }),
+    });
+    if (!res.ok) throw new Error('Failed to close pull request');
+  },
+
+  async reopenPR(repoName: string, id: number): Promise<void> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/${id}/reopen`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    if (!res.ok) throw new Error('Failed to reopen pull request');
+  },
+
+  async reviewPRWithHelper(repoName: string, id: number): Promise<{ review: string }> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/${id}/review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    if (!res.ok) throw new Error('Failed to review pull request with Helper');
+    return await res.json();
+  },
+
+  async addressPRCommentsWithHelper(repoName: string, id: number): Promise<{ response: string }> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/${id}/address-comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    if (!res.ok) throw new Error('Failed to address comments with Helper');
+    return await res.json();
+  },
+
   // --- Real Issues ---
   async fetchIssues(repoName: string): Promise<any[]> {
     const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/issues`);

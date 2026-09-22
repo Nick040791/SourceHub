@@ -433,6 +433,82 @@ export function vitePluginGitApi(): Plugin {
 
               return sendJson(res, 200, mergeResult);
             }
+
+            // POST /api/v1/repos/:name/pulls/:id/close
+            if (parts.length === 4 && parts[3] === 'close' && req.method === 'POST') {
+              const p = db.prepare('SELECT * FROM pull_requests WHERE id = ? AND repo_name = ?').get(prId, repoName) as any;
+              if (!p) return sendError(res, 404, 'Pull request not found');
+
+              const body = await readJsonBody(req);
+              const comment = body.comment?.trim();
+
+              db.prepare("UPDATE pull_requests SET state = 'closed', updated_at = 'Just now' WHERE id = ?").run(prId);
+
+              if (comment) {
+                db.prepare(`
+                  INSERT INTO pr_comments (pr_id, author, is_agent, content, created_at)
+                  VALUES (?, ?, ?, ?, ?)
+                `).run(prId, 'Nicholas Beighley', 0, comment, 'Just now');
+              }
+
+              db.prepare(`
+                INSERT INTO pr_comments (pr_id, author, is_agent, content, created_at)
+                VALUES (?, ?, ?, ?, ?)
+              `).run(prId, 'Nicholas Beighley', 0, 'Closed this pull request.', 'Just now');
+
+              return sendJson(res, 200, { success: true, state: 'closed' });
+            }
+
+            // POST /api/v1/repos/:name/pulls/:id/reopen
+            if (parts.length === 4 && parts[3] === 'reopen' && req.method === 'POST') {
+              const p = db.prepare('SELECT * FROM pull_requests WHERE id = ? AND repo_name = ?').get(prId, repoName) as any;
+              if (!p) return sendError(res, 404, 'Pull request not found');
+
+              db.prepare("UPDATE pull_requests SET state = 'open', updated_at = 'Just now' WHERE id = ?").run(prId);
+
+              db.prepare(`
+                INSERT INTO pr_comments (pr_id, author, is_agent, content, created_at)
+                VALUES (?, ?, ?, ?, ?)
+              `).run(prId, 'Nicholas Beighley', 0, 'Reopened this pull request.', 'Just now');
+
+              return sendJson(res, 200, { success: true, state: 'open' });
+            }
+
+            // PATCH /api/v1/repos/:name/pulls/:id
+            if (parts.length === 3 && req.method === 'PATCH') {
+              const p = db.prepare('SELECT * FROM pull_requests WHERE id = ? AND repo_name = ?').get(prId, repoName) as any;
+              if (!p) return sendError(res, 404, 'Pull request not found');
+
+              const body = await readJsonBody(req);
+              if (body.state) {
+                db.prepare("UPDATE pull_requests SET state = ?, updated_at = 'Just now' WHERE id = ?").run(body.state, prId);
+              }
+              if (body.title) {
+                db.prepare("UPDATE pull_requests SET title = ?, updated_at = 'Just now' WHERE id = ?").run(body.title, prId);
+              }
+              if (body.body !== undefined) {
+                db.prepare("UPDATE pull_requests SET body = ?, updated_at = 'Just now' WHERE id = ?").run(body.body, prId);
+              }
+              return sendJson(res, 200, { success: true });
+            }
+
+            // POST /api/v1/repos/:name/pulls/:id/review (run full automated Helper code review)
+            if (parts.length === 4 && parts[3] === 'review' && req.method === 'POST') {
+              const p = db.prepare('SELECT * FROM pull_requests WHERE id = ? AND repo_name = ?').get(prId, repoName) as any;
+              if (!p) return sendError(res, 404, 'Pull request not found');
+
+              const result = await agentService.reviewPullRequest(repoName, prId);
+              return sendJson(res, 200, result);
+            }
+
+            // POST /api/v1/repos/:name/pulls/:id/address-comments
+            if (parts.length === 4 && parts[3] === 'address-comments' && req.method === 'POST') {
+              const p = db.prepare('SELECT * FROM pull_requests WHERE id = ? AND repo_name = ?').get(prId, repoName) as any;
+              if (!p) return sendError(res, 404, 'Pull request not found');
+
+              const result = await agentService.addressReviewComments(repoName, prId);
+              return sendJson(res, 200, result);
+            }
           }
 
           // --- Real Issues ---

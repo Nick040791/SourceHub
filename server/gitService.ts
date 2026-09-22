@@ -498,6 +498,84 @@ export class GitService {
     return await runGit(repoPath, ['show', `${targetRef}:${filePath}`]);
   }
 
+  async getAllTrackedFiles(name: string, ref: string = 'HEAD'): Promise<string[]> {
+    const repoPath = this.getRepoPath(name);
+    try {
+      const out = await runGit(repoPath, ['ls-tree', '-r', '--name-only', ref]);
+      return out.split('\n').map(s => s.trim()).filter(Boolean);
+    } catch {
+      try {
+        const out = await runGit(repoPath, ['ls-files']);
+        return out.split('\n').map(s => s.trim()).filter(Boolean);
+      } catch {
+        return [];
+      }
+    }
+  }
+
+  async getUnifiedDiff(name: string, base: string, head: string): Promise<string> {
+    const repoPath = this.getRepoPath(name);
+    try {
+      return await runGit(repoPath, ['diff', `${base}...${head}`]);
+    } catch {
+      try {
+        return await runGit(repoPath, ['diff', `${base}..${head}`]);
+      } catch {
+        return '';
+      }
+    }
+  }
+
+  async getRepoSnapshot(
+    name: string,
+    ref: string = 'HEAD',
+    maxChars: number = 120000
+  ): Promise<{ fileTree: string[]; files: { path: string; content: string }[]; totalTracked: number }> {
+    const allFiles = await this.getAllTrackedFiles(name, ref);
+    const ignoredExtensions = new Set([
+      '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.woff', '.woff2', '.ttf',
+      '.eot', '.mp4', '.mp3', '.wav', '.zip', '.tar', '.gz', '.pdf', '.bin',
+      '.wasm', '.exe', '.so', '.dylib', '.map'
+    ]);
+    const ignoredFiles = new Set([
+      'package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', '.DS_Store'
+    ]);
+
+    const readableFiles = allFiles.filter(f => {
+      const lower = f.toLowerCase();
+      const base = path.basename(lower);
+      if (ignoredFiles.has(base)) return false;
+      const ext = path.extname(lower);
+      if (ignoredExtensions.has(ext)) return false;
+      if (lower.includes('.min.')) return false;
+      return true;
+    });
+
+    const loadedFiles: { path: string; content: string }[] = [];
+    let currentChars = 0;
+
+    for (const filePath of readableFiles) {
+      if (currentChars >= maxChars) break;
+      try {
+        const content = await this.getBlob(name, ref, filePath);
+        if (content && typeof content === 'string') {
+          // If a single file is monstrous, cap it
+          const trimmed = content.length > 20000 ? content.substring(0, 20000) + '\n... [truncated]' : content;
+          loadedFiles.push({ path: filePath, content: trimmed });
+          currentChars += trimmed.length;
+        }
+      } catch (err) {
+        // Skip unreadable files
+      }
+    }
+
+    return {
+      fileTree: allFiles,
+      files: loadedFiles,
+      totalTracked: allFiles.length,
+    };
+  }
+
   async detectWorkflows(name: string): Promise<WorkflowSummary[]> {
     const repoPath = this.getRepoPath(name);
     const workflows: WorkflowSummary[] = [];
