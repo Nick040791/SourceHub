@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root,
+.theme-high-contrast-dark {
+  --hub-bg: 1, 4, 9;
+  --hub-surface: 13, 17, 23;
+  --hub-subtle: 22, 27, 34;
+  --hub-border: 90, 100, 114;
+  --hub-border-strong: 150, 160, 175;
+  --hub-muted: 205, 217, 229;
+  --hub-text: 255, 255, 255;
+  --hub-link: 121, 192, 255;
+  --hub-success: 46, 160, 67;
+  --hub-success-text: 86, 211, 100;
+  --hub-warning: 187, 128, 9;
+  --hub-warning-text: 240, 136, 62;
+  --hub-danger: 248, 81, 73;
+  --hub-danger-text: 255, 123, 114;
+  --hub-purple: 163, 113, 247;
+  --hub-purple-text: 210, 168, 255;
+  --hub-accent: 88, 166, 255;
+}
+
+.theme-dark {
+  --hub-bg: 13, 17, 23;
+  --hub-surface: 22, 27, 34;
+  --hub-subtle: 33, 38, 45;
+  --hub-border: 48, 54, 61;
+  --hub-border-strong: 72, 79, 88;
+  --hub-muted: 139, 148, 158;
+  --hub-text: 230, 237, 243;
+  --hub-link: 88, 166, 255;
+  --hub-success: 35, 134, 54;
+  --hub-success-text: 63, 185, 80;
+  --hub-warning: 158, 106, 3;
+  --hub-warning-text: 210, 153, 34;
+  --hub-danger: 218, 54, 51;
+  --hub-danger-text: 248, 81, 73;
+  --hub-purple: 137, 87, 229;
+  --hub-purple-text: 163, 113, 247;
+  --hub-accent: 47, 129, 247;
+}
+
+.theme-high-contrast-light {
+  --hub-bg: 255, 255, 255;
+  --hub-surface: 246, 248, 250;
+  --hub-subtle: 234, 238, 242;
+  --hub-border: 31, 35, 40;
+  --hub-border-strong: 0, 0, 0;
+  --hub-muted: 40, 48, 56;
+  --hub-text: 0, 0, 0;
+  --hub-link: 9, 105, 218;
+  --hub-success: 26, 127, 55;
+  --hub-success-text: 26, 127, 55;
+  --hub-warning: 154, 103, 0;
+  --hub-warning-text: 112, 71, 0;
+  --hub-danger: 207, 34, 46;
+  --hub-danger-text: 164, 14, 38;
+  --hub-purple: 130, 80, 223;
+  --hub-purple-text: 102, 57, 186;
+  --hub-accent: 9, 105, 218;
+}
+
+@layer base {
+  body {
+    @apply bg-hub-bg text-hub-text;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+  }
+
+  /* Enhancing form elements & cards with crisp borders in high contrast */
+  input, select, textarea {
+    @apply text-hub-text bg-hub-bg border-hub-border;
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(var(--hub-surface), 1);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(var(--hub-border), 1);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--hub-border-strong), 1);
+}
