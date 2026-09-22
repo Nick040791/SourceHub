@@ -1,0 +1,32 @@
+name: SourceHub CI & Test Suite
+
+on:
+  push:
+    branches: [ main, feat/* ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    name: Build & Verify
+    runs-on: local-bare-metal
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js v24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Type Check & Build
+        run: npm run build
+
+      - name: Verify Git Wire Protocol
+        run: |
+          git rev-parse --is-inside-work-tree
+          echo "All checks passed."

@@ -11,8 +11,11 @@ import {
   SlidersHorizontal,
   ChevronDown,
   Contrast,
-  Check
+  Check,
+  FolderGit2,
+  BookOpen
 } from 'lucide-react';
+import { Repository } from '../../types';
 
 export type AppTheme = 'high-contrast-dark' | 'dark' | 'high-contrast-light';
 
@@ -24,6 +27,10 @@ interface AppHeaderProps {
   activeAgentRunsCount: number;
   theme: AppTheme;
   onChangeTheme: (theme: AppTheme) => void;
+  repositories: Repository[];
+  selectedRepo: Repository;
+  onSelectRepo: (repo: Repository) => void;
+  onOpenNewRepoModal: () => void;
 }
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
@@ -33,8 +40,19 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   activeAgentRunsCount,
   theme,
   onChangeTheme,
+  repositories,
+  selectedRepo,
+  onSelectRepo,
+  onOpenNewRepoModal,
 }) => {
   const [showThemeMenu, setShowThemeMenu] = useState(false);
+  const [showRepoMenu, setShowRepoMenu] = useState(false);
+  const [repoSearch, setRepoSearch] = useState('');
+
+  const filteredRepos = repositories.filter(r => 
+    r.name.toLowerCase().includes(repoSearch.toLowerCase())
+  );
+
   return (
     <header className="bg-hub-surface border-b border-hub-border sticky top-0 z-40 px-4 py-2.5 flex items-center justify-between text-sm">
       {/* Left: Brand & Forge Breadcrumb */}
@@ -55,6 +73,85 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             </div>
             <span className="text-[11px] text-hub-muted font-mono leading-none">self-hosted • nicholas</span>
           </div>
+        </div>
+
+        {/* Repository Switcher Dropdown */}
+        <div className="relative pl-2 border-l border-hub-border">
+          <button
+            onClick={() => setShowRepoMenu(!showRepoMenu)}
+            className="flex items-center space-x-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-hub-bg hover:bg-hub-subtle border border-hub-border transition-colors text-hub-text"
+          >
+            <FolderGit2 className="w-3.5 h-3.5 text-hub-link" />
+            <span className="font-mono text-hub-muted">nicholas/</span>
+            <span className="font-mono font-bold text-hub-text">{selectedRepo.name}</span>
+            <ChevronDown className="w-3 h-3 text-hub-muted" />
+          </button>
+
+          {showRepoMenu && (
+            <div className="absolute left-2 mt-2 w-72 bg-hub-surface border border-hub-border rounded-lg shadow-2xl z-50 p-2 text-xs animate-in fade-in duration-100">
+              <div className="pb-2 border-b border-hub-border mb-2 space-y-1.5">
+                <span className="text-[10px] font-bold text-hub-muted uppercase tracking-wider block px-1">
+                  Switch Repository
+                </span>
+                <input
+                  type="text"
+                  placeholder="Filter repositories..."
+                  value={repoSearch}
+                  onChange={(e) => setRepoSearch(e.target.value)}
+                  autoFocus
+                  className="w-full bg-hub-bg border border-hub-border rounded px-2.5 py-1 text-xs text-hub-text focus:outline-none focus:border-hub-link"
+                />
+              </div>
+
+              <div className="max-h-56 overflow-y-auto space-y-1">
+                {filteredRepos.map((r) => {
+                  const isCurrent = r.name === selectedRepo.name;
+                  return (
+                    <button
+                      key={r.name}
+                      onClick={() => {
+                        onSelectRepo(r);
+                        setShowRepoMenu(false);
+                      }}
+                      className={`w-full flex items-center justify-between p-2 rounded transition-colors text-left ${
+                        isCurrent ? 'bg-hub-subtle border border-hub-accent/40 font-bold' : 'hover:bg-hub-subtle/60'
+                      }`}
+                    >
+                      <div className="space-y-0.5 truncate pr-2">
+                        <div className="text-hub-text font-mono font-medium truncate flex items-center space-x-1.5">
+                          <FolderGit2 className="w-3.5 h-3.5 text-hub-muted" />
+                          <span>{r.name}</span>
+                        </div>
+                        <div className="text-[10px] text-hub-muted font-mono">
+                          {r.defaultBranch} • updated {r.updatedAt}
+                        </div>
+                      </div>
+                      {isCurrent && <Check className="w-3.5 h-3.5 text-hub-success-text shrink-0" />}
+                    </button>
+                  );
+                })}
+
+                {filteredRepos.length === 0 && (
+                  <div className="text-center py-4 text-hub-muted text-xs">
+                    No repositories match "{repoSearch}"
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-2 border-t border-hub-border mt-2">
+                <button
+                  onClick={() => {
+                    setShowRepoMenu(false);
+                    onOpenNewRepoModal();
+                  }}
+                  className="w-full flex items-center space-x-1.5 px-2.5 py-1.5 rounded hover:bg-hub-subtle text-hub-accent font-semibold transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Create New Repository...</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Global Search Bar */}

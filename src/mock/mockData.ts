@@ -17,10 +17,10 @@ export const mockRepo: Repository = {
   owner: 'nicholas',
   description: 'Self-hosted single-operator git forge with async Helper Agents, Actions CI, and encrypted secrets.',
   visibility: 'private',
-  defaultBranch: 'master',
+  defaultBranch: 'main',
   starsCount: 1,
   forksCount: 0,
-  branches: ['master', 'feat/ssh-auth', 'agent/run-84f2-auth-scope', 'agent/run-91c0-worktree-refactor'],
+  branches: ['main', 'feat/git-repo-operations', 'feat/ssh-auth', 'agent/run-84f2-auth-scope'],
   tags: ['v0.1.0-alpha', 'v0.1.0-preview'],
   updatedAt: '12 minutes ago',
 };

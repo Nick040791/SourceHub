@@ -1,22 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Key, 
   Lock, 
-  ShieldAlert, 
   Globe, 
   Cpu, 
   Plus, 
   Trash2, 
   Check, 
-  Copy, 
-  Eye, 
-  EyeOff, 
-  RefreshCw, 
-  Sliders, 
-  AlertCircle,
-  FileCode,
-  Terminal,
-  ShieldCheck
+  Terminal, 
+  ShieldCheck,
+  Loader2,
+  RotateCw
 } from 'lucide-react';
 import { 
   Secret, 
@@ -25,46 +19,96 @@ import {
   TokenScope, 
   Webhook 
 } from '../../types';
+import { api } from '../../services/api';
 
 interface SettingsViewProps {
-  secrets: Secret[];
-  sshKeys: SSHKey[];
-  tokens: PersonalAccessToken[];
-  webhooks: Webhook[];
+  repoName: string;
+  webhooks?: Webhook[];
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
-  secrets: initialSecrets,
-  sshKeys: initialSSHKeys,
-  tokens: initialTokens,
-  webhooks: initialWebhooks,
+  repoName,
+  webhooks: initialWebhooks = [],
 }) => {
   const [activeSection, setActiveSection] = useState<'secrets' | 'keys' | 'tokens' | 'webhooks' | 'providers'>('secrets');
 
   // Secrets state
-  const [secretsList, setSecretsList] = useState<Secret[]>(initialSecrets);
+  const [secretsList, setSecretsList] = useState<Secret[]>([]);
   const [showAddSecret, setShowAddSecret] = useState(false);
   const [newSecretName, setNewSecretName] = useState('');
   const [newSecretValue, setNewSecretValue] = useState('');
   const [newSecretScope, setNewSecretScope] = useState<'actions' | 'agent' | 'webhook'>('actions');
 
   // Tokens state
-  const [tokensList, setTokensList] = useState<PersonalAccessToken[]>(initialTokens);
+  const [tokensList, setTokensList] = useState<PersonalAccessToken[]>([]);
   const [showAddToken, setShowAddToken] = useState(false);
   const [newTokenName, setNewTokenName] = useState('');
   const [selectedScopes, setSelectedScopes] = useState<TokenScope[]>(['repo:read', 'pr:write']);
 
   // SSH Keys state
-  const [sshKeysList] = useState<SSHKey[]>(initialSSHKeys);
+  const [sshKeysList, setSshKeysList] = useState<SSHKey[]>([]);
+  const [showAddKey, setShowAddKey] = useState(false);
+  const [newKeyTitle, setNewKeyTitle] = useState('');
+  const [newKeyPublic, setNewKeyPublic] = useState('');
 
   // Webhooks state
   const [webhooksList, setWebhooksList] = useState<Webhook[]>(initialWebhooks);
+  const [showAddWebhook, setShowAddWebhook] = useState(false);
+  const [newWebhookUrl, setNewWebhookUrl] = useState('');
   const [showWebhookPayload, setShowWebhookPayload] = useState(false);
 
   // Provider state
   const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434');
-  const [ollamaModel, setOllamaModel] = useState('qwen2.5-coder:32b');
+  const [ollamaModel, setOllamaModel] = useState('glm-5.3-flash:cloud');
+  const [availableModels, setAvailableModels] = useState<string[]>(['glm-5.3-flash:cloud']);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [savedProvider, setSavedProvider] = useState(false);
+  const [customModelMode, setCustomModelMode] = useState(false);
+
+  const loadModels = async (url?: string) => {
+    setIsLoadingModels(true);
+    try {
+      const data = await api.fetchOllamaModels(url || ollamaUrl);
+      if (data.models && data.models.length > 0) {
+        setAvailableModels(data.models);
+        if (!ollamaModel || !data.models.includes(ollamaModel)) {
+          setOllamaModel(data.defaultModel || data.models[0]);
+        }
+      }
+    } catch (err) {
+      console.warn('Could not fetch Ollama models:', err);
+    } finally {
+      setIsLoadingModels(false);
+    }
+  };
+
+  // Load real data from SQLite
+  const loadData = async () => {
+    try {
+      const [sec, tok, k, whs, ai] = await Promise.all([
+        api.fetchSecrets(repoName).catch(() => []),
+        api.fetchTokens().catch(() => []),
+        api.fetchKeys().catch(() => []),
+        api.fetchWebhooks(repoName).catch(() => []),
+        api.fetchAISettings().catch(() => null),
+      ]);
+      setSecretsList(sec);
+      setTokensList(tok);
+      setSshKeysList(k);
+      setWebhooksList(whs);
+      if (ai) {
+        if (ai.ollamaUrl) setOllamaUrl(ai.ollamaUrl);
+        if (ai.defaultModel) setOllamaModel(ai.defaultModel);
+      }
+      loadModels(ai?.ollamaUrl || ollamaUrl);
+    } catch (err) {
+      console.warn('Could not load settings data:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [repoName]);
 
   const availableScopes: { scope: TokenScope; desc: string }[] = [
     { scope: 'repo:read', desc: 'Read code, commits, and branches' },
@@ -77,41 +121,72 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     { scope: 'admin', desc: 'Full administrative access to the repository' },
   ];
 
-  const handleAddSecret = (e: React.FormEvent) => {
+  const handleAddSecret = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newSecretName || !newSecretValue) return;
-    const newSec: Secret = {
-      id: `sec-${Date.now()}`,
-      name: newSecretName.toUpperCase(),
-      scope: newSecretScope,
-      maskedValue: '••••••••••••••••••••••••••••••••',
-      updatedAt: 'Just now',
-    };
-    setSecretsList([...secretsList, newSec]);
-    setNewSecretName('');
-    setNewSecretValue('');
-    setShowAddSecret(false);
+    if (!newSecretName.trim()) return;
+    try {
+      await api.createSecret(repoName, {
+        name: newSecretName.trim(),
+        scope: newSecretScope,
+      });
+      setNewSecretName('');
+      setNewSecretValue('');
+      setShowAddSecret(false);
+      loadData();
+    } catch (err: any) {
+      alert(`Error creating secret: ${err.message}`);
+    }
   };
 
-  const handleDeleteSecret = (id: string) => {
-    setSecretsList(secretsList.filter(s => s.id !== id));
+  const handleDeleteSecret = async (id: string) => {
+    try {
+      await api.deleteSecret(repoName, id);
+      loadData();
+    } catch (err: any) {
+      alert(`Error deleting secret: ${err.message}`);
+    }
   };
 
-  const handleCreateToken = (e: React.FormEvent) => {
+  const handleCreateToken = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTokenName) return;
-    const newToken: PersonalAccessToken = {
-      id: `tok-${Date.now()}`,
-      name: newTokenName,
-      tokenPrefix: `sh_pat_${Math.random().toString(36).substring(2, 6)}...`,
-      scopes: selectedScopes,
-      createdAt: 'Just now',
-      expiresAt: 'In 90 days',
-      lastUsed: 'Never'
-    };
-    setTokensList([...tokensList, newToken]);
-    setNewTokenName('');
-    setShowAddToken(false);
+    if (!newTokenName.trim()) return;
+    try {
+      await api.createToken({
+        name: newTokenName.trim(),
+        scopes: selectedScopes,
+      });
+      setNewTokenName('');
+      setShowAddToken(false);
+      loadData();
+    } catch (err: any) {
+      alert(`Error creating token: ${err.message}`);
+    }
+  };
+
+  const handleDeleteToken = async (id: string) => {
+    try {
+      await api.deleteToken(id);
+      loadData();
+    } catch (err: any) {
+      alert(`Error deleting token: ${err.message}`);
+    }
+  };
+
+  const handleAddKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newKeyTitle.trim() || !newKeyPublic.trim()) return;
+    try {
+      await api.createKey({
+        title: newKeyTitle.trim(),
+        publicKey: newKeyPublic.trim(),
+      });
+      setNewKeyTitle('');
+      setNewKeyPublic('');
+      setShowAddKey(false);
+      loadData();
+    } catch (err: any) {
+      alert(`Error saving SSH key: ${err.message}`);
+    }
   };
 
   const toggleScope = (scope: TokenScope) => {
@@ -122,9 +197,40 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
-  const handleSaveProvider = () => {
-    setSavedProvider(true);
-    setTimeout(() => setSavedProvider(false), 2000);
+  const handleAddWebhook = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newWebhookUrl.trim()) return;
+    try {
+      await api.createWebhook(repoName, { url: newWebhookUrl.trim() });
+      setNewWebhookUrl('');
+      setShowAddWebhook(false);
+      loadData();
+    } catch (err: any) {
+      alert(`Error creating webhook: ${err.message}`);
+    }
+  };
+
+  const handleDeleteWebhook = async (id: string) => {
+    try {
+      await api.deleteWebhook(repoName, id);
+      loadData();
+    } catch (err: any) {
+      alert(`Error deleting webhook: ${err.message}`);
+    }
+  };
+
+  const handleSaveProvider = async () => {
+    try {
+      await api.saveAISettings({
+        provider: 'ollama',
+        ollamaUrl,
+        defaultModel: ollamaModel,
+      });
+      setSavedProvider(true);
+      setTimeout(() => setSavedProvider(false), 2000);
+    } catch (err: any) {
+      alert(`Error saving AI settings: ${err.message}`);
+    }
   };
 
   return (
@@ -138,7 +244,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           }`}
         >
           <Lock className="w-4 h-4 text-hub-muted" />
-          <span>Secrets & Encryption</span>
+          <span>Secrets & Encryption ({secretsList.length})</span>
         </button>
 
         <button
@@ -148,7 +254,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           }`}
         >
           <Key className="w-4 h-4 text-hub-muted" />
-          <span>Access Tokens (PATs)</span>
+          <span>Access Tokens (PATs) ({tokensList.length})</span>
         </button>
 
         <button
@@ -158,7 +264,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           }`}
         >
           <Terminal className="w-4 h-4 text-hub-muted" />
-          <span>SSH & Deploy Keys</span>
+          <span>SSH & Deploy Keys ({sshKeysList.length})</span>
         </button>
 
         <button
@@ -191,10 +297,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <div>
                 <h3 className="text-sm font-bold text-hub-text flex items-center space-x-2">
                   <Lock className="w-4 h-4 text-hub-accent" />
-                  <span>Repository & Actions Secrets (§7)</span>
+                  <span>Secrets for {repoName} (§7)</span>
                 </h3>
                 <p className="text-xs text-hub-muted mt-0.5">
-                  Secrets are encrypted at rest with envelope encryption and are strictly <strong>write-only</strong>. Values cannot be retrieved after creation.
+                  Stored persistently in SQLite (<code>~/.sourcehub/sourcehub.db</code>). Strictly write-only.
                 </p>
               </div>
 
@@ -210,7 +316,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             {/* Add Secret Form */}
             {showAddSecret && (
               <form onSubmit={handleAddSecret} className="border border-hub-border rounded-md p-4 bg-hub-surface space-y-3 text-xs">
-                <span className="font-bold text-hub-text block">Add Encrypted Secret</span>
+                <span className="font-bold text-hub-text block">Add Encrypted Secret to {repoName}</span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-hub-muted text-[11px] mb-1">Secret Name</label>
@@ -219,6 +325,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       placeholder="e.g. DOCKER_AUTH_TOKEN"
                       value={newSecretName}
                       onChange={(e) => setNewSecretName(e.target.value)}
+                      autoFocus
                       className="w-full bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 text-xs text-hub-text uppercase font-mono"
                     />
                   </div>
@@ -291,6 +398,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </button>
                 </div>
               ))}
+
+              {secretsList.length === 0 && (
+                <div className="p-6 text-center text-xs text-hub-muted">
+                  No secrets configured for {repoName} yet.
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -305,7 +418,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <span>Personal Access Tokens (PATs) (§8)</span>
                 </h3>
                 <p className="text-xs text-hub-muted mt-0.5">
-                  Fine-grained tokens for `sh` CLI, VS Code extension, and local AI agent teammates.
+                  Fine-grained tokens stored persistently in SQLite for CLI, VS Code, and AI teammates.
                 </p>
               </div>
 
@@ -318,7 +431,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </button>
             </div>
 
-            {/* Add Token Form */}
             {showAddToken && (
               <form onSubmit={handleCreateToken} className="border border-hub-border rounded-md p-4 bg-hub-surface space-y-4 text-xs">
                 <span className="font-bold text-hub-text block">Generate Personal Access Token</span>
@@ -326,9 +438,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <label className="block text-hub-muted text-[11px] mb-1">Token Name / Purpose</label>
                   <input
                     type="text"
-                    placeholder="e.g. laptop-terminal-cli"
+                    placeholder="e.g. laptop-cli"
                     value={newTokenName}
                     onChange={(e) => setNewTokenName(e.target.value)}
+                    autoFocus
                     className="w-full bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 text-xs text-hub-text"
                   />
                 </div>
@@ -380,13 +493,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </form>
             )}
 
-            {/* Tokens List */}
             <div className="border border-hub-border rounded-md bg-hub-surface divide-y divide-hub-border">
               {tokensList.map((tok) => (
                 <div key={tok.id} className="p-3.5 space-y-2 text-xs">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-hub-text">{tok.name}</span>
-                    <span className="text-[11px] text-hub-muted font-mono">{tok.expiresAt}</span>
+                    <button
+                      onClick={() => handleDeleteToken(tok.id)}
+                      className="p-1 text-hub-muted hover:text-hub-danger-text rounded"
+                      title="Revoke token"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
 
                   <div className="flex items-center space-x-1.5 flex-wrap gap-1">
@@ -399,7 +517,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
                   <div className="flex items-center justify-between text-[11px] text-hub-muted font-mono pt-1">
                     <span>Prefix: <code className="text-hub-text">{tok.tokenPrefix}</code></span>
-                    <span>Last used: {tok.lastUsed || 'Never'}</span>
+                    <span>Expires: {tok.expiresAt}</span>
                   </div>
                 </div>
               ))}
@@ -410,15 +528,66 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         {/* SSH & DEPLOY KEYS SECTION (§8) */}
         {activeSection === 'keys' && (
           <div className="space-y-4">
-            <div className="pb-3 border-b border-hub-border">
-              <h3 className="text-sm font-bold text-hub-text flex items-center space-x-2">
-                <Terminal className="w-4 h-4 text-hub-accent" />
-                <span>SSH User Keys & Deploy Keys (§8)</span>
-              </h3>
-              <p className="text-xs text-hub-muted mt-0.5">
-                Operator SSH keys for cloning and repo-scoped deploy keys for worker containers.
-              </p>
+            <div className="pb-3 border-b border-hub-border flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-hub-text flex items-center space-x-2">
+                  <Terminal className="w-4 h-4 text-hub-accent" />
+                  <span>SSH User Keys & Deploy Keys (§8)</span>
+                </h3>
+                <p className="text-xs text-hub-muted mt-0.5">
+                  Saved in SQLite. Automatically reads your existing local SSH public key if available.
+                </p>
+              </div>
+
+              <button
+                onClick={() => setShowAddKey(!showAddKey)}
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-success hover:bg-green-700 text-white rounded text-xs font-semibold"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add SSH Key</span>
+              </button>
             </div>
+
+            {showAddKey && (
+              <form onSubmit={handleAddKey} className="border border-hub-border rounded-md p-4 bg-hub-surface space-y-3 text-xs">
+                <span className="font-bold text-hub-text block">Add SSH Public Key</span>
+                <div>
+                  <label className="block text-hub-muted text-[11px] mb-1">Title</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. My Laptop ED25519"
+                    value={newKeyTitle}
+                    onChange={(e) => setNewKeyTitle(e.target.value)}
+                    className="w-full bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 text-xs text-hub-text"
+                  />
+                </div>
+                <div>
+                  <label className="block text-hub-muted text-[11px] mb-1">Key (ssh-ed25519 or ssh-rsa)</label>
+                  <textarea
+                    rows={3}
+                    placeholder="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5..."
+                    value={newKeyPublic}
+                    onChange={(e) => setNewKeyPublic(e.target.value)}
+                    className="w-full bg-hub-bg border border-hub-border rounded p-2 text-xs font-mono text-hub-text"
+                  />
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddKey(false)}
+                    className="px-3 py-1 bg-hub-subtle hover:bg-hub-border text-hub-muted rounded"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-3 py-1 bg-hub-success hover:bg-green-700 text-white rounded font-semibold"
+                  >
+                    Add Key
+                  </button>
+                </div>
+              </form>
+            )}
 
             <div className="border border-hub-border rounded-md bg-hub-surface divide-y divide-hub-border">
               {sshKeysList.map((key) => (
@@ -430,8 +599,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         {key.type} key
                       </span>
                     </div>
-                    <div className="font-mono text-[11px] text-hub-muted">
-                      Fingerprint: {key.fingerprint}
+                    <div className="font-mono text-[11px] text-hub-muted truncate max-w-md">
+                      {key.keyType} • {key.fingerprint}
                     </div>
                   </div>
                   <span className="text-[11px] text-hub-muted font-mono">{key.createdAt}</span>
@@ -454,56 +623,86 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   Signed payloads (HMAC SHA-256) dispatched on push, PR, and agent run events.
                 </p>
               </div>
+              <button
+                onClick={() => setShowAddWebhook(!showAddWebhook)}
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-accent hover:bg-blue-600 text-white rounded text-xs font-semibold transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Webhook</span>
+              </button>
             </div>
 
-            {webhooksList.map((wh) => (
-              <div key={wh.id} className="border border-hub-border rounded-md bg-hub-surface p-4 space-y-3 text-xs">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Globe className="w-4 h-4 text-hub-link" />
-                    <span className="font-mono font-bold text-hub-text">{wh.url}</span>
-                  </div>
-                  <span className="px-2 py-0.5 rounded text-[10px] bg-green-950 text-hub-success-text border border-green-800 font-mono">
-                    Active
-                  </span>
+            {showAddWebhook && (
+              <form onSubmit={handleAddWebhook} className="p-4 border border-hub-border rounded-md bg-hub-surface space-y-3 text-xs">
+                <h4 className="font-bold text-hub-text">Configure New Outbound Webhook</h4>
+                <div>
+                  <label className="block text-hub-muted text-[11px] mb-1">Payload URL</label>
+                  <input
+                    type="url"
+                    value={newWebhookUrl}
+                    onChange={(e) => setNewWebhookUrl(e.target.value)}
+                    placeholder="https://example.com/sourcehub-webhook"
+                    required
+                    className="w-full bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text focus:outline-none focus:border-hub-link"
+                  />
                 </div>
-
-                <div className="flex items-center space-x-2 text-hub-muted text-[11px]">
-                  <span>Subscribed events:</span>
-                  {wh.events.map((ev) => (
-                    <span key={ev} className="px-1.5 py-0.2 rounded font-mono bg-hub-bg text-hub-text border border-hub-border">
-                      {ev}
-                    </span>
-                  ))}
+                <div className="flex justify-end space-x-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddWebhook(false)}
+                    className="px-3 py-1 bg-hub-bg hover:bg-hub-border rounded text-hub-text"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-3 py-1 bg-hub-success hover:bg-green-700 text-white rounded font-semibold"
+                  >
+                    Save Webhook
+                  </button>
                 </div>
+              </form>
+            )}
 
-                <div className="border-t border-hub-border pt-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-hub-text text-xs">Recent Deliveries</span>
-                    <button
-                      onClick={() => setShowWebhookPayload(!showWebhookPayload)}
-                      className="text-hub-link hover:underline text-[11px]"
-                    >
-                      {showWebhookPayload ? 'Hide Payload' : 'Inspect Payload'}
-                    </button>
-                  </div>
-
-                  {wh.deliveries.map((del) => (
-                    <div key={del.id} className="bg-hub-bg border border-hub-border rounded p-2.5 space-y-1.5">
-                      <div className="flex items-center justify-between font-mono text-[11px]">
-                        <span className="text-hub-success-text font-bold">[{del.statusCode}] {del.event}</span>
-                        <span className="text-hub-muted">{del.duration} • {del.deliveredAt}</span>
-                      </div>
-                      {showWebhookPayload && (
-                        <pre className="p-2 bg-black rounded text-[10px] font-mono text-emerald-400 overflow-x-auto">
-                          {del.requestPayload}
-                        </pre>
-                      )}
-                    </div>
-                  ))}
-                </div>
+            {webhooksList.length === 0 ? (
+              <div className="p-6 text-center border border-hub-border border-dashed rounded-md text-xs text-hub-muted">
+                No webhooks configured for this repository yet. Click "Add Webhook" above.
               </div>
-            ))}
+            ) : (
+              <div className="space-y-3">
+                {webhooksList.map((wh) => (
+                  <div key={wh.id} className="border border-hub-border rounded-md bg-hub-surface p-4 space-y-3 text-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Globe className="w-4 h-4 text-hub-link" />
+                        <span className="font-mono font-bold text-hub-text">{wh.url}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="px-2 py-0.5 rounded text-[10px] bg-green-950 text-hub-success-text border border-green-800 font-mono">
+                          Active
+                        </span>
+                        <button
+                          onClick={() => handleDeleteWebhook(wh.id)}
+                          className="text-hub-muted hover:text-red-400 p-1"
+                          title="Delete webhook"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2 text-hub-muted text-[11px]">
+                      <span>Subscribed events:</span>
+                      {wh.events.map((ev) => (
+                        <span key={ev} className="px-1.5 py-0.2 rounded font-mono bg-hub-bg text-hub-text border border-hub-border">
+                          {ev}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -516,7 +715,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <span>AI Model & Runtime Providers (§2 G6 & §9.4)</span>
               </h3>
               <p className="text-xs text-hub-muted mt-0.5">
-                Pluggable model endpoints for Helper Agents. Ollama is default for MVP; OpenAI-compatible, Anthropic, and Azure Foundry in Phase 4.
+                Pluggable model endpoints for Helper Agents. Ollama endpoint is served natively.
               </p>
             </div>
 
@@ -524,10 +723,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-hub-success-text animate-pulse" />
-                  <span className="font-bold text-hub-text">Primary Local Provider: Ollama (MVP)</span>
+                  <span className="font-bold text-hub-text">Primary Provider: Ollama Endpoint</span>
                 </div>
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-950 text-purple-300 border border-purple-800">
-                  Direct Executor Loop
+                  Active Runtime
                 </span>
               </div>
 
@@ -538,17 +737,74 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     type="text"
                     value={ollamaUrl}
                     onChange={(e) => setOllamaUrl(e.target.value)}
-                    className="w-full bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text"
+                    className="w-full bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text focus:outline-none focus:border-purple-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-hub-muted text-[11px] mb-1">Default Model Tag</label>
-                  <input
-                    type="text"
-                    value={ollamaModel}
-                    onChange={(e) => setOllamaModel(e.target.value)}
-                    className="w-full bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text"
-                  />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-hub-muted text-[11px]">Default Model Tag</label>
+                    <button
+                      type="button"
+                      onClick={() => loadModels(ollamaUrl)}
+                      disabled={isLoadingModels}
+                      className="text-[10px] text-purple-400 hover:text-purple-300 flex items-center space-x-1"
+                      title="Re-scan Ollama models at endpoint"
+                    >
+                      <RotateCw className={`w-3 h-3 ${isLoadingModels ? 'animate-spin' : ''}`} />
+                      <span>{isLoadingModels ? 'Scanning...' : 'Scan Models'}</span>
+                    </button>
+                  </div>
+
+                  {customModelMode ? (
+                    <div className="flex space-x-1.5">
+                      <input
+                        type="text"
+                        value={ollamaModel}
+                        onChange={(e) => setOllamaModel(e.target.value)}
+                        placeholder="e.g. glm-5.3-flash:cloud"
+                        className="flex-1 bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text focus:outline-none focus:border-purple-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setCustomModelMode(false)}
+                        className="px-2 py-1 bg-hub-surface border border-hub-border rounded text-[11px] text-hub-text hover:bg-hub-border"
+                      >
+                        Dropdown
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex space-x-1.5">
+                      <select
+                        value={ollamaModel}
+                        onChange={(e) => {
+                          if (e.target.value === '__custom__') {
+                            setCustomModelMode(true);
+                          } else {
+                            setOllamaModel(e.target.value);
+                          }
+                        }}
+                        className="flex-1 bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text focus:outline-none focus:border-purple-500"
+                      >
+                        {availableModels.map((m) => (
+                          <option key={m} value={m}>
+                            {m} {m === 'glm-5.3-flash:cloud' ? '★ (Active Cloud Model)' : ''}
+                          </option>
+                        ))}
+                        <option value="__custom__">+ Enter custom tag...</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setCustomModelMode(true)}
+                        className="px-2 py-1 bg-hub-surface border border-hub-border rounded text-[11px] text-hub-text hover:bg-hub-border"
+                        title="Enter custom model tag"
+                      >
+                        Custom
+                      </button>
+                    </div>
+                  )}
+                  <p className="text-[10px] text-hub-muted mt-1">
+                    Select any model active at the Ollama endpoint.
+                  </p>
                 </div>
               </div>
 
@@ -558,17 +814,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-success hover:bg-green-700 text-white rounded font-semibold transition-colors"
                 >
                   {savedProvider ? <Check className="w-3.5 h-3.5" /> : null}
-                  <span>{savedProvider ? 'Saved!' : 'Save Endpoint'}</span>
+                  <span>{savedProvider ? 'Saved!' : 'Save Endpoint & Model'}</span>
                 </button>
               </div>
-            </div>
-
-            {/* Post-MVP Providers preview (§9.4) */}
-            <div className="border border-dashed border-hub-border rounded-md p-4 text-xs space-y-2 opacity-70">
-              <span className="font-bold text-hub-text">Phase 4 Adapters (Post-MVP)</span>
-              <p className="text-hub-muted text-[11px]">
-                OpenAI-compatible, Anthropic-compatible, Azure AI Foundry, OpenClaw worktree exec, and Hermes coding agent adapters will plug into the same SourceHub AgentRun state machine.
-              </p>
             </div>
           </div>
         )}

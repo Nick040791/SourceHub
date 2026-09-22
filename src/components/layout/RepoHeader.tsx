@@ -19,16 +19,18 @@ interface RepoHeaderProps {
 
 export const RepoHeader: React.FC<RepoHeaderProps> = ({ repo }) => {
   const [showCloneModal, setShowCloneModal] = useState(false);
-  const [cloneProtocol, setCloneProtocol] = useState<'ssh' | 'https' | 'cli'>('ssh');
+  const [cloneProtocol, setCloneProtocol] = useState<'http' | 'ssh' | 'local' | 'cli'>('http');
   const [copied, setCopied] = useState(false);
 
-  const sshUrl = `ssh://git@sourcehub.local:2222/${repo.owner}/${repo.name}.git`;
-  const httpsUrl = `https://sourcehub.local/${repo.owner}/${repo.name}.git`;
-  const cliCmd = `sh repo clone ${repo.owner}/${repo.name}`;
+  const httpUrl = `http://localhost:5173/git/${repo.name}.git`;
+  const sshUrl = `ssh://git@sourcehub.local:2222/nicholas/${repo.name}.git`;
+  const localPath = `git clone /home/mrnicholas/Dev/${repo.name}`;
+  const cliCmd = `sh repo clone nicholas/${repo.name}`;
 
   const currentCommand = 
-    cloneProtocol === 'ssh' ? sshUrl : 
-    cloneProtocol === 'https' ? httpsUrl : 
+    cloneProtocol === 'http' ? `git clone ${httpUrl}` :
+    cloneProtocol === 'ssh' ? `git clone ${sshUrl}` : 
+    cloneProtocol === 'local' ? localPath : 
     cliCmd;
 
   const copyToClipboard = (text: string) => {
@@ -114,20 +116,28 @@ export const RepoHeader: React.FC<RepoHeaderProps> = ({ repo }) => {
                 {/* Protocol Tabs */}
                 <div className="flex space-x-1 bg-hub-bg p-1 rounded-md mb-2 border border-hub-border text-xs">
                   <button
+                    onClick={() => setCloneProtocol('http')}
+                    className={`flex-1 py-1 rounded text-center font-medium transition-colors ${
+                      cloneProtocol === 'http' ? 'bg-hub-subtle text-hub-text font-bold shadow-sm' : 'text-hub-muted hover:text-hub-text'
+                    }`}
+                  >
+                    HTTP (Live)
+                  </button>
+                  <button
                     onClick={() => setCloneProtocol('ssh')}
                     className={`flex-1 py-1 rounded text-center font-medium transition-colors ${
-                      cloneProtocol === 'ssh' ? 'bg-hub-subtle text-hub-text shadow-sm' : 'text-hub-muted hover:text-hub-text'
+                      cloneProtocol === 'ssh' ? 'bg-hub-subtle text-hub-text font-bold shadow-sm' : 'text-hub-muted hover:text-hub-text'
                     }`}
                   >
                     SSH
                   </button>
                   <button
-                    onClick={() => setCloneProtocol('https')}
+                    onClick={() => setCloneProtocol('local')}
                     className={`flex-1 py-1 rounded text-center font-medium transition-colors ${
-                      cloneProtocol === 'https' ? 'bg-hub-subtle text-hub-text shadow-sm' : 'text-hub-muted hover:text-hub-text'
+                      cloneProtocol === 'local' ? 'bg-hub-subtle text-hub-text font-bold shadow-sm' : 'text-hub-muted hover:text-hub-text'
                     }`}
                   >
-                    HTTPS
+                    Local
                   </button>
                   <button
                     onClick={() => setCloneProtocol('cli')}

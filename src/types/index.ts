@@ -12,6 +12,7 @@ export interface Repository {
   branches: string[];
   tags: string[];
   updatedAt: string;
+  lastCommit?: Commit;
 }
 
 export interface FileItem {
