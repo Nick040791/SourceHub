@@ -283,7 +283,7 @@ export function parseUnifiedDiffString(rawDiff: string): DiffFile[] {
 export class GitService {
   private rootDir: string;
 
-  constructor(rootDir: string = process.env.SOURCEHUB_REPOS_DIR || '/home/mrnicholas/Dev') {
+  constructor(rootDir: string = process.env.SOURCEHUB_REPOS_DIR || path.join(process.env.HOME || '', 'Dev')) {
     this.rootDir = rootDir;
   }
 
@@ -386,7 +386,7 @@ export class GitService {
       id: `repo-${name}`,
       name,
       path: repoPath,
-      owner: 'nicholas',
+      owner: 'operator',
       description,
       visibility: 'private',
       defaultBranch,
@@ -520,7 +520,7 @@ export class GitService {
       if (strategy === 'squash') {
         await runGit(worktreePath, ['merge', '--squash', sourceBranch]);
         const msg = commitMessage || `Merge PR: ${sourceBranch} into ${targetBranch}`;
-        await runGit(worktreePath, ['commit', '-m', msg, '--author=Nicholas Beighley <nicholas@sourcehub.local>']);
+        await runGit(worktreePath, ['commit', '-m', msg, '--author=Forge Operator <operator@sourcehub.local>']);
       } else if (strategy === 'rebase') {
         await runGit(worktreePath, ['rebase', sourceBranch]);
       } else {

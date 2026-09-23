@@ -121,7 +121,7 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
                 </span>
               </h2>
               <p className="text-[11px] text-hub-muted font-mono leading-none mt-0.5">
-                SourceHub • Nicholas Beighley
+                SourceHub • Self-Hosted Forge
               </p>
             </div>
           </div>
@@ -330,7 +330,7 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold text-hub-muted uppercase tracking-wider flex items-center space-x-1.5">
                     <Contrast className="w-3.5 h-3.5 text-hub-accent" />
-                    <span>Display & Theme (8 Presets)</span>
+                    <span>Display & Theme ({THEME_OPTIONS.length} Presets)</span>
                   </h3>
                   {onOpenProfileModal && (
                     <button
@@ -608,7 +608,7 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
                 </div>
                 <div className="flex justify-between">
                   <span>Author:</span>
-                  <span className="text-hub-text">Nicholas Beighley</span>
+                  <span className="text-hub-text">{profile?.name || 'Forge Operator'}</span>
                 </div>
               </div>
             </div>

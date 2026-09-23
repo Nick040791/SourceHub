@@ -61,14 +61,14 @@ export class WorkflowService {
     event: 'push' | 'pull_request' | 'workflow_dispatch' | 'agent_run' = 'workflow_dispatch'
   ): Promise<WorkflowRun> {
     const repo = await this.gitService.getRepository(repoName);
-    const repoPath = repo?.path || `/home/mrnicholas/Dev/${repoName}`;
+    const repoPath = repo?.path || path.join(process.env.SOURCEHUB_REPOS_DIR || path.join(process.env.HOME || '', 'Dev'), repoName);
     const runId = `run-${Date.now()}`;
     const startTime = Date.now();
 
     // Get last commit info on repo
     let commitSha = 'HEAD';
     let commitMsg = 'Manual dispatch';
-    let author = 'Nicholas Beighley';
+    let author = 'Forge Operator';
     try {
       const commits = await this.gitService.getCommits(repoName, branch, 1);
       if (commits.length > 0) {

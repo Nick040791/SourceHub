@@ -71,7 +71,7 @@ export const NewRepoModal: React.FC<NewRepoModalProps> = ({
             </label>
             <div className="flex items-center space-x-1.5 font-mono text-xs">
               <span className="text-hub-muted bg-hub-bg px-2.5 py-1.5 rounded border border-hub-border">
-                nicholas /
+                repos /
               </span>
               <input
                 type="text"
@@ -106,7 +106,7 @@ export const NewRepoModal: React.FC<NewRepoModalProps> = ({
               <span className="font-semibold text-xs">Private Repository</span>
             </div>
             <p className="text-[11px] text-hub-muted">
-              Hosted locally on your single-operator SourceHub instance at <code>/home/mrnicholas/Dev/{name || '<repo>'}</code>.
+              Hosted locally on your single-operator SourceHub instance at <code>repositories/{name || '<repo>'}</code>.
             </p>
           </div>
 

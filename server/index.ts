@@ -139,7 +139,7 @@ server.listen(PORT, HOST, () => {
   for (const addr of networks) {
     console.log(`► Network:  http://${addr}:${PORT}/`);
   }
-  console.log(`► Repos:    ${process.env.SOURCEHUB_REPOS_DIR || '/home/mrnicholas/Dev'}`);
+  console.log(`► Repos:    ${process.env.SOURCEHUB_REPOS_DIR || path.join(process.env.HOME || '', 'Dev')}`);
   console.log(`► Static:   ${distDir}`);
   console.log('────────────────────────────────────────────────────────────\n');
 });

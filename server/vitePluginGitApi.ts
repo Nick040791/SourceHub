@@ -236,13 +236,13 @@ export async function handleApiAndGit(
             const rows = db.prepare("SELECT key, value FROM system_settings WHERE key LIKE 'profile_%'").all() as Array<{ key: string; value: string }>;
             const map = Object.fromEntries(rows.map(r => [r.key, r.value]));
             return sendJson(res, 200, {
-              name: map.profile_name || 'Nicholas Beighley',
-              username: map.profile_username || 'nicholas',
-              email: map.profile_email || 'nick040791@gmail.com',
+              name: map.profile_name || 'Forge Operator',
+              username: map.profile_username || 'operator',
+              email: map.profile_email || 'operator@sourcehub.local',
               bio: map.profile_bio || 'Single-Operator Solo Forge Developer',
-              initials: map.profile_initials || 'NB',
+              initials: map.profile_initials || 'SH',
               avatarColor: map.profile_avatar_color || 'indigo',
-              theme: map.profile_theme || 'high-contrast-dark',
+              theme: map.profile_theme || 'matrix',
             });
           }
 
@@ -260,13 +260,13 @@ export async function handleApiAndGit(
             const rows = db.prepare("SELECT key, value FROM system_settings WHERE key LIKE 'profile_%'").all() as Array<{ key: string; value: string }>;
             const map = Object.fromEntries(rows.map(r => [r.key, r.value]));
             return sendJson(res, 200, {
-              name: map.profile_name || 'Nicholas Beighley',
-              username: map.profile_username || 'nicholas',
-              email: map.profile_email || 'nick040791@gmail.com',
+              name: map.profile_name || 'Forge Operator',
+              username: map.profile_username || 'operator',
+              email: map.profile_email || 'operator@sourcehub.local',
               bio: map.profile_bio || 'Single-Operator Solo Forge Developer',
-              initials: map.profile_initials || 'NB',
+              initials: map.profile_initials || 'SH',
               avatarColor: map.profile_avatar_color || 'indigo',
-              theme: map.profile_theme || 'high-contrast-dark',
+              theme: map.profile_theme || 'matrix',
             });
           }
         }
@@ -692,7 +692,7 @@ export async function handleApiAndGit(
                 body.title,
                 body.body || '',
                 'open',
-                body.author || 'Nicholas Beighley',
+                body.author || 'Forge Operator',
                 body.isAgent ? 1 : 0,
                 body.agentRunId || null,
                 sourceBranch,
@@ -706,7 +706,7 @@ export async function handleApiAndGit(
                 id: prId,
                 repoName,
                 title: body.title,
-                author: body.author || 'Nicholas Beighley',
+                author: body.author || 'Forge Operator',
                 sourceBranch,
                 targetBranch,
                 isAgent: Boolean(body.isAgent),
@@ -772,7 +772,7 @@ export async function handleApiAndGit(
               db.prepare(`
                 INSERT INTO pr_comments (pr_id, author, is_agent, content, created_at)
                 VALUES (?, ?, ?, ?, ?)
-              `).run(prId, body.author || 'Nicholas Beighley', body.isAgent ? 1 : 0, body.content, 'Just now');
+              `).run(prId, body.author || 'Forge Operator', body.isAgent ? 1 : 0, body.content, 'Just now');
               return sendJson(res, 201, { message: 'Comment added' });
             }
 
@@ -846,13 +846,13 @@ export async function handleApiAndGit(
                 db.prepare(`
                   INSERT INTO pr_comments (pr_id, author, is_agent, content, created_at)
                   VALUES (?, ?, ?, ?, ?)
-                `).run(prId, 'Nicholas Beighley', 0, comment, 'Just now');
+                `).run(prId, 'Forge Operator', 0, comment, 'Just now');
               }
 
               db.prepare(`
                 INSERT INTO pr_comments (pr_id, author, is_agent, content, created_at)
                 VALUES (?, ?, ?, ?, ?)
-              `).run(prId, 'Nicholas Beighley', 0, 'Closed this pull request.', 'Just now');
+              `).run(prId, 'Forge Operator', 0, 'Closed this pull request.', 'Just now');
 
               return sendJson(res, 200, { success: true, state: 'closed' });
             }
@@ -867,7 +867,7 @@ export async function handleApiAndGit(
               db.prepare(`
                 INSERT INTO pr_comments (pr_id, author, is_agent, content, created_at)
                 VALUES (?, ?, ?, ?, ?)
-              `).run(prId, 'Nicholas Beighley', 0, 'Reopened this pull request.', 'Just now');
+              `).run(prId, 'Forge Operator', 0, 'Reopened this pull request.', 'Just now');
 
               return sendJson(res, 200, { success: true, state: 'open' });
             }
@@ -951,7 +951,7 @@ export async function handleApiAndGit(
                 body.title,
                 body.body || '',
                 'open',
-                body.author || 'Nicholas Beighley',
+                body.author || 'Forge Operator',
                 body.assignedToAgent ? 1 : 0,
                 'Just now'
               );

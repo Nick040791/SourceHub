@@ -671,13 +671,13 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                       </div>
                     )}
 
-                    {/* Real Merge Box (§6.2) */}
+                    {/* Merge Box (§6.2) */}
                     <div className="border border-hub-border rounded-md p-4 bg-hub-subtle space-y-3">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex items-center space-x-2">
                           <GitMerge className="w-5 h-5 text-hub-text" />
                           <div>
-                            <span className="text-xs font-bold text-hub-text">Real Git Merge</span>
+                            <span className="text-xs font-bold text-hub-text">Merge Pull Request</span>
                             <p className="text-[11px] text-hub-muted">
                               Executes directly on local git repository.
                             </p>

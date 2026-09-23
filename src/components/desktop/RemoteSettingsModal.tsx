@@ -242,7 +242,7 @@ export const RemoteSettingsModal: React.FC<RemoteSettingsModalProps> = ({
                 </label>
                 <input
                   type="text"
-                  placeholder="git@github.com:Nick040791/SourceHub.git"
+                  placeholder="git@github.com:username/repository.git"
                   value={newRemoteUrl}
                   onChange={(e) => setNewRemoteUrl(e.target.value)}
                   className="w-full px-2.5 py-1.5 bg-hub-bg border border-hub-border rounded text-xs font-mono text-hub-text focus:outline-none focus:border-hub-accent"

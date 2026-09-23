@@ -25,17 +25,17 @@ export const App: React.FC = () => {
   const [settingsSection, setSettingsSection] = useState<'secrets' | 'keys' | 'tokens' | 'webhooks' | 'providers'>('secrets');
   
   const [theme, setTheme] = useState<AppTheme>(() => 
-    (localStorage.getItem('sourcehub_theme') as AppTheme) || 'high-contrast-dark'
+    (localStorage.getItem('sourcehub_theme') as AppTheme) || 'matrix'
   );
 
   const [profile, setProfile] = useState<UserProfile>({
-    name: 'Nicholas Beighley',
-    username: 'nicholas',
-    email: 'nick040791@gmail.com',
+    name: 'Forge Operator',
+    username: 'operator',
+    email: 'operator@sourcehub.local',
     bio: 'Single-Operator Solo Forge Developer',
-    initials: 'NB',
+    initials: 'SH',
     avatarColor: 'indigo',
-    theme: 'high-contrast-dark',
+    theme: 'matrix',
   });
 
   // Repositories state

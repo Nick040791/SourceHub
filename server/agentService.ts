@@ -173,7 +173,7 @@ export class AgentService {
   ): Promise<AgentRun> {
     const settings = this.getAISettings();
     const model = params.model || settings.defaultModel || 'glm-5.3-flash:cloud';
-    const operator = params.operator || 'Nicholas Beighley';
+    const operator = params.operator || 'Forge Operator';
     const runId = `run-${Math.random().toString(36).substring(2, 6)}`;
     const slug = `${runId}-task`;
     const targetBranch = `agent/${slug}`;
@@ -295,7 +295,7 @@ export class AgentService {
         .join('\n');
 
       const systemPrompt = `You are SourceHub Helper, an expert software engineering AI agent working on repository "${repoName}".
-Operator Nicholas Beighley has requested a task.
+Operator ${operator} has requested a task.
 You have FULL DIRECT ACCESS to the repository files, file tree, git history, and source code loaded below in this session context.
 Provide direct, accurate, line-by-line code reviews, architectural advice, and concrete implementation changes based directly on the actual files loaded in this session.
 Do NOT output caveats claiming you do not have repository contents loaded; the files and repository structure are provided in full below.
@@ -516,7 +516,7 @@ ${prompt}
     addEvent(
       'agent.ready_for_review',
       'Ready for operator review',
-      ollamaResponse || 'Stopped at review gate. Waiting for Nicholas to review.',
+      ollamaResponse || 'Stopped at review gate. Waiting for operator review.',
       { filesTouched, prId }
     );
 

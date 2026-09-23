@@ -284,6 +284,12 @@ export interface NetworkInfo {
 }
 
 export type AppTheme = 
+  | 'matrix'
+  | 'cyber-amber'
+  | 'tokyo-night'
+  | 'catppuccin'
+  | 'monokai'
+  | 'solarized-dark'
   | 'high-contrast-dark' 
   | 'dark' 
   | 'high-contrast-light' 

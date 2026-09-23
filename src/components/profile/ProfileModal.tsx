@@ -35,11 +35,17 @@ export const AVATAR_COLOR_GRADIENTS: Record<string, { label: string; class: stri
 };
 
 export const THEME_OPTIONS: Array<{ id: AppTheme; label: string; desc: string; icon: string }> = [
-  { id: 'high-contrast-dark', label: 'High Contrast Dark', desc: 'Ultra-crisp pure dark (Default)', icon: '⚡' },
+  { id: 'matrix', label: 'Matrix Neon', desc: 'Electric green on obsidian black (Default)', icon: '⚡' },
+  { id: 'cyber-amber', label: 'Cyber Amber', desc: 'Phosphor VT220 amber on onyx', icon: '📟' },
+  { id: 'tokyo-night', label: 'Tokyo Night', desc: 'Indigo midnight with vivid cyan & violet', icon: '🗼' },
+  { id: 'catppuccin', label: 'Catppuccin Mocha', desc: 'Soothing dark pastel & lavender', icon: '☕' },
+  { id: 'monokai', label: 'Monokai Pro', desc: 'Rich charcoal, vibrant yellow & lime', icon: '🎨' },
+  { id: 'solarized-dark', label: 'Solarized Dark', desc: 'Deep marine teal & amber contrast', icon: '🌊' },
+  { id: 'high-contrast-dark', label: 'High Contrast Dark', desc: 'Ultra-crisp pure dark & azure', icon: '🌙' },
   { id: 'dark', label: 'GitHub Dark', desc: 'Dimmed charcoal gray', icon: '🌑' },
+  { id: 'midnight', label: 'Midnight OLED', desc: 'True pure 0x000 black & electric sky', icon: '🌌' },
   { id: 'dracula', label: 'Dracula', desc: 'Iconic purple & cyan vampire palette', icon: '🧛' },
   { id: 'nord', label: 'Nord Frost', desc: 'Arctic cold blues & frost slate', icon: '❄️' },
-  { id: 'midnight', label: 'Midnight OLED', desc: 'True pure 0x000 black & electric sky', icon: '🌌' },
   { id: 'synthwave', label: 'Synthwave 84', desc: 'Cyberpunk neon pink & cyan glow', icon: '🌆' },
   { id: 'high-contrast-light', label: 'High Contrast Light', desc: 'Crisp high-contrast daylight', icon: '☀️' },
   { id: 'sepia', label: 'Warm Sepia', desc: 'Warm parchment paper & book tone', icon: '📜' },
@@ -75,7 +81,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const handleNameChange = (name: string) => {
     const words = name.trim().split(/\s+/);
-    let initials = 'NB';
+    let initials = 'OP';
     if (words.length >= 2) {
       initials = (words[0][0] + words[words.length - 1][0]).toUpperCase();
     } else if (words.length === 1 && words[0].length > 0) {
@@ -146,19 +152,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           {/* Top Live Preview Banner */}
           <div className="p-4 rounded-xl border border-hub-border bg-hub-bg flex items-center space-x-4">
             <div className={`w-16 h-16 rounded-full bg-gradient-to-br ${currentGradient} text-white font-bold text-xl flex items-center justify-center shadow-lg ring-2 ring-hub-border shrink-0`}>
-              {formData.initials || 'NB'}
+              {formData.initials || 'OP'}
             </div>
             <div className="space-y-0.5 min-w-0 flex-1">
               <div className="flex items-center space-x-2">
                 <span className="font-bold text-base text-hub-text truncate">
-                  {formData.name || 'Nicholas Beighley'}
+                  {formData.name || 'Forge Operator'}
                 </span>
                 <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-hub-accent/15 text-hub-accent border border-hub-accent/30 font-semibold shrink-0">
-                  @{formData.username || 'nicholas'}
+                  @{formData.username || 'operator'}
                 </span>
               </div>
               <p className="text-xs text-hub-muted truncate font-mono">
-                {formData.email || 'nick040791@gmail.com'}
+                {formData.email || 'operator@sourcehub.local'}
               </p>
               <p className="text-[11px] text-hub-muted italic truncate">
                 "{formData.bio || 'Single-Operator Solo Forge Developer'}"
@@ -177,7 +183,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 type="text"
                 value={formData.name}
                 onChange={(e) => handleNameChange(e.target.value)}
-                placeholder="Nicholas Beighley"
+                placeholder="Forge Operator"
                 required
                 className="w-full px-3 py-2 bg-hub-bg border border-hub-border rounded-md text-xs text-hub-text font-medium focus:outline-none focus:border-hub-accent"
               />
@@ -192,7 +198,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 type="text"
                 value={formData.username}
                 onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                placeholder="nicholas"
+                placeholder="operator"
                 required
                 className="w-full px-3 py-2 bg-hub-bg border border-hub-border rounded-md text-xs text-hub-text font-mono focus:outline-none focus:border-hub-accent"
               />
@@ -207,7 +213,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="nick040791@gmail.com"
+                placeholder="operator@sourcehub.local"
                 required
                 className="w-full px-3 py-2 bg-hub-bg border border-hub-border rounded-md text-xs text-hub-text font-mono focus:outline-none focus:border-hub-accent"
               />
@@ -223,7 +229,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 maxLength={3}
                 value={formData.initials}
                 onChange={(e) => setFormData({ ...formData, initials: e.target.value.toUpperCase() })}
-                placeholder="NB"
+                placeholder="OP"
                 className="w-full px-3 py-2 bg-hub-bg border border-hub-border rounded-md text-xs text-hub-text font-bold font-mono focus:outline-none focus:border-hub-accent"
               />
             </div>
@@ -276,7 +282,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           <div className="space-y-2 pt-2 border-t border-hub-border">
             <label className="text-xs font-bold text-hub-muted uppercase tracking-wider flex items-center space-x-1.5">
               <Contrast className="w-3.5 h-3.5 text-hub-accent" />
-              <span>Color Theme (8 Presets)</span>
+              <span>Color Theme ({THEME_OPTIONS.length} Presets)</span>
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {THEME_OPTIONS.map((themeOption) => {

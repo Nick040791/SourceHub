@@ -195,7 +195,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
               </span>
             </div>
             <p className="text-xs text-hub-muted max-w-3xl">
-              Prompt an asynchronous coding task. Helper connects directly to the Ollama endpoint, creates an isolated branch on Nicholas's behalf, commits changes with audit trailers, and stops at the review gate.
+              Prompt an asynchronous coding task. Helper connects directly to the Ollama endpoint, creates an isolated branch on your behalf, commits changes with audit trailers, and stops at the review gate.
             </p>
           </div>
 

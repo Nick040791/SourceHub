@@ -77,7 +77,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                 Solo Forge
               </span>
             </div>
-            <span className="text-[11px] text-hub-muted font-mono leading-none">self-hosted • nicholas</span>
+            <span className="text-[11px] text-hub-muted font-mono leading-none">self-hosted • local</span>
           </div>
         </div>
 
@@ -88,7 +88,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             className="flex items-center space-x-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-hub-bg hover:bg-hub-subtle border border-hub-border transition-colors text-hub-text"
           >
             <FolderGit2 className="w-3.5 h-3.5 text-hub-link" />
-            <span className="font-mono text-hub-muted">nicholas/</span>
+            <span className="font-mono text-hub-muted">{selectedRepo.owner ? `${selectedRepo.owner}/` : 'repo/'}</span>
             <span className="font-mono font-bold text-hub-text">{selectedRepo.name}</span>
             <ChevronDown className="w-3 h-3 text-hub-muted" />
           </button>
@@ -226,7 +226,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           {showThemeMenu && (
             <div className="absolute right-0 mt-2 w-60 bg-hub-surface border border-hub-border rounded-lg shadow-xl z-50 p-1.5 text-xs animate-in fade-in duration-100 max-h-80 overflow-y-auto">
               <div className="px-2 py-1 text-[10px] font-bold text-hub-muted uppercase tracking-wider">
-                Select Display Theme (8 Presets)
+                Select Display Theme ({THEME_OPTIONS.length} Presets)
               </div>
               {THEME_OPTIONS.map((opt) => (
                 <button
@@ -277,7 +277,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             {profile?.initials || 'NB'}
           </div>
           <span className="hidden xl:inline text-xs font-medium text-hub-text group-hover:text-hub-accent transition-colors">
-            {profile?.name?.split(' ')[0] || 'Nicholas'}
+            {profile?.name?.split(' ')[0] || 'Operator'}
           </span>
         </button>
       </div>

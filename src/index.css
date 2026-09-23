@@ -3,6 +3,126 @@
 @tailwind utilities;
 
 :root,
+.theme-matrix {
+  --hub-bg: 0, 0, 0;
+  --hub-surface: 10, 16, 12;
+  --hub-subtle: 18, 28, 22;
+  --hub-border: 34, 84, 43;
+  --hub-border-strong: 0, 255, 102;
+  --hub-muted: 165, 215, 180;
+  --hub-text: 240, 255, 242;
+  --hub-link: 0, 255, 102;
+  --hub-success: 0, 204, 82;
+  --hub-success-text: 57, 255, 136;
+  --hub-warning: 218, 165, 32;
+  --hub-warning-text: 255, 215, 0;
+  --hub-danger: 255, 51, 102;
+  --hub-danger-text: 255, 110, 140;
+  --hub-purple: 180, 77, 255;
+  --hub-purple-text: 210, 130, 255;
+  --hub-accent: 0, 255, 102;
+}
+
+.theme-cyber-amber {
+  --hub-bg: 5, 4, 2;
+  --hub-surface: 20, 15, 8;
+  --hub-subtle: 35, 26, 14;
+  --hub-border: 90, 68, 25;
+  --hub-border-strong: 255, 176, 0;
+  --hub-muted: 225, 170, 90;
+  --hub-text: 255, 245, 220;
+  --hub-link: 255, 176, 0;
+  --hub-success: 80, 200, 60;
+  --hub-success-text: 120, 240, 90;
+  --hub-warning: 255, 176, 0;
+  --hub-warning-text: 255, 200, 50;
+  --hub-danger: 240, 60, 50;
+  --hub-danger-text: 255, 100, 90;
+  --hub-purple: 200, 120, 255;
+  --hub-purple-text: 220, 150, 255;
+  --hub-accent: 255, 176, 0;
+}
+
+.theme-tokyo-night {
+  --hub-bg: 26, 27, 38;
+  --hub-surface: 36, 40, 59;
+  --hub-subtle: 47, 53, 78;
+  --hub-border: 65, 72, 104;
+  --hub-border-strong: 122, 162, 247;
+  --hub-muted: 169, 177, 214;
+  --hub-text: 245, 247, 255;
+  --hub-link: 122, 162, 247;
+  --hub-success: 158, 206, 106;
+  --hub-success-text: 158, 206, 106;
+  --hub-warning: 224, 175, 104;
+  --hub-warning-text: 224, 175, 104;
+  --hub-danger: 247, 118, 142;
+  --hub-danger-text: 247, 118, 142;
+  --hub-purple: 187, 154, 247;
+  --hub-purple-text: 187, 154, 247;
+  --hub-accent: 187, 154, 247;
+}
+
+.theme-catppuccin {
+  --hub-bg: 30, 30, 46;
+  --hub-surface: 24, 24, 37;
+  --hub-subtle: 49, 50, 68;
+  --hub-border: 69, 71, 90;
+  --hub-border-strong: 180, 190, 254;
+  --hub-muted: 186, 194, 222;
+  --hub-text: 250, 250, 255;
+  --hub-link: 137, 180, 250;
+  --hub-success: 166, 227, 161;
+  --hub-success-text: 166, 227, 161;
+  --hub-warning: 249, 226, 175;
+  --hub-warning-text: 249, 226, 175;
+  --hub-danger: 243, 139, 168;
+  --hub-danger-text: 243, 139, 168;
+  --hub-purple: 203, 166, 247;
+  --hub-purple-text: 203, 166, 247;
+  --hub-accent: 203, 166, 247;
+}
+
+.theme-monokai {
+  --hub-bg: 34, 31, 34;
+  --hub-surface: 45, 42, 46;
+  --hub-subtle: 64, 60, 65;
+  --hub-border: 90, 85, 92;
+  --hub-border-strong: 169, 220, 103;
+  --hub-muted: 193, 192, 192;
+  --hub-text: 252, 252, 250;
+  --hub-link: 255, 216, 102;
+  --hub-success: 169, 220, 103;
+  --hub-success-text: 169, 220, 103;
+  --hub-warning: 255, 216, 102;
+  --hub-warning-text: 255, 216, 102;
+  --hub-danger: 255, 97, 136;
+  --hub-danger-text: 255, 97, 136;
+  --hub-purple: 171, 157, 242;
+  --hub-purple-text: 171, 157, 242;
+  --hub-accent: 169, 220, 103;
+}
+
+.theme-solarized-dark {
+  --hub-bg: 0, 43, 54;
+  --hub-surface: 7, 54, 66;
+  --hub-subtle: 15, 68, 82;
+  --hub-border: 38, 99, 115;
+  --hub-border-strong: 42, 161, 152;
+  --hub-muted: 180, 205, 205;
+  --hub-text: 253, 246, 227;
+  --hub-link: 38, 139, 210;
+  --hub-success: 133, 153, 0;
+  --hub-success-text: 133, 153, 0;
+  --hub-warning: 181, 137, 0;
+  --hub-warning-text: 181, 137, 0;
+  --hub-danger: 220, 50, 47;
+  --hub-danger-text: 220, 50, 47;
+  --hub-purple: 108, 113, 196;
+  --hub-purple-text: 108, 113, 196;
+  --hub-accent: 42, 161, 152;
+}
+
 .theme-high-contrast-dark {
   --hub-bg: 1, 4, 9;
   --hub-surface: 13, 17, 23;

@@ -127,7 +127,7 @@ export const IssuesView: React.FC<IssuesViewProps> = ({ repoName, onAssignToAgen
             className="w-full bg-hub-bg border border-hub-border rounded px-3 py-1.5 text-hub-text focus:outline-none focus:border-hub-link"
           />
           <textarea
-            placeholder="Leave a description for Nicholas or Helper..."
+            placeholder="Leave a description for the operator or Helper..."
             rows={3}
             value={newBody}
             onChange={(e) => setNewBody(e.target.value)}

@@ -260,7 +260,7 @@ export const ActionsView: React.FC<ActionsViewProps> = ({ repoName }) => {
                 <div className="flex items-center justify-between text-xs bg-hub-bg border border-hub-border rounded-md px-3 py-2">
                   <span className="flex items-center space-x-2 text-hub-muted">
                     <ShieldCheck className="w-4 h-4 text-hub-success-text" />
-                    <span>Real workflow executed on host runner • Direct environment inspection</span>
+                    <span>Workflow executed on host runner • Isolated environment execution</span>
                   </span>
                   <span className="font-mono text-hub-text text-[11px]">Runner: local-host</span>
                 </div>

@@ -51,7 +51,7 @@ export const BrainstormPanel: React.FC<BrainstormPanelProps> = ({
       targetTab: 'agents' as TabType,
       questions: [
         'Is "Open PR" the right default mode, or should it default to "Branch only" for small refactors?',
-        'How should the agent notify Nicholas when ready for review (desktop notification, webhook, or terminal ring)?',
+        'How should the agent notify the operator when ready for review (desktop notification, webhook, or terminal ring)?',
         'Is the state machine (queued → preparing_workspace → in_progress → pushing → checks_pending → ready_for_review) complete?'
       ]
     },
@@ -82,7 +82,7 @@ export const BrainstormPanel: React.FC<BrainstormPanelProps> = ({
       targetTab: 'settings' as TabType,
       questions: [
         'What should the default agent secrets policy be? (Never inject Actions secrets unless explicitly allowlisted in run config).',
-        'Where is the master KMS key stored locally on Nicholas’s laptop?'
+        'Where is the master KMS key stored locally on the operator’s host?'
       ]
     },
     {
