@@ -11,16 +11,147 @@ import {
   ShieldCheck,
   Loader2,
   RotateCw,
-  Send
+  Send,
+  Eye,
+  EyeOff,
+  Sparkles,
+  Server,
+  Cloud,
+  Zap,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { 
   Secret, 
   SSHKey, 
   PersonalAccessToken, 
   TokenScope, 
-  Webhook 
+  Webhook,
+  AIProviderId,
+  ThinkingEffort,
+  AISettingsState,
+  AIProviderConfig
 } from '../../types';
 import { api } from '../../services/api';
+
+const PROVIDER_ORDER: AIProviderId[] = [
+  'azure_foundry_openai',
+  'azure_foundry_anthropic',
+  'claude',
+  'copilot',
+  'openai',
+  'aws_bedrock',
+  'openrouter',
+  'custom',
+  'ollama',
+];
+
+const DEFAULT_PROVIDERS: Record<AIProviderId, AIProviderConfig> = {
+  azure_foundry_openai: {
+    id: 'azure_foundry_openai',
+    name: 'Azure AI Foundry (OpenAI Compatible)',
+    category: 'Cloud Enterprise',
+    endpointUrl: 'https://your-resource.openai.azure.com',
+    defaultModel: 'gpt-4o',
+    availableModels: ['gpt-4o', 'gpt-4o-mini', 'o1', 'o3-mini', 'gpt-4-turbo'],
+    thinkingEffort: 'none',
+    apiVersion: '2024-10-21',
+  },
+  azure_foundry_anthropic: {
+    id: 'azure_foundry_anthropic',
+    name: 'Azure AI Foundry (Anthropic Compatible)',
+    category: 'Cloud Enterprise',
+    endpointUrl: 'https://your-resource.services.ai.azure.com/models',
+    defaultModel: 'claude-3-7-sonnet',
+    availableModels: ['claude-3-7-sonnet', 'claude-3-5-sonnet', 'claude-3-5-haiku'],
+    thinkingEffort: 'none',
+  },
+  claude: {
+    id: 'claude',
+    name: 'Claude Endpoints (Anthropic Direct)',
+    category: 'Frontier Cloud',
+    endpointUrl: 'https://api.anthropic.com',
+    defaultModel: 'claude-3-7-sonnet-20250219',
+    availableModels: ['claude-3-7-sonnet-20250219', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229'],
+    thinkingEffort: 'none',
+  },
+  copilot: {
+    id: 'copilot',
+    name: 'GitHub Copilot Endpoints',
+    category: 'Developer Cloud',
+    endpointUrl: 'https://api.githubcopilot.com',
+    defaultModel: 'gpt-4o',
+    availableModels: ['gpt-4o', 'claude-3.5-sonnet', 'o1-preview', 'o1-mini'],
+    thinkingEffort: 'none',
+  },
+  openai: {
+    id: 'openai',
+    name: 'OpenAI Endpoints',
+    category: 'Frontier Cloud',
+    endpointUrl: 'https://api.openai.com/v1',
+    defaultModel: 'gpt-4o',
+    availableModels: ['gpt-4o', 'gpt-4o-mini', 'o1', 'o3-mini', 'gpt-4.5-preview'],
+    thinkingEffort: 'none',
+  },
+  aws_bedrock: {
+    id: 'aws_bedrock',
+    name: 'AWS Bedrock Endpoints',
+    category: 'Cloud Enterprise',
+    endpointUrl: 'https://bedrock-runtime.us-east-1.amazonaws.com',
+    defaultModel: 'anthropic.claude-3-7-sonnet-20250219-v1:0',
+    availableModels: [
+      'anthropic.claude-3-7-sonnet-20250219-v1:0',
+      'anthropic.claude-3-5-sonnet-20241022-v2:0',
+      'anthropic.claude-3-5-haiku-20241022-v1:0',
+      'amazon.nova-pro-v1:0',
+      'meta.llama3-3-70b-instruct-v1:0',
+    ],
+    thinkingEffort: 'none',
+    region: 'us-east-1',
+  },
+  openrouter: {
+    id: 'openrouter',
+    name: 'OpenRouter Endpoints',
+    category: 'Multi-Model Router',
+    endpointUrl: 'https://openrouter.ai/api/v1',
+    defaultModel: 'anthropic/claude-3.7-sonnet',
+    availableModels: [
+      'anthropic/claude-3.7-sonnet',
+      'anthropic/claude-3.5-sonnet',
+      'openai/gpt-4o',
+      'openai/o3-mini',
+      'deepseek/deepseek-r1',
+      'meta-llama/llama-3.3-70b-instruct',
+      'google/gemini-2.0-flash-001',
+    ],
+    thinkingEffort: 'none',
+  },
+  custom: {
+    id: 'custom',
+    name: 'Custom Endpoints',
+    category: 'Custom / Self-Hosted',
+    endpointUrl: 'http://localhost:8000/v1',
+    defaultModel: 'custom-model',
+    availableModels: ['custom-model', 'default'],
+    thinkingEffort: 'none',
+    customHeader: '',
+  },
+  ollama: {
+    id: 'ollama',
+    name: 'Ollama (Native Local)',
+    category: 'Local Daemon',
+    endpointUrl: 'http://localhost:11434',
+    defaultModel: 'glm-5.3-flash:cloud',
+    availableModels: [
+      'glm-5.3-flash:cloud',
+      'gemma4:31b-cloud',
+      'llama3.3:70b',
+      'deepseek-r1:32b',
+      'qwen2.5-coder:32b',
+    ],
+    thinkingEffort: 'none',
+  },
+};
 
 interface SettingsViewProps {
   repoName: string;
@@ -68,28 +199,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [pingStatus, setPingStatus] = useState<Record<string, { loading?: boolean; success?: boolean; message?: string }>>({});
 
   // Provider state
-  const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434');
-  const [ollamaModel, setOllamaModel] = useState('glm-5.3-flash:cloud');
-  const [availableModels, setAvailableModels] = useState<string[]>(['glm-5.3-flash:cloud']);
+  const [activeProviderId, setActiveProviderId] = useState<AIProviderId>('ollama');
+  const [selectedProviderId, setSelectedProviderId] = useState<AIProviderId>('azure_foundry_openai');
+  const [providersConfig, setProvidersConfig] = useState<Record<AIProviderId, AIProviderConfig>>(DEFAULT_PROVIDERS);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [isTestingProvider, setIsTestingProvider] = useState(false);
+  const [testResult, setTestResult] = useState<{ success?: boolean; message?: string; latencyMs?: number } | null>(null);
   const [savedProvider, setSavedProvider] = useState(false);
-  const [customModelMode, setCustomModelMode] = useState(false);
+  const [customModelMode, setCustomModelMode] = useState<Record<string, boolean>>({});
+  const [showApiKey, setShowApiKey] = useState<Record<string, boolean>>({});
 
-  const loadModels = async (url?: string) => {
-    setIsLoadingModels(true);
-    try {
-      const data = await api.fetchOllamaModels(url || ollamaUrl);
-      if (data.models && data.models.length > 0) {
-        setAvailableModels(data.models);
-        if (!ollamaModel || !data.models.includes(ollamaModel)) {
-          setOllamaModel(data.defaultModel || data.models[0]);
-        }
-      }
-    } catch (err) {
-      console.warn('Could not fetch Ollama models:', err);
-    } finally {
-      setIsLoadingModels(false);
-    }
+  const updateProviderConfig = (providerId: AIProviderId, updates: Partial<AIProviderConfig>) => {
+    setProvidersConfig(prev => ({
+      ...prev,
+      [providerId]: {
+        ...(prev[providerId] || DEFAULT_PROVIDERS[providerId] || {}),
+        ...updates,
+      } as AIProviderConfig,
+    }));
   };
 
   // Load real data from SQLite
@@ -107,10 +234,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setSshKeysList(k);
       setWebhooksList(whs);
       if (ai) {
-        if (ai.ollamaUrl) setOllamaUrl(ai.ollamaUrl);
-        if (ai.defaultModel) setOllamaModel(ai.defaultModel);
+        if (ai.activeProvider) {
+          setActiveProviderId(ai.activeProvider);
+        }
+        if (ai.providers) {
+          setProvidersConfig(prev => {
+            const merged = { ...prev };
+            for (const [pid, pcfg] of Object.entries(ai.providers)) {
+              const id = pid as AIProviderId;
+              merged[id] = {
+                ...(merged[id] || DEFAULT_PROVIDERS[id] || {}),
+                ...pcfg,
+                availableModels: pcfg.availableModels?.length ? pcfg.availableModels : (merged[id]?.availableModels || DEFAULT_PROVIDERS[id]?.availableModels || []),
+              };
+            }
+            return merged;
+          });
+        }
       }
-      loadModels(ai?.ollamaUrl || ollamaUrl);
     } catch (err) {
       console.warn('Could not load settings data:', err);
     }
@@ -253,17 +394,78 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
+  const handleScanModels = async (providerId: AIProviderId) => {
+    setIsLoadingModels(true);
+    try {
+      const cfg = providersConfig[providerId] || DEFAULT_PROVIDERS[providerId];
+      const data = await api.fetchProviderModels(providerId, cfg.endpointUrl, cfg.apiKey);
+      if (data.models && data.models.length > 0) {
+        updateProviderConfig(providerId, {
+          availableModels: data.models,
+          defaultModel: cfg.defaultModel && data.models.includes(cfg.defaultModel) ? cfg.defaultModel : data.models[0],
+        });
+      }
+    } catch (err: any) {
+      console.warn(`Could not fetch models for ${providerId}:`, err);
+    } finally {
+      setIsLoadingModels(false);
+    }
+  };
+
+  const handleTestConnection = async (providerId: AIProviderId) => {
+    setIsTestingProvider(true);
+    setTestResult(null);
+    try {
+      const cfg = providersConfig[providerId] || DEFAULT_PROVIDERS[providerId];
+      const res = await api.testAIConnection(providerId, {
+        endpointUrl: cfg.endpointUrl,
+        apiKey: cfg.apiKey,
+        model: cfg.defaultModel,
+        apiVersion: cfg.apiVersion,
+        region: cfg.region,
+      });
+      setTestResult(res);
+    } catch (err: any) {
+      setTestResult({ success: false, message: err.message, latencyMs: 0 });
+    } finally {
+      setIsTestingProvider(false);
+    }
+  };
+
   const handleSaveProvider = async () => {
     try {
+      const current = providersConfig[selectedProviderId] || DEFAULT_PROVIDERS[selectedProviderId];
       await api.saveAISettings({
-        provider: 'ollama',
-        ollamaUrl,
-        defaultModel: ollamaModel,
+        activeProvider: activeProviderId,
+        providers: {
+          [selectedProviderId]: {
+            endpointUrl: current.endpointUrl,
+            apiKey: current.apiKey,
+            defaultModel: current.defaultModel,
+            thinkingEffort: current.thinkingEffort,
+            apiVersion: current.apiVersion,
+            region: current.region,
+            customHeader: current.customHeader,
+            customModels: current.availableModels,
+          },
+        },
       });
       setSavedProvider(true);
       setTimeout(() => setSavedProvider(false), 2000);
+      loadData();
     } catch (err: any) {
       alert(`Error saving AI settings: ${err.message}`);
+    }
+  };
+
+  const handleSetActive = async (providerId: AIProviderId) => {
+    setActiveProviderId(providerId);
+    try {
+      await api.saveAISettings({
+        activeProvider: providerId,
+      });
+    } catch (err: any) {
+      console.warn('Could not set active provider:', err);
     }
   };
 
@@ -765,120 +967,370 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         )}
 
-        {/* MODEL PROVIDERS SECTION (§9.4) */}
-        {activeSection === 'providers' && (
-          <div className="space-y-4">
-            <div className="pb-3 border-b border-hub-border">
-              <h3 className="text-sm font-bold text-hub-text flex items-center space-x-2">
-                <Cpu className="w-4 h-4 text-purple-400" />
-                <span>AI Model & Runtime Providers (§2 G6 & §9.4)</span>
-              </h3>
-              <p className="text-xs text-hub-muted mt-0.5">
-                Pluggable model endpoints for Helper Agents. Ollama endpoint is served natively.
-              </p>
-            </div>
+        {/* MODEL PROVIDERS SECTION */}
+        {activeSection === 'providers' && (() => {
+          const currentConfig = providersConfig[selectedProviderId] || DEFAULT_PROVIDERS[selectedProviderId];
+          const activeConfig = providersConfig[activeProviderId] || DEFAULT_PROVIDERS[activeProviderId];
+          const isSelectedActive = selectedProviderId === activeProviderId;
+          const isCustomMode = Boolean(customModelMode[selectedProviderId]);
+          const isKeyVisible = Boolean(showApiKey[selectedProviderId]);
 
-            <div className="border border-hub-border rounded-md bg-hub-surface p-4 space-y-4 text-xs">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-hub-success-text animate-pulse" />
-                  <span className="font-bold text-hub-text">Primary Provider: Ollama Endpoint</span>
-                </div>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-950 text-purple-300 border border-purple-800">
-                  Active Runtime
-                </span>
+          return (
+            <div className="space-y-4">
+              <div className="pb-3 border-b border-hub-border">
+                <h3 className="text-sm font-bold text-hub-text flex items-center space-x-2">
+                  <Cpu className="w-4 h-4 text-purple-400" />
+                  <span>AI Model & Runtime Providers</span>
+                </h3>
+                <p className="text-xs text-hub-muted mt-0.5">
+                  Pluggable model endpoints for Helper Agents. Switch active runtimes, configure thinking effort, and connect local or cloud endpoints.
+                </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-hub-muted text-[11px] mb-1">Ollama Base URL</label>
-                  <input
-                    type="text"
-                    value={ollamaUrl}
-                    onChange={(e) => setOllamaUrl(e.target.value)}
-                    className="w-full bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text focus:outline-none focus:border-purple-500"
-                  />
+              {/* Active Runtime Highlight Banner */}
+              <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg bg-gradient-to-r from-purple-950/40 via-hub-surface to-hub-surface border border-purple-900/40 text-xs">
+                <div className="flex items-center space-x-2.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-hub-success-text animate-pulse" />
+                  <div>
+                    <span className="text-hub-muted text-[11px] block">Active Forge Runtime</span>
+                    <span className="font-bold text-hub-text">{activeConfig.name}</span>
+                    <span className="ml-2 font-mono text-[11px] text-purple-300">({activeConfig.defaultModel})</span>
+                  </div>
                 </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-hub-muted text-[11px]">Default Model Tag</label>
+
+                <div className="flex items-center space-x-2">
+                  {activeConfig.thinkingEffort && activeConfig.thinkingEffort !== 'none' && (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-900/60 text-purple-300 border border-purple-700">
+                      Thinking: {activeConfig.thinkingEffort}
+                    </span>
+                  )}
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-950 text-purple-300 border border-purple-800">
+                    Active Runtime
+                  </span>
+                </div>
+              </div>
+
+              {/* Provider Selection Tabs */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-1">
+                {PROVIDER_ORDER.map((pid) => {
+                  const p = providersConfig[pid] || DEFAULT_PROVIDERS[pid];
+                  const isSelected = selectedProviderId === pid;
+                  const isActive = activeProviderId === pid;
+
+                  return (
                     <button
+                      key={pid}
                       type="button"
-                      onClick={() => loadModels(ollamaUrl)}
-                      disabled={isLoadingModels}
-                      className="text-[10px] text-purple-400 hover:text-purple-300 flex items-center space-x-1"
-                      title="Re-scan Ollama models at endpoint"
+                      onClick={() => {
+                        setSelectedProviderId(pid);
+                        setTestResult(null);
+                      }}
+                      className={`p-2.5 rounded-md border text-left transition-all relative ${
+                        isSelected
+                          ? 'bg-hub-surface border-purple-500 shadow-sm shadow-purple-500/10'
+                          : 'bg-hub-bg/60 border-hub-border hover:bg-hub-surface hover:border-hub-border/80'
+                      }`}
                     >
-                      <RotateCw className={`w-3 h-3 ${isLoadingModels ? 'animate-spin' : ''}`} />
-                      <span>{isLoadingModels ? 'Scanning...' : 'Scan Models'}</span>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] uppercase font-mono tracking-wider text-hub-muted truncate max-w-[80px]">
+                          {p.category}
+                        </span>
+                        {isActive && (
+                          <span className="w-2 h-2 rounded-full bg-hub-success-text animate-pulse" title="Active Runtime" />
+                        )}
+                      </div>
+                      <div className="font-bold text-xs text-hub-text truncate">
+                        {p.name.replace(/ Endpoints|\(Native Local\)/g, '')}
+                      </div>
+                      <div className="text-[10px] text-hub-muted font-mono truncate mt-0.5">
+                        {p.defaultModel}
+                      </div>
                     </button>
+                  );
+                })}
+              </div>
+
+              {/* Selected Provider Configuration Card */}
+              <div className="border border-hub-border rounded-md bg-hub-surface p-4 space-y-4 text-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-hub-border pb-3">
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h4 className="font-bold text-sm text-hub-text">{currentConfig.name}</h4>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-hub-bg text-hub-muted border border-hub-border">
+                        {currentConfig.category}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-hub-muted mt-0.5">
+                      Configure connection endpoint, model selector, credentials, and reasoning controls.
+                    </p>
                   </div>
 
-                  {customModelMode ? (
-                    <div className="flex space-x-1.5">
-                      <input
-                        type="text"
-                        value={ollamaModel}
-                        onChange={(e) => setOllamaModel(e.target.value)}
-                        placeholder="e.g. glm-5.3-flash:cloud"
-                        className="flex-1 bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text focus:outline-none focus:border-purple-500"
-                      />
+                  <div className="flex items-center space-x-2">
+                    {isSelectedActive ? (
+                      <span className="px-2.5 py-1 rounded text-[11px] font-mono bg-purple-950 text-purple-300 border border-purple-800 flex items-center space-x-1.5">
+                        <span className="w-2 h-2 rounded-full bg-hub-success-text animate-pulse" />
+                        <span>Active Runtime</span>
+                      </span>
+                    ) : (
                       <button
                         type="button"
-                        onClick={() => setCustomModelMode(false)}
-                        className="px-2 py-1 bg-hub-surface border border-hub-border rounded text-[11px] text-hub-text hover:bg-hub-border"
+                        onClick={() => handleSetActive(selectedProviderId)}
+                        className="flex items-center space-x-1.5 px-2.5 py-1 rounded text-[11px] font-medium bg-hub-subtle hover:bg-purple-950/60 hover:text-purple-300 border border-hub-border hover:border-purple-700 text-hub-muted transition-colors"
                       >
-                        Dropdown
+                        <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                        <span>Set as Active Runtime</span>
                       </button>
-                    </div>
-                  ) : (
-                    <div className="flex space-x-1.5">
-                      <select
-                        value={ollamaModel}
-                        onChange={(e) => {
-                          if (e.target.value === '__custom__') {
-                            setCustomModelMode(true);
-                          } else {
-                            setOllamaModel(e.target.value);
-                          }
-                        }}
-                        className="flex-1 bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text focus:outline-none focus:border-purple-500"
-                      >
-                        {availableModels.map((m) => (
-                          <option key={m} value={m}>
-                            {m} {m === 'glm-5.3-flash:cloud' ? '★ (Active Cloud Model)' : ''}
-                          </option>
-                        ))}
-                        <option value="__custom__">+ Enter custom tag...</option>
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => setCustomModelMode(true)}
-                        className="px-2 py-1 bg-hub-surface border border-hub-border rounded text-[11px] text-hub-text hover:bg-hub-border"
-                        title="Enter custom model tag"
-                      >
-                        Custom
-                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Endpoint URL */}
+                  <div>
+                    <label className="block text-hub-muted text-[11px] mb-1">
+                      {currentConfig.id === 'ollama' ? 'Ollama Base URL' : 'Endpoint / Base URL'}
+                    </label>
+                    <input
+                      type="text"
+                      value={currentConfig.endpointUrl || ''}
+                      onChange={(e) => updateProviderConfig(selectedProviderId, { endpointUrl: e.target.value })}
+                      placeholder={DEFAULT_PROVIDERS[selectedProviderId]?.endpointUrl}
+                      className="w-full bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+
+                  {/* API Key / Token (if not native Ollama) */}
+                  {selectedProviderId !== 'ollama' && (
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-hub-muted text-[11px]">
+                          API Key / Access Token
+                        </label>
+                        {currentConfig.isKeySet && (
+                          <span className="text-[10px] text-hub-success-text flex items-center space-x-1 font-mono">
+                            <ShieldCheck className="w-3 h-3" />
+                            <span>Configured (AES-256-GCM)</span>
+                          </span>
+                        )}
+                      </div>
+                      <div className="relative flex items-center">
+                        <input
+                          type={isKeyVisible ? 'text' : 'password'}
+                          value={currentConfig.apiKey || ''}
+                          onChange={(e) => updateProviderConfig(selectedProviderId, { apiKey: e.target.value })}
+                          placeholder={currentConfig.isKeySet ? '•••••••• (Encrypted at rest)' : 'Enter API Key...'}
+                          className="w-full bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 pr-16 font-mono text-xs text-hub-text focus:outline-none focus:border-purple-500"
+                        />
+                        <div className="absolute right-1.5 flex items-center space-x-1">
+                          <button
+                            type="button"
+                            onClick={() => setShowApiKey(prev => ({ ...prev, [selectedProviderId]: !isKeyVisible }))}
+                            className="p-1 text-hub-muted hover:text-hub-text rounded"
+                            title={isKeyVisible ? 'Hide Key' : 'Show Key'}
+                          >
+                            {isKeyVisible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
-                  <p className="text-[10px] text-hub-muted mt-1">
-                    Select any model active at the Ollama endpoint.
-                  </p>
+
+                  {/* Model Selector Dropdown & Dynamic Scanner */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-hub-muted text-[11px]">Default Model Tag</label>
+                      <button
+                        type="button"
+                        onClick={() => handleScanModels(selectedProviderId)}
+                        disabled={isLoadingModels}
+                        className="text-[10px] text-purple-400 hover:text-purple-300 flex items-center space-x-1"
+                        title="Scan active models from endpoint"
+                      >
+                        <RotateCw className={`w-3 h-3 ${isLoadingModels ? 'animate-spin' : ''}`} />
+                        <span>{isLoadingModels ? 'Scanning...' : 'Scan Models'}</span>
+                      </button>
+                    </div>
+
+                    {isCustomMode ? (
+                      <div className="flex space-x-1.5">
+                        <input
+                          type="text"
+                          value={currentConfig.defaultModel || ''}
+                          onChange={(e) => updateProviderConfig(selectedProviderId, { defaultModel: e.target.value })}
+                          placeholder="e.g. gpt-4o, claude-3-7-sonnet"
+                          className="flex-1 bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text focus:outline-none focus:border-purple-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setCustomModelMode(prev => ({ ...prev, [selectedProviderId]: false }))}
+                          className="px-2 py-1 bg-hub-surface border border-hub-border rounded text-[11px] text-hub-text hover:bg-hub-border"
+                        >
+                          Dropdown
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex space-x-1.5">
+                        <select
+                          value={currentConfig.defaultModel || ''}
+                          onChange={(e) => {
+                            if (e.target.value === '__custom__') {
+                              setCustomModelMode(prev => ({ ...prev, [selectedProviderId]: true }));
+                            } else {
+                              updateProviderConfig(selectedProviderId, { defaultModel: e.target.value });
+                            }
+                          }}
+                          className="flex-1 bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text focus:outline-none focus:border-purple-500"
+                        >
+                          {(currentConfig.availableModels || DEFAULT_PROVIDERS[selectedProviderId]?.availableModels || []).map((m) => (
+                            <option key={m} value={m}>
+                              {m} {m === 'glm-5.3-flash:cloud' ? '★ (Cloud)' : ''}
+                            </option>
+                          ))}
+                          <option value="__custom__">+ Enter custom tag...</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => setCustomModelMode(prev => ({ ...prev, [selectedProviderId]: true }))}
+                          className="px-2 py-1 bg-hub-surface border border-hub-border rounded text-[11px] text-hub-text hover:bg-hub-border"
+                          title="Enter custom model tag"
+                        >
+                          Custom
+                        </button>
+                      </div>
+                    )}
+                    <p className="text-[10px] text-hub-muted mt-1">
+                      Choose from registered models or enter a custom identifier.
+                    </p>
+                  </div>
+
+                  {/* Thinking Effort Setting */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-hub-muted text-[11px]">Thinking / Reasoning Effort</label>
+                      <span className="text-[10px] font-mono text-purple-400">
+                        {currentConfig.thinkingEffort || 'none'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {(['none', 'low', 'medium', 'high'] as ThinkingEffort[]).map((effort) => {
+                        const isEffortActive = (currentConfig.thinkingEffort || 'none') === effort;
+                        return (
+                          <button
+                            key={effort}
+                            type="button"
+                            onClick={() => updateProviderConfig(selectedProviderId, { thinkingEffort: effort })}
+                            className={`py-1.5 px-2 rounded text-[11px] font-medium transition-colors text-center capitalize border ${
+                              isEffortActive
+                                ? 'bg-purple-950/80 border-purple-600 text-purple-300 font-bold'
+                                : 'bg-hub-bg border-hub-border text-hub-muted hover:text-white'
+                            }`}
+                          >
+                            {effort}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[10px] text-hub-muted mt-1">
+                      Allocates reasoning tokens (OpenAI o1/o3-mini, Claude 3.7 Sonnet thinking mode, DeepSeek-R1).
+                    </p>
+                  </div>
+
+                  {/* Extra fields if applicable */}
+                  {selectedProviderId === 'azure_foundry_openai' && (
+                    <div>
+                      <label className="block text-hub-muted text-[11px] mb-1">Azure API Version</label>
+                      <input
+                        type="text"
+                        value={currentConfig.apiVersion || '2024-10-21'}
+                        onChange={(e) => updateProviderConfig(selectedProviderId, { apiVersion: e.target.value })}
+                        placeholder="2024-10-21"
+                        className="w-full bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+                  )}
+
+                  {selectedProviderId === 'aws_bedrock' && (
+                    <div>
+                      <label className="block text-hub-muted text-[11px] mb-1">AWS Region</label>
+                      <input
+                        type="text"
+                        value={currentConfig.region || 'us-east-1'}
+                        onChange={(e) => updateProviderConfig(selectedProviderId, { region: e.target.value })}
+                        placeholder="us-east-1"
+                        className="w-full bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+                  )}
+
+                  {selectedProviderId === 'custom' && (
+                    <div>
+                      <label className="block text-hub-muted text-[11px] mb-1">Custom Auth Header Name (Optional)</label>
+                      <input
+                        type="text"
+                        value={currentConfig.customHeader || ''}
+                        onChange={(e) => updateProviderConfig(selectedProviderId, { customHeader: e.target.value })}
+                        placeholder="e.g. X-API-Key or Authorization"
+                        className="w-full bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Test Connection Result Feedback */}
+                {testResult && (
+                  <div
+                    className={`flex items-start space-x-2 p-2.5 rounded border text-xs font-mono ${
+                      testResult.success
+                        ? 'bg-green-950/40 border-green-800 text-hub-success-text'
+                        : 'bg-red-950/40 border-red-800 text-red-300'
+                    }`}
+                  >
+                    {testResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 text-hub-success-text shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                    )}
+                    <div className="flex-1 overflow-hidden">
+                      <div className="font-bold">
+                        {testResult.success ? 'Connection Test Passed' : 'Connection Test Failed'}
+                      </div>
+                      <div className="text-[11px] opacity-90 break-words mt-0.5">
+                        {testResult.message}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Footer Action Bar */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-hub-border">
+                  <button
+                    type="button"
+                    onClick={() => handleTestConnection(selectedProviderId)}
+                    disabled={isTestingProvider}
+                    className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border rounded text-hub-text font-medium transition-colors disabled:opacity-50"
+                  >
+                    {isTestingProvider ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-hub-accent" />
+                    ) : (
+                      <Zap className="w-3.5 h-3.5 text-yellow-400" />
+                    )}
+                    <span>{isTestingProvider ? 'Testing Endpoint...' : 'Test Connection'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveProvider}
+                    className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-hub-success hover:bg-green-700 text-white rounded font-semibold transition-colors shadow-sm"
+                  >
+                    {savedProvider ? <Check className="w-3.5 h-3.5" /> : null}
+                    <span>{savedProvider ? 'Saved Settings!' : 'Save Provider Settings'}</span>
+                  </button>
                 </div>
               </div>
-
-              <div className="flex justify-end">
-                <button
-                  onClick={handleSaveProvider}
-                  className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-success hover:bg-green-700 text-white rounded font-semibold transition-colors"
-                >
-                  {savedProvider ? <Check className="w-3.5 h-3.5" /> : null}
-                  <span>{savedProvider ? 'Saved!' : 'Save Endpoint & Model'}</span>
-                </button>
-              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { Repository, FileItem, Commit, PullRequest, Secret, PersonalAccessToken, SSHKey, DiffFile, WorkflowRun, AgentRun, Webhook, WorkingCopyStatus, GitRemote, GitStashEntry, PRMergeability, NetworkInfo, UserProfile, BlameLine } from '../types';
+import { Repository, FileItem, Commit, PullRequest, Secret, PersonalAccessToken, SSHKey, DiffFile, WorkflowRun, AgentRun, Webhook, WorkingCopyStatus, GitRemote, GitStashEntry, PRMergeability, NetworkInfo, UserProfile, BlameLine, AISettingsState, AIProviderId, AIProviderConfig, ThinkingEffort } from '../types';
 
 export const api = {
   // --- Repositories ---
@@ -319,7 +319,7 @@ export const api = {
     if (!res.ok) throw new Error('Failed to save SSH key');
   },
 
-  // --- Real Ollama Models & AI Settings ---
+  // --- Real AI Models & Providers Settings ---
   async fetchOllamaModels(url?: string): Promise<{ models: string[]; defaultModel: string }> {
     const q = url ? `?url=${encodeURIComponent(url)}` : '';
     const res = await fetch(`/api/v1/ollama/models${q}`);
@@ -327,13 +327,35 @@ export const api = {
     return await res.json();
   },
 
-  async fetchAISettings(): Promise<{ provider: string; ollamaUrl: string; defaultModel: string }> {
+  async fetchProviderModels(provider: string, url?: string, apiKey?: string): Promise<{ models: string[]; defaultModel: string }> {
+    const params = new URLSearchParams({ provider });
+    if (url) params.append('url', url);
+    if (apiKey) params.append('apiKey', apiKey);
+    const res = await fetch(`/api/v1/ai/models?${params.toString()}`);
+    if (!res.ok) throw new Error(`Failed to discover models for ${provider}`);
+    return await res.json();
+  },
+
+  async testAIConnection(provider: string, config: any): Promise<{ success: boolean; message: string; latencyMs: number }> {
+    const res = await fetch('/api/v1/ai/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, ...config }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Failed to test AI connection');
+    }
+    return await res.json();
+  },
+
+  async fetchAISettings(): Promise<AISettingsState> {
     const res = await fetch('/api/v1/settings/ai');
     if (!res.ok) throw new Error('Failed to fetch AI settings');
     return await res.json();
   },
 
-  async saveAISettings(settings: { provider?: string; ollamaUrl?: string; defaultModel?: string }): Promise<void> {
+  async saveAISettings(settings: any): Promise<void> {
     const res = await fetch('/api/v1/settings/ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

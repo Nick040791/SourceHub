@@ -173,8 +173,23 @@ export async function handleApiAndGit(
         }
 
         // ==========================================
-        // 2b. OLLAMA MODELS & AI PROVIDER SETTINGS
+        // 2b. AI PROVIDERS, MODELS & SETTINGS
         // ==========================================
+        if (pathname === '/api/v1/ai/models' && req.method === 'GET') {
+          const provider = (searchParams.get('provider') || 'ollama') as any;
+          const customUrl = searchParams.get('url') || undefined;
+          const customApiKey = searchParams.get('apiKey') || undefined;
+          const data = await agentService.discoverModels(provider, customUrl, customApiKey);
+          return sendJson(res, 200, data);
+        }
+
+        if (pathname === '/api/v1/ai/test' && req.method === 'POST') {
+          const body = await readJsonBody(req);
+          const provider = (body.provider || 'ollama') as any;
+          const result = await agentService.testAIConnection(provider, body);
+          return sendJson(res, 200, result);
+        }
+
         if (pathname === '/api/v1/ollama/models' && req.method === 'GET') {
           const customUrl = searchParams.get('url') || undefined;
           const data = await agentService.getOllamaModels(customUrl);

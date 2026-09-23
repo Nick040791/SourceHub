@@ -322,3 +322,42 @@ export interface UserProfile {
   theme: AppTheme;
 }
 
+export type AIProviderId =
+  | 'ollama'
+  | 'azure_foundry_openai'
+  | 'azure_foundry_anthropic'
+  | 'claude'
+  | 'copilot'
+  | 'openai'
+  | 'aws_bedrock'
+  | 'openrouter'
+  | 'custom';
+
+export type ThinkingEffort = 'none' | 'low' | 'medium' | 'high';
+
+export interface AIProviderConfig {
+  id: AIProviderId;
+  name: string;
+  category: string;
+  endpointUrl: string;
+  apiKey?: string;
+  isKeySet?: boolean;
+  defaultModel: string;
+  availableModels: string[];
+  thinkingEffort?: ThinkingEffort;
+  apiVersion?: string;
+  region?: string;
+  customHeader?: string;
+}
+
+export interface AISettingsState {
+  activeProvider: AIProviderId;
+  thinkingEffort?: ThinkingEffort;
+  providers: Record<AIProviderId, AIProviderConfig>;
+  // Backwards compatibility fields
+  provider?: string;
+  ollamaUrl?: string;
+  defaultModel?: string;
+}
+
+

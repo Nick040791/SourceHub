@@ -48,8 +48,10 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
   const [selectedRunId, setSelectedRunId] = useState<string>('');
   const [isLoadingRuns, setIsLoadingRuns] = useState(false);
   
-  // Available models from Ollama endpoint
+  // Available models & provider info
   const [availableModels, setAvailableModels] = useState<string[]>(['glm-5.3-flash:cloud']);
+  const [activeProviderName, setActiveProviderName] = useState<string>('Ollama');
+  const [activeThinkingEffort, setActiveThinkingEffort] = useState<string>('none');
   
   // New task form state
   const [prompt, setPrompt] = useState(initialPrompt || '');
@@ -83,20 +85,27 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
     }
   };
 
-  // Load available models from Ollama endpoint
+  // Load available models from active provider
   const loadModels = async () => {
     try {
-      const [modelsData, aiSettings] = await Promise.all([
-        api.fetchOllamaModels().catch(() => ({ models: ['glm-5.3-flash:cloud'], defaultModel: 'glm-5.3-flash:cloud' })),
-        api.fetchAISettings().catch(() => null),
-      ]);
-      if (modelsData.models && modelsData.models.length > 0) {
-        setAvailableModels(modelsData.models);
-      }
-      if (aiSettings?.defaultModel) {
-        setModel(aiSettings.defaultModel);
-      } else if (modelsData.defaultModel) {
-        setModel(modelsData.defaultModel);
+      const aiSettings = await api.fetchAISettings().catch(() => null);
+      if (aiSettings) {
+        const pid = aiSettings.activeProvider || 'ollama';
+        const activeCfg = aiSettings.providers?.[pid];
+        if (activeCfg) {
+          setActiveProviderName(activeCfg.name || pid);
+          setActiveThinkingEffort(activeCfg.thinkingEffort || 'none');
+          if (activeCfg.availableModels && activeCfg.availableModels.length > 0) {
+            setAvailableModels(activeCfg.availableModels);
+          }
+          if (activeCfg.defaultModel) {
+            setModel(activeCfg.defaultModel);
+          }
+        }
+      } else {
+        const modelsData = await api.fetchOllamaModels().catch(() => ({ models: ['glm-5.3-flash:cloud'], defaultModel: 'glm-5.3-flash:cloud' }));
+        if (modelsData.models?.length) setAvailableModels(modelsData.models);
+        if (modelsData.defaultModel) setModel(modelsData.defaultModel);
       }
     } catch (e) {
       console.warn('Could not load models for agents view:', e);
@@ -191,11 +200,16 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
                 SourceHub Helper — Async Repository Agent
               </h2>
               <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-purple-900/60 text-purple-300 border border-purple-700">
-                Ollama Endpoint Active
+                {activeProviderName} Active
               </span>
+              {activeThinkingEffort && activeThinkingEffort !== 'none' && (
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-purple-950 text-purple-400 border border-purple-800">
+                  Thinking: {activeThinkingEffort}
+                </span>
+              )}
             </div>
             <p className="text-xs text-hub-muted max-w-3xl">
-              Prompt an asynchronous coding task. Helper connects directly to the Ollama endpoint, creates an isolated branch on your behalf, commits changes with audit trailers, and stops at the review gate.
+              Prompt an asynchronous coding task. Helper connects to your active AI provider ({activeProviderName}), creates an isolated branch on your behalf, commits changes with audit trailers, and stops at the review gate.
             </p>
           </div>
 

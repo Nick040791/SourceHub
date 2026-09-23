@@ -2,6 +2,7 @@ import { db } from './db';
 import { GitService } from './gitService';
 import { WorkflowService } from './workflowService';
 import { webhookService } from './webhookService';
+import { aiProviderService, AIProviderId, ThinkingEffort } from './aiProviderService';
 interface ParsedFile {
   path: string;
   content: string;
@@ -49,71 +50,33 @@ export class AgentService {
     return this.activePROperations.has(`${repoName}:${prId}`);
   }
 
-  // 1. AI Settings (Persisted in SQLite)
-  getAISettings(): { provider: string; ollamaUrl: string; defaultModel: string } {
-    try {
-      const providerRow = db.prepare("SELECT value FROM system_settings WHERE key = 'ai_provider'").get() as any;
-      const urlRow = db.prepare("SELECT value FROM system_settings WHERE key = 'ollama_url'").get() as any;
-      const modelRow = db.prepare("SELECT value FROM system_settings WHERE key = 'ollama_model'").get() as any;
-
-      return {
-        provider: providerRow?.value || 'ollama',
-        ollamaUrl: urlRow?.value || 'http://localhost:11434',
-        defaultModel: modelRow?.value || 'glm-5.3-flash:cloud',
-      };
-    } catch {
-      return {
-        provider: 'ollama',
-        ollamaUrl: 'http://localhost:11434',
-        defaultModel: 'glm-5.3-flash:cloud',
-      };
-    }
+  // 1. AI Settings (Persisted in SQLite via AIProviderService)
+  getAISettings() {
+    return aiProviderService.getAISettings();
   }
 
-  saveAISettings(settings: { provider?: string; ollamaUrl?: string; defaultModel?: string }): void {
-    const upsert = db.prepare(`
-      INSERT INTO system_settings (key, value)
-      VALUES (?, ?)
-      ON CONFLICT(key) DO UPDATE SET value = excluded.value
-    `);
-
-    if (settings.provider) upsert.run('ai_provider', settings.provider);
-    if (settings.ollamaUrl) upsert.run('ollama_url', settings.ollamaUrl);
-    if (settings.defaultModel) upsert.run('ollama_model', settings.defaultModel);
+  saveAISettings(settings: any): void {
+    aiProviderService.saveAISettings(settings);
   }
 
-  // 2. Discover Models from Ollama Endpoint
+  // 2. Discover Models from Endpoint
   async getOllamaModels(customUrl?: string): Promise<{ models: string[]; defaultModel: string }> {
-    const settings = this.getAISettings();
-    const targetUrl = customUrl || settings.ollamaUrl || 'http://localhost:11434';
-    const modelsSet = new Set<string>();
+    return aiProviderService.discoverModels('ollama', customUrl);
+  }
 
-    // Always include glm-5.3-flash:cloud as prioritized by user
-    modelsSet.add('glm-5.3-flash:cloud');
+  async discoverModels(
+    providerId: AIProviderId,
+    customUrl?: string,
+    customApiKey?: string
+  ): Promise<{ models: string[]; defaultModel: string }> {
+    return aiProviderService.discoverModels(providerId, customUrl, customApiKey);
+  }
 
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
-      const res = await fetch(`${targetUrl}/api/tags`, { signal: controller.signal });
-      clearTimeout(timeoutId);
-
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.models)) {
-          for (const m of data.models) {
-            if (m.name) modelsSet.add(m.name);
-            if (m.model) modelsSet.add(m.model);
-          }
-        }
-      }
-    } catch (err: any) {
-      console.warn(`Could not reach Ollama at ${targetUrl}:`, err.message);
-    }
-
-    return {
-      models: Array.from(modelsSet),
-      defaultModel: settings.defaultModel || 'glm-5.3-flash:cloud',
-    };
+  async testAIConnection(
+    providerId: AIProviderId,
+    config: any
+  ): Promise<{ success: boolean; message: string; latencyMs: number }> {
+    return aiProviderService.testConnection(providerId, config);
   }
 
   // 3. List Real Agent Runs for a Repository
@@ -194,7 +157,7 @@ export class AgentService {
       targetBranch,
       params.mode,
       'queued',
-      'ollama',
+      settings.activeProvider || settings.provider || 'ollama',
       model,
       operator,
       JSON.stringify([]),
@@ -326,25 +289,16 @@ ${fileContext}
 ${prompt}
 `;
 
-      const res = await fetch(`${ollamaUrl}/api/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model,
-          prompt: fullPrompt,
-          system: systemPrompt,
-          stream: false,
-        }),
+      ollamaResponse = await aiProviderService.complete({
+        prompt: fullPrompt,
+        systemPrompt,
+        modelOverride: model,
       });
-
-      if (!res.ok) {
-        throw new Error(`Ollama returned status ${res.status}`);
+      if (!ollamaResponse) {
+        ollamaResponse = 'Task plan analyzed and ready for verification.';
       }
-
-      const data = await res.json();
-      ollamaResponse = data.response || 'Task plan analyzed and ready for verification.';
     } catch (err: any) {
-      console.warn('Ollama generate error:', err);
+      console.warn('AI completion error:', err);
       ollamaResponse = `Agent analysis completed with model ${model}. (${err.message})`;
     }
 
@@ -576,21 +530,14 @@ TITLE: <concise conventional title>
 `;
 
     try {
-      const res = await fetch(`${ollamaUrl}/api/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model,
-          prompt,
-          stream: false,
-        }),
+      const raw = await aiProviderService.complete({
+        prompt,
+        modelOverride: model,
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        const raw = (data.response || '').trim();
+      if (raw) {
         let title = '';
-        let description = raw;
+        let description = raw.trim();
 
         if (raw.includes('TITLE:')) {
           const lines = raw.split('\n');
@@ -608,7 +555,7 @@ TITLE: <concise conventional title>
         };
       }
     } catch (e: any) {
-      console.warn('Could not generate PR description via Ollama:', e.message);
+      console.warn('Could not generate PR description via AI Provider:', e.message);
     }
 
     return {
@@ -679,22 +626,12 @@ Checklist of recommended tests to run before merging.
 
       let review = '';
       try {
-        const res = await fetch(`${ollamaUrl}/api/generate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model,
-            prompt,
-            stream: false,
-          }),
+        review = await aiProviderService.complete({
+          prompt,
+          modelOverride: model,
         });
-
-        if (res.ok) {
-          const data = await res.json();
-          review = (data.response || '').trim();
-        }
       } catch (err: any) {
-        console.warn('Ollama PR review error:', err);
+        console.warn('AI PR review error:', err);
       }
 
       if (!review) {
@@ -762,22 +699,12 @@ Analyze all feedback above and provide:
 
       let response = '';
       try {
-        const res = await fetch(`${ollamaUrl}/api/generate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model,
-            prompt,
-            stream: false,
-          }),
+        response = await aiProviderService.complete({
+          prompt,
+          modelOverride: model,
         });
-
-        if (res.ok) {
-          const data = await res.json();
-          response = (data.response || '').trim();
-        }
       } catch (err: any) {
-        console.warn('Ollama address comments error:', err);
+        console.warn('AI address comments error:', err);
       }
 
       if (!response) {
