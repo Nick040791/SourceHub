@@ -35,7 +35,7 @@ export const AVATAR_COLOR_GRADIENTS: Record<string, { label: string; class: stri
 };
 
 export const THEME_OPTIONS: Array<{ id: AppTheme; label: string; desc: string; icon: string }> = [
-  { id: 'matrix', label: 'Matrix Neon', desc: 'Electric green on obsidian black (Default)', icon: '⚡' },
+  { id: 'matrix', label: 'Forge Charcoal', desc: 'Style D: charcoal chrome with lime CTAs (Default)', icon: '⬛' },
   { id: 'cyber-amber', label: 'Cyber Amber', desc: 'Phosphor VT220 amber on onyx', icon: '📟' },
   { id: 'tokyo-night', label: 'Tokyo Night', desc: 'Indigo midnight with vivid cyan & violet', icon: '🗼' },
   { id: 'catppuccin', label: 'Catppuccin Mocha', desc: 'Soothing dark pastel & lavender', icon: '☕' },

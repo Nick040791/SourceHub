@@ -140,16 +140,16 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
 
   return (
     <>
-      <div className="bg-hub-surface border-b border-hub-border px-4 py-2 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div className="bg-hub-surface/60 border-b border-hub-border px-4 py-2 flex flex-wrap items-center justify-between gap-3 text-xs">
         {/* Left: Desktop Core Controls (Repo & Branch) */}
         <div className="flex items-center space-x-2">
           {/* Current Repository indicator */}
-          <div className="flex items-center space-x-1.5 px-3 py-1.5 rounded-md bg-hub-bg border border-hub-border text-hub-text font-medium">
+          <div className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-hub-bg border border-hub-border text-hub-text font-medium">
             <FolderGit2 className="w-3.5 h-3.5 text-hub-link" />
             <span className="text-hub-muted text-[11px]">Repository:</span>
             <span className="font-bold font-mono">{repo.name}</span>
             {!status?.isClean && (
-              <span className="w-2 h-2 rounded-full bg-yellow-400" title="Uncommitted changes present" />
+              <span className="w-2 h-2 rounded-full bg-hub-warning-text" title="Uncommitted changes present" />
             )}
           </div>
 
@@ -157,16 +157,16 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
           <div className="relative">
             <button
               onClick={() => setIsBranchMenuOpen(!isBranchMenuOpen)}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-md bg-hub-bg hover:bg-hub-subtle border border-hub-border text-hub-text font-medium transition-colors"
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-hub-bg hover:bg-hub-subtle border border-hub-border text-hub-text font-medium transition-colors"
             >
-              <GitBranch className="w-3.5 h-3.5 text-purple-400" />
+              <GitBranch className="w-3.5 h-3.5 text-hub-muted" />
               <span className="text-hub-muted text-[11px]">Current Branch:</span>
-              <span className="font-bold font-mono text-purple-300">{currentBranch}</span>
+              <span className="font-bold font-mono text-hub-text">{currentBranch}</span>
               <ChevronDown className="w-3 h-3 text-hub-muted ml-0.5" />
             </button>
 
             {isBranchMenuOpen && (
-              <div className="absolute left-0 mt-2 w-72 bg-hub-surface border border-hub-border rounded-lg shadow-2xl z-50 p-2 text-xs animate-in fade-in duration-100">
+              <div className="absolute left-0 mt-2 w-72 bg-hub-surface border border-hub-border rounded-xl shadow-2xl z-50 p-2 text-xs animate-in fade-in duration-100">
                 <div className="pb-2 border-b border-hub-border mb-2 space-y-1.5">
                   <div className="flex items-center justify-between px-1">
                     <span className="text-[10px] font-bold text-hub-muted uppercase tracking-wider">
@@ -174,7 +174,7 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
                     </span>
                     <button
                       onClick={() => setIsCreatingBranch(!isCreatingBranch)}
-                      className="text-hub-accent hover:text-blue-400 text-[11px] font-semibold flex items-center space-x-0.5"
+                      className="text-hub-accent hover:text-hub-success-text text-[11px] font-semibold flex items-center space-x-0.5"
                     >
                       <Plus className="w-3 h-3" />
                       <span>New</span>
@@ -202,7 +202,7 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
                         <button
                           type="submit"
                           disabled={!newBranchName.trim()}
-                          className="px-2 py-0.5 bg-hub-accent text-white rounded text-[11px] font-semibold"
+                          className="px-2 py-0.5 bg-hub-accent hover:bg-hub-success text-white rounded-md text-[11px] font-semibold"
                         >
                           Create
                         </button>
@@ -256,17 +256,17 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
           {!hasRemotes ? (
             <button
               onClick={() => setIsRemoteModalOpen(true)}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-purple-950/80 hover:bg-purple-900 border border-purple-800 text-purple-200 rounded-md font-semibold transition-colors shadow-sm"
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border text-hub-text rounded-lg font-semibold transition-colors shadow-sm"
               title="Add remote to push and fetch"
             >
-              <Globe className="w-3.5 h-3.5 text-purple-300" />
+              <Globe className="w-3.5 h-3.5 text-hub-muted" />
               <span>Add Remote</span>
             </button>
           ) : !status?.hasUpstream ? (
             <button
               onClick={handlePush}
               disabled={isActionLoading}
-              className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-hub-accent hover:bg-blue-600 text-white rounded-md font-semibold transition-colors shadow-sm disabled:opacity-50"
+              className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-hub-accent hover:bg-hub-success text-white rounded-lg font-semibold transition-colors shadow-sm disabled:opacity-50"
               title="Publish this branch to remote origin"
             >
               <ArrowUp className="w-3.5 h-3.5" />
@@ -276,7 +276,7 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
             <button
               onClick={handlePull}
               disabled={isActionLoading}
-              className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-semibold transition-colors shadow-sm disabled:opacity-50"
+              className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-hub-accent hover:bg-hub-success text-white rounded-lg font-semibold transition-colors shadow-sm disabled:opacity-50"
               title="Pull changes from remote"
             >
               <ArrowDown className="w-3.5 h-3.5" />
@@ -286,7 +286,7 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
             <button
               onClick={handlePush}
               disabled={isActionLoading}
-              className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-hub-accent hover:bg-blue-600 text-white rounded-md font-semibold transition-colors shadow-sm disabled:opacity-50"
+              className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-hub-accent hover:bg-hub-success text-white rounded-lg font-semibold transition-colors shadow-sm disabled:opacity-50"
               title="Push local commits to remote"
             >
               <ArrowUp className="w-3.5 h-3.5" />
@@ -296,7 +296,7 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
             <button
               onClick={handleFetch}
               disabled={isActionLoading}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border text-hub-text rounded-md font-semibold transition-colors disabled:opacity-50"
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border text-hub-text rounded-lg font-semibold transition-colors disabled:opacity-50"
               title={status?.lastFetched ? `Last fetched ${status.lastFetched}` : 'Fetch latest remote refs'}
             >
               <RefreshCw className={`w-3.5 h-3.5 text-hub-muted ${isActionLoading ? 'animate-spin' : ''}`} />
@@ -310,7 +310,7 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
           {/* Remote Settings Modal Trigger */}
           <button
             onClick={() => setIsRemoteModalOpen(true)}
-            className="p-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border text-hub-muted hover:text-hub-text rounded-md transition-colors"
+            className="p-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border text-hub-muted hover:text-hub-text rounded-lg transition-colors"
             title="Manage Git Remotes"
           >
             <Globe className="w-3.5 h-3.5" />
@@ -319,7 +319,7 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
           {/* Refresh Status */}
           <button
             onClick={onRefresh}
-            className="p-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border text-hub-muted hover:text-hub-text rounded-md transition-colors"
+            className="p-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border text-hub-muted hover:text-hub-text rounded-lg transition-colors"
             title="Refresh working copy status"
           >
             <RotateCw className="w-3.5 h-3.5" />
@@ -336,17 +336,17 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
 
       {pushErrorModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
-          <div className="bg-hub-surface border border-hub-border rounded-lg shadow-2xl max-w-md w-full p-5 space-y-4">
-            <div className="flex items-center space-x-2.5 text-red-400">
+          <div className="bg-hub-surface border border-hub-border rounded-xl shadow-2xl max-w-md w-full p-5 space-y-4">
+            <div className="flex items-center space-x-2.5 text-hub-danger-text">
               <AlertCircle className="w-5 h-5 shrink-0" />
               <h3 className="font-bold text-sm text-hub-text">Push to Remote Failed</h3>
             </div>
 
             <p className="text-xs text-hub-muted leading-relaxed">
-              Git was unable to push <span className="font-mono text-purple-300 font-semibold">{currentBranch}</span> to the remote repository.
+              Git was unable to push <span className="font-mono text-hub-accent font-semibold">{currentBranch}</span> to the remote repository.
             </p>
 
-            <div className="p-3 bg-red-950/30 border border-red-900/60 rounded font-mono text-[11px] text-red-200 overflow-x-auto max-h-32 whitespace-pre-wrap break-all">
+            <div className="p-3 bg-hub-danger/10 border border-hub-danger/40 rounded-lg font-mono text-[11px] text-hub-danger-text overflow-x-auto max-h-32 whitespace-pre-wrap break-all">
               {pushErrorModal.message}
             </div>
 
@@ -362,7 +362,7 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
                 href={`https://github.com/new?name=${encodeURIComponent(repo.name)}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-hub-accent hover:bg-blue-600 text-white rounded text-xs font-semibold transition-colors shadow-sm"
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-hub-accent hover:bg-hub-success text-white rounded-lg text-xs font-semibold transition-colors shadow-sm"
               >
                 <span>Create repository on GitHub</span>
                 <ExternalLink className="w-3.5 h-3.5" />
@@ -375,13 +375,13 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
                   setPushErrorModal(null);
                   setIsRemoteModalOpen(true);
                 }}
-                className="px-3 py-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border rounded text-xs text-hub-text transition-colors"
+                className="px-3 py-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border rounded-lg text-xs text-hub-text transition-colors"
               >
                 Configure Remote URL
               </button>
               <button
                 onClick={() => setPushErrorModal(null)}
-                className="px-3 py-1.5 bg-hub-subtle hover:bg-hub-border rounded text-xs font-semibold text-hub-text transition-colors"
+                className="px-3 py-1.5 bg-hub-subtle hover:bg-hub-border rounded-lg text-xs font-semibold text-hub-text transition-colors"
               >
                 Dismiss
               </button>

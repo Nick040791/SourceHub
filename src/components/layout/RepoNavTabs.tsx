@@ -74,14 +74,14 @@ export const RepoNavTabs: React.FC<RepoNavTabsProps> = ({
               className={`flex items-center space-x-2 px-3 py-2.5 text-xs sm:text-sm font-medium border-b-2 transition-all whitespace-nowrap ${
                 isActive
                   ? 'border-hub-accent text-hub-text font-semibold'
-                  : 'border-transparent text-hub-muted hover:text-hub-text hover:border-hub-border'
+                  : 'border-transparent text-hub-muted hover:text-hub-text hover:border-hub-border/60'
               }`}
             >
               <Icon
                 className={`w-4 h-4 ${
                   isActive 
-                    ? tab.highlight ? 'text-hub-accent' : 'text-hub-text' 
-                    : tab.highlight ? 'text-purple-400' : 'text-hub-muted'
+                    ? tab.highlight ? 'text-hub-purple-text' : 'text-hub-text' 
+                    : tab.highlight ? 'text-hub-purple-text' : 'text-hub-muted'
                 }`}
               />
               <span>{tab.label}</span>
@@ -98,7 +98,7 @@ export const RepoNavTabs: React.FC<RepoNavTabsProps> = ({
                 <span
                   className={`px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase inline-flex items-center space-x-1 ${
                     tab.highlight
-                      ? 'bg-purple-950/80 text-purple-300 border border-purple-800/80'
+                      ? 'bg-hub-purple/20 text-hub-purple-text border border-hub-purple/40'
                       : 'bg-hub-bg text-hub-muted border border-hub-border'
                   }`}
                 >

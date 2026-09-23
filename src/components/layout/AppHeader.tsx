@@ -67,13 +67,13 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           onClick={() => onSelectTab('code')}
           className="flex items-center space-x-2 cursor-pointer group"
         >
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-hub-accent to-purple-600 flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
+          <div className="w-8 h-8 rounded-lg bg-hub-accent flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
             <span className="font-bold text-white text-base tracking-wider">SH</span>
           </div>
           <div className="flex flex-col">
             <div className="flex items-center space-x-1.5">
               <span className="font-bold text-hub-text text-base tracking-tight">SourceHub</span>
-              <span className="px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase bg-hub-accent/15 text-hub-accent rounded border border-hub-accent/30">
+              <span className="px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase bg-hub-accent/10 text-hub-accent rounded-md border border-hub-accent/40">
                 Solo Forge
               </span>
             </div>
@@ -85,7 +85,11 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         <div className="relative pl-2 border-l border-hub-border">
           <button
             onClick={() => setShowRepoMenu(!showRepoMenu)}
-            className="flex items-center space-x-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-hub-bg hover:bg-hub-subtle border border-hub-border transition-colors text-hub-text"
+            className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-hub-bg hover:bg-hub-subtle border transition-all text-hub-text ${
+              showRepoMenu
+                ? 'border-hub-warning shadow-[0_0_0_1px_rgba(var(--hub-warning),0.35),0_0_12px_rgba(var(--hub-warning),0.25)]'
+                : 'border-hub-border'
+            }`}
           >
             <FolderGit2 className="w-3.5 h-3.5 text-hub-link" />
             <span className="font-mono text-hub-muted">{selectedRepo.owner ? `${selectedRepo.owner}/` : 'repo/'}</span>
@@ -94,7 +98,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           </button>
 
           {showRepoMenu && (
-            <div className="absolute left-2 mt-2 w-72 bg-hub-surface border border-hub-border rounded-lg shadow-2xl z-50 p-2 text-xs animate-in fade-in duration-100">
+            <div className="absolute left-2 mt-2 w-72 bg-hub-surface border border-hub-border rounded-xl shadow-2xl z-50 p-2.5 text-xs animate-in fade-in duration-100">
               <div className="pb-2 border-b border-hub-border mb-2 space-y-1.5">
                 <span className="text-[10px] font-bold text-hub-muted uppercase tracking-wider block px-1">
                   Switch Repository
@@ -105,7 +109,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                   value={repoSearch}
                   onChange={(e) => setRepoSearch(e.target.value)}
                   autoFocus
-                  className="w-full bg-hub-bg border border-hub-border rounded px-2.5 py-1 text-xs text-hub-text focus:outline-none focus:border-hub-link"
+                  className="w-full bg-hub-bg border border-hub-border rounded-lg px-2.5 py-1.5 text-xs text-hub-text focus:outline-none focus:border-hub-warning focus:shadow-[0_0_0_1px_rgba(var(--hub-warning),0.4)]"
                 />
               </div>
 
@@ -119,8 +123,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                         onSelectRepo(r);
                         setShowRepoMenu(false);
                       }}
-                      className={`w-full flex items-center justify-between p-2 rounded transition-colors text-left ${
-                        isCurrent ? 'bg-hub-subtle border border-hub-accent/40 font-bold' : 'hover:bg-hub-subtle/60'
+                      className={`w-full flex items-center justify-between p-2 rounded-lg transition-colors text-left ${
+                        isCurrent ? 'bg-hub-accent/10 border border-hub-accent font-bold' : 'border border-transparent hover:bg-hub-subtle/60'
                       }`}
                     >
                       <div className="space-y-0.5 truncate pr-2">
@@ -150,7 +154,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                     setShowRepoMenu(false);
                     onOpenNewRepoModal();
                   }}
-                  className="w-full flex items-center space-x-1.5 px-2.5 py-1.5 rounded hover:bg-hub-subtle text-hub-accent font-semibold transition-colors"
+                  className="w-full flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg hover:bg-hub-accent/10 text-hub-accent font-semibold transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Create New Repository...</span>
@@ -167,7 +171,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             <input
               type="text"
               placeholder="Search repos, PRs, agent runs... (/)"
-              className="w-full bg-hub-bg text-hub-text placeholder-hub-muted text-xs pl-8 pr-3 py-1.5 rounded-md border border-hub-border focus:outline-none focus:border-hub-link transition-colors"
+              className="w-full bg-hub-bg text-hub-text placeholder-hub-muted text-xs pl-8 pr-3 py-1.5 rounded-lg border border-hub-border focus:outline-none focus:border-hub-accent/60 transition-colors"
             />
           </div>
         </div>
@@ -178,11 +182,11 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         {/* Active Helper Agent Badge */}
         <button
           onClick={() => onSelectTab('agents')}
-          className="flex items-center space-x-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-hub-subtle hover:bg-hub-border border border-hub-border transition-colors text-hub-text"
+          className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-hub-subtle hover:bg-hub-subtle/80 border border-hub-border transition-colors text-hub-text"
           title="View active Helper agent runs"
         >
           <div className="relative flex items-center justify-center">
-            <Bot className="w-4 h-4 text-hub-accent" />
+            <Bot className="w-4 h-4 text-hub-purple-text" />
             {activeAgentRunsCount > 0 && (
               <span className="absolute -top-1 -right-1 flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-hub-success opacity-75"></span>
@@ -191,7 +195,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             )}
           </div>
           <span>Helper</span>
-          <span className="px-1.5 py-0.2 bg-hub-accent/20 text-hub-accent rounded-full text-[10px] font-mono">
+          <span className="px-1.5 py-0.2 bg-hub-purple/20 text-hub-purple-text rounded-full text-[10px] font-mono">
             {activeAgentRunsCount} active
           </span>
         </button>
@@ -199,15 +203,15 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         {/* Hamburger Menu & System Configurations */}
         <button
           onClick={onToggleHamburger}
-          className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border transition-all ${
+          className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
             isHamburgerOpen
-              ? 'bg-hub-accent/20 border-hub-accent text-hub-accent shadow-sm'
-              : 'bg-hub-subtle hover:bg-hub-border border-hub-border text-hub-text hover:text-white'
+              ? 'bg-hub-accent/15 border-hub-accent text-hub-accent shadow-sm'
+              : 'bg-hub-bg hover:bg-hub-subtle border-hub-border text-hub-text'
           }`}
           title="Open Settings & Configurations Menu"
           aria-label="Settings and configurations menu"
         >
-          <Menu className="w-4 h-4 text-hub-accent" />
+          <Menu className="w-4 h-4 text-hub-muted" />
           <span className="hidden sm:inline">Menu</span>
         </button>
 
@@ -215,16 +219,16 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         <div className="relative">
           <button
             onClick={() => setShowThemeMenu(!showThemeMenu)}
-            className="flex items-center space-x-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-hub-subtle hover:bg-hub-border border border-hub-border transition-colors text-hub-text"
+            className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-hub-bg hover:bg-hub-subtle border border-hub-border transition-colors text-hub-text"
             title="Toggle theme and high-contrast mode"
           >
-            <Contrast className="w-3.5 h-3.5 text-hub-accent" />
+            <Contrast className="w-3.5 h-3.5 text-hub-muted" />
             <span className="hidden sm:inline">Theme</span>
             <ChevronDown className="w-3 h-3 text-hub-muted" />
           </button>
 
           {showThemeMenu && (
-            <div className="absolute right-0 mt-2 w-60 bg-hub-surface border border-hub-border rounded-lg shadow-xl z-50 p-1.5 text-xs animate-in fade-in duration-100 max-h-80 overflow-y-auto">
+            <div className="absolute right-0 mt-2 w-60 bg-hub-surface border border-hub-border rounded-xl shadow-xl z-50 p-1.5 text-xs animate-in fade-in duration-100 max-h-80 overflow-y-auto">
               <div className="px-2 py-1 text-[10px] font-bold text-hub-muted uppercase tracking-wider">
                 Select Display Theme ({THEME_OPTIONS.length} Presets)
               </div>
@@ -248,7 +252,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         </div>
 
         {/* CLI status tooltip indicator */}
-        <div className="hidden sm:flex items-center space-x-1 px-2 py-1 bg-hub-bg rounded border border-hub-border text-[11px] text-hub-muted font-mono">
+        <div className="hidden sm:flex items-center space-x-1 px-2.5 py-1.5 bg-hub-bg rounded-lg border border-hub-border text-[11px] text-hub-muted font-mono">
           <Terminal className="w-3 h-3 text-hub-muted" />
           <span>sh CLI: ready</span>
         </div>
@@ -256,7 +260,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         {/* New Item dropdown button */}
         <button 
           onClick={() => onSelectTab('agents')}
-          className="flex items-center space-x-1 px-2.5 py-1 bg-hub-success hover:bg-green-700 text-white rounded-md text-xs font-semibold shadow-sm transition-colors"
+          className="flex items-center space-x-1 px-2.5 py-1.5 bg-hub-accent hover:bg-hub-success text-white rounded-lg text-xs font-semibold shadow-sm transition-colors"
           title="Kick off a new Agent task or repo action"
         >
           <Plus className="w-3.5 h-3.5" />
@@ -272,7 +276,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${
             profile?.avatarColor && AVATAR_COLOR_GRADIENTS[profile.avatarColor]
               ? AVATAR_COLOR_GRADIENTS[profile.avatarColor].class
-              : 'from-indigo-500 to-purple-600'
+              : 'from-purple-600 to-violet-700'
           } text-white font-bold text-xs flex items-center justify-center ring-1 ring-hub-border group-hover:scale-105 transition-transform shadow-sm`}>
             {profile?.initials || 'NB'}
           </div>

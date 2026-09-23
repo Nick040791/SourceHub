@@ -73,17 +73,17 @@ export const RepoHeader: React.FC<RepoHeaderProps> = ({ repo }) => {
 
         {/* Action buttons (Watch, Star, Fork, Clone) */}
         <div className="flex items-center space-x-2 relative">
-          <div className="flex items-center border border-hub-border rounded-md bg-hub-subtle overflow-hidden text-xs">
-            <button className="flex items-center space-x-1 px-2.5 py-1.5 hover:bg-hub-border text-hub-text border-r border-hub-border transition-colors">
+          <div className="flex items-center border border-hub-border rounded-lg bg-hub-bg overflow-hidden text-xs">
+            <button className="flex items-center space-x-1 px-2.5 py-1.5 hover:bg-hub-subtle text-hub-text border-r border-hub-border transition-colors">
               <Eye className="w-3.5 h-3.5 text-hub-muted" />
               <span>Watch</span>
             </button>
             <span className="px-2 py-1.5 bg-hub-bg text-hub-muted font-mono text-[11px]">1</span>
           </div>
 
-          <div className="flex items-center border border-hub-border rounded-md bg-hub-subtle overflow-hidden text-xs">
-            <button className="flex items-center space-x-1 px-2.5 py-1.5 hover:bg-hub-border text-hub-text border-r border-hub-border transition-colors">
-              <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500/20" />
+          <div className="flex items-center border border-hub-border rounded-lg bg-hub-bg overflow-hidden text-xs">
+            <button className="flex items-center space-x-1 px-2.5 py-1.5 hover:bg-hub-subtle text-hub-text border-r border-hub-border transition-colors">
+              <Star className="w-3.5 h-3.5 text-hub-warning-text fill-hub-warning/20" />
               <span>Star</span>
             </button>
             <span className="px-2 py-1.5 bg-hub-bg text-hub-muted font-mono text-[11px]">{repo.starsCount}</span>
@@ -93,7 +93,7 @@ export const RepoHeader: React.FC<RepoHeaderProps> = ({ repo }) => {
           <div className="relative">
             <button
               onClick={() => setShowCloneModal(!showCloneModal)}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-success hover:bg-green-700 text-white rounded-md text-xs font-semibold shadow-sm transition-colors"
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-accent hover:bg-hub-success text-white rounded-lg text-xs font-semibold shadow-sm transition-colors"
             >
               <Download className="w-3.5 h-3.5" />
               <span>Code</span>
@@ -102,7 +102,7 @@ export const RepoHeader: React.FC<RepoHeaderProps> = ({ repo }) => {
 
             {/* Dropdown Menu */}
             {showCloneModal && (
-              <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-hub-surface border border-hub-border rounded-lg shadow-xl z-50 p-4 animate-in fade-in slide-in-from-top-2 duration-150">
+              <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-hub-surface border border-hub-border rounded-xl shadow-xl z-50 p-4 animate-in fade-in slide-in-from-top-2 duration-150">
                 <div className="flex items-center justify-between pb-2 border-b border-hub-border mb-3">
                   <span className="text-xs font-bold text-hub-text flex items-center space-x-1.5">
                     <Terminal className="w-4 h-4 text-hub-accent" />
