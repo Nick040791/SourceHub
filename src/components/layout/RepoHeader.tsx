@@ -14,9 +14,11 @@ import { Repository } from '../../types';
 
 interface RepoHeaderProps {
   repo: Repository;
+  /** When true, show description under owner/name. Style D Code chrome omits it (default). */
+  showDescription?: boolean;
 }
 
-export const RepoHeader: React.FC<RepoHeaderProps> = ({ repo }) => {
+export const RepoHeader: React.FC<RepoHeaderProps> = ({ repo, showDescription = false }) => {
   const [showCloneModal, setShowCloneModal] = useState(false);
   const [cloneProtocol, setCloneProtocol] = useState<'http' | 'ssh' | 'local' | 'cli'>('http');
   const [copied, setCopied] = useState(false);
@@ -42,10 +44,10 @@ export const RepoHeader: React.FC<RepoHeaderProps> = ({ repo }) => {
   };
 
   return (
-    <div className="bg-hub-surface border-b border-hub-border pt-5 pb-3 px-5 sm:px-6">
+    <div className="bg-hub-surface border-b border-hub-border pt-6 pb-4 px-5 sm:px-6">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-start md:justify-between gap-4">
         {/* Repo title & badges — mock: accent owner, bold white name */}
-        <div className="flex flex-col gap-1.5 min-w-0">
+        <div className="flex flex-col gap-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-hub-accent hover:underline text-xl font-medium cursor-pointer tracking-tight">
               {repo.owner}
@@ -65,7 +67,7 @@ export const RepoHeader: React.FC<RepoHeaderProps> = ({ repo }) => {
             </span>
           </div>
 
-          {repo.description && (
+          {showDescription && repo.description && (
             <p className="text-[11px] text-hub-muted/75 max-w-2xl leading-relaxed">
               {repo.description}
             </p>
@@ -74,26 +76,26 @@ export const RepoHeader: React.FC<RepoHeaderProps> = ({ repo }) => {
 
         {/* Watch / Star / Code — mock hierarchy */}
         <div className="flex items-center gap-2 relative shrink-0">
-          <div className="flex items-stretch rounded-lg border border-hub-border bg-hub-bg overflow-hidden text-xs">
-            <button className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-hub-subtle text-hub-text transition-colors">
+          <div className="flex items-stretch rounded-md border border-hub-border/70 bg-transparent overflow-hidden text-xs h-7">
+            <button className="flex items-center gap-1.5 px-2.5 hover:bg-hub-subtle/60 text-hub-text transition-colors">
               <Eye className="w-3.5 h-3.5 text-hub-muted" />
               <span className="font-medium">Watch</span>
             </button>
-            <span className="px-2.5 py-1.5 bg-hub-subtle/50 text-hub-muted font-mono text-[11px] border-l border-hub-border flex items-center">1</span>
+            <span className="px-2 min-w-[1.75rem] justify-center bg-hub-bg/50 text-hub-muted font-mono text-[11px] border-l border-hub-border/70 flex items-center">1</span>
           </div>
 
-          <div className="flex items-stretch rounded-lg border border-hub-border bg-hub-bg overflow-hidden text-xs">
-            <button className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-hub-subtle text-hub-text transition-colors">
+          <div className="flex items-stretch rounded-md border border-hub-border/70 bg-transparent overflow-hidden text-xs h-7">
+            <button className="flex items-center gap-1.5 px-2.5 hover:bg-hub-subtle/60 text-hub-text transition-colors">
               <Star className="w-3.5 h-3.5 text-hub-warning-text fill-hub-warning/30" />
               <span className="font-medium">Star</span>
             </button>
-            <span className="px-2.5 py-1.5 bg-hub-subtle/50 text-hub-muted font-mono text-[11px] border-l border-hub-border flex items-center">{repo.starsCount}</span>
+            <span className="px-2 min-w-[1.75rem] justify-center bg-hub-bg/50 text-hub-muted font-mono text-[11px] border-l border-hub-border/70 flex items-center">{repo.starsCount}</span>
           </div>
 
           <div className="relative">
             <button
               onClick={() => setShowCloneModal(!showCloneModal)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-lg text-xs font-bold shadow-sm transition-all"
+              className="flex items-center gap-1.5 px-3 h-7 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-md text-xs font-bold shadow-sm transition-all"
             >
               <Download className="w-3.5 h-3.5" />
               <span>Code</span>

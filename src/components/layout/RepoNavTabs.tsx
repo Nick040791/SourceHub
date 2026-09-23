@@ -60,7 +60,7 @@ export const RepoNavTabs: React.FC<RepoNavTabsProps> = ({
   ];
 
   return (
-    <div className="bg-hub-surface border-b border-hub-border px-5 sm:px-6">
+    <div className="bg-hub-surface border-b border-hub-border px-5 sm:px-6 pt-0.5">
       <div className="max-w-7xl mx-auto flex items-center gap-0.5 overflow-x-auto no-scrollbar">
         {tabs.map((tab) => {
           const Icon = tab.icon;
@@ -70,7 +70,7 @@ export const RepoNavTabs: React.FC<RepoNavTabsProps> = ({
             <button
               key={tab.id}
               onClick={() => onSelectTab(tab.id as TabType)}
-              className={`flex items-center gap-1.5 px-3 py-2.5 text-xs sm:text-[13px] font-medium border-b-2 transition-all whitespace-nowrap ${
+              className={`flex items-center gap-1.5 px-3 py-3 text-xs sm:text-[13px] font-medium border-b-2 transition-all whitespace-nowrap ${
                 isActive
                   ? 'border-hub-accent text-hub-text font-semibold'
                   : 'border-transparent text-hub-muted hover:text-hub-text/90 hover:border-hub-border/50'

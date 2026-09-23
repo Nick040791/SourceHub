@@ -162,7 +162,7 @@ export const CodeBrowser: React.FC<CodeBrowserProps> = ({
   const readmeFile = files.find(f => f.name.toLowerCase() === 'readme.md');
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {/* Branch selector & repo toolbar */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center space-x-2 flex-wrap gap-y-2">
