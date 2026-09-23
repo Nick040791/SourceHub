@@ -262,6 +262,16 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
               <Globe className="w-3.5 h-3.5 text-purple-300" />
               <span>Add Remote</span>
             </button>
+          ) : !status?.hasUpstream ? (
+            <button
+              onClick={handlePush}
+              disabled={isActionLoading}
+              className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-hub-accent hover:bg-blue-600 text-white rounded-md font-semibold transition-colors shadow-sm disabled:opacity-50"
+              title="Publish this branch to remote origin"
+            >
+              <ArrowUp className="w-3.5 h-3.5" />
+              <span>{ahead > 0 ? `Publish branch (${ahead})` : 'Publish branch'}</span>
+            </button>
           ) : behind > 0 ? (
             <button
               onClick={handlePull}

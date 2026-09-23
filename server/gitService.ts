@@ -1203,9 +1203,26 @@ export class GitService {
         hasUpstream = true;
         upstream = `origin/${branch}`;
       } catch {
-        // No upstream tracked; count total branch commits
+        // No upstream tracked; count commits ahead relative to default remote branch
         try {
-          ahead = parseInt((await runGit(repoPath, ['rev-list', '--count', 'HEAD'])).trim(), 10) || 0;
+          let defaultRemote = 'origin/main';
+          try {
+            await runGit(repoPath, ['rev-parse', '--verify', 'origin/main']);
+          } catch {
+            try {
+              await runGit(repoPath, ['rev-parse', '--verify', 'origin/master']);
+              defaultRemote = 'origin/master';
+            } catch {
+              defaultRemote = '';
+            }
+          }
+
+          if (defaultRemote) {
+            const counts = (await runGit(repoPath, ['rev-list', '--left-right', '--count', `HEAD...${defaultRemote}`])).trim().split(/\s+/);
+            ahead = parseInt(counts[0], 10) || 0;
+          } else {
+            ahead = 0;
+          }
         } catch {
           ahead = 0;
         }
