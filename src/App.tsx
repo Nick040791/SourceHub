@@ -10,9 +10,11 @@ import { SettingsView } from './components/settings/SettingsView';
 import { IssuesView } from './components/issues/IssuesView';
 import { BrainstormPanel } from './components/brainstorm/BrainstormPanel';
 import { NewRepoModal } from './components/repo/NewRepoModal';
+import { DesktopActionBar } from './components/desktop/DesktopActionBar';
+import { DesktopView } from './components/desktop/DesktopView';
 
 import { mockRepo } from './mock/mockData';
-import { TabType, Repository } from './types';
+import { TabType, Repository, WorkingCopyStatus } from './types';
 import { api } from './services/api';
 
 export const App: React.FC = () => {
@@ -80,6 +82,30 @@ export const App: React.FC = () => {
   };
 
   const [openPRsCount, setOpenPRsCount] = useState<number>(0);
+  const [desktopStatus, setDesktopStatus] = useState<WorkingCopyStatus | null>(null);
+
+  // Sync working copy status for GitHub Desktop
+  const loadDesktopStatus = () => {
+    if (selectedRepo?.name) {
+      api.fetchDesktopStatus(selectedRepo.name)
+        .then(setDesktopStatus)
+        .catch(() => setDesktopStatus(null));
+    }
+  };
+
+  useEffect(() => {
+    loadDesktopStatus();
+    const interval = setInterval(loadDesktopStatus, 4000);
+    return () => clearInterval(interval);
+  }, [selectedRepo?.name, activeTab]);
+
+  const handleBranchSwitched = async () => {
+    loadDesktopStatus();
+    if (selectedRepo?.name) {
+      const updated = await api.fetchRepository(selectedRepo.name).catch(() => null);
+      if (updated) setSelectedRepo(updated);
+    }
+  };
 
   // Sync open PR count from real API
   useEffect(() => {
@@ -110,12 +136,21 @@ export const App: React.FC = () => {
       {/* 2. Repository Chrome Header */}
       <RepoHeader repo={selectedRepo} />
 
-      {/* 3. Repo Navigation Tabs (Code, Issues*, PRs, Actions, Agents, Settings) */}
+      {/* 2.5 GitHub Desktop Action Bar (Current Repo, Current Branch, Fetch/Push/Pull) */}
+      <DesktopActionBar
+        repo={selectedRepo}
+        status={desktopStatus}
+        onRefresh={loadDesktopStatus}
+        onBranchSwitched={handleBranchSwitched}
+      />
+
+      {/* 3. Repo Navigation Tabs (Code, Desktop*, Issues, PRs, Actions, Agents, Settings) */}
       <RepoNavTabs
         activeTab={activeTab}
         onSelectTab={(tab) => setActiveTab(tab)}
         openPRsCount={openPRsCount}
         activeAgentsCount={activeAgentRunsCount}
+        uncommittedCount={desktopStatus?.files?.length || 0}
       />
 
       {/* 4. Main Tab Content Container */}
@@ -124,6 +159,14 @@ export const App: React.FC = () => {
           <CodeBrowser
             repo={selectedRepo}
             onNavigateToAgentRun={handleNavigateToAgentRun}
+          />
+        )}
+
+        {activeTab === 'desktop' && (
+          <DesktopView
+            repo={selectedRepo}
+            status={desktopStatus}
+            onRefreshStatus={loadDesktopStatus}
           />
         )}
 

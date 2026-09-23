@@ -75,6 +75,38 @@ export interface WorkflowSummary {
   content: string;
 }
 
+export interface WorkingFile {
+  path: string;
+  status: 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked';
+  staged: boolean;
+  oldPath?: string;
+}
+
+export interface GitRemote {
+  name: string;
+  fetchUrl: string;
+  pushUrl: string;
+}
+
+export interface GitStashEntry {
+  index: number;
+  message: string;
+  date: string;
+}
+
+export interface WorkingCopyStatus {
+  branch: string;
+  upstream: string | null;
+  ahead: number;
+  behind: number;
+  hasUpstream: boolean;
+  isClean: boolean;
+  files: WorkingFile[];
+  remotes: GitRemote[];
+  lastFetched: string | null;
+  stashes: GitStashEntry[];
+}
+
 async function runGit(repoPath: string, args: string[]): Promise<string> {
   try {
     const { stdout } = await execFileAsync('git', args, {
@@ -86,6 +118,102 @@ async function runGit(repoPath: string, args: string[]): Promise<string> {
   } catch (err: any) {
     throw new Error(`Git error (${args.join(' ')}): ${err.stderr || err.message}`);
   }
+}
+
+async function runGitSafe(repoPath: string, args: string[]): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync('git', args, {
+      cwd: repoPath,
+      maxBuffer: 15 * 1024 * 1024,
+      env: { ...process.env, LANG: 'en_US.UTF-8' },
+    });
+    return stdout;
+  } catch (err: any) {
+    if (err.stdout) {
+      return err.stdout;
+    }
+    return '';
+  }
+}
+
+export function parseUnifiedDiffString(rawDiff: string): DiffFile[] {
+  if (!rawDiff) return [];
+  const files: DiffFile[] = [];
+  const fileChunks = rawDiff.split(/(?:^|\n)diff --git /).filter(Boolean);
+
+  for (const chunk of fileChunks) {
+    if (!chunk.trim()) continue;
+    const lines = chunk.split('\n');
+    const header = lines[0]; // e.g. "a/file.txt b/file.txt"
+    const parts = header.trim().split(' ');
+    const filename = (parts[1] || parts[0] || 'unknown').replace(/^[ab]\//, '');
+
+    let additions = 0;
+    let deletions = 0;
+    const diffLines: DiffLine[] = [];
+
+    let oldLine = 0;
+    let newLine = 0;
+
+    for (let i = 1; i < lines.length; i++) {
+      const l = lines[i];
+      if (l.startsWith('@@')) {
+        const match = l.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+        if (match) {
+          oldLine = parseInt(match[1], 10);
+          newLine = parseInt(match[2], 10);
+        }
+        continue;
+      }
+      if (
+        l.startsWith('index ') ||
+        l.startsWith('--- ') ||
+        l.startsWith('+++ ') ||
+        l.startsWith('new file ') ||
+        l.startsWith('deleted file ')
+      ) {
+        continue;
+      }
+
+      if (l.startsWith('+')) {
+        additions++;
+        diffLines.push({
+          type: 'add',
+          newLineNumber: newLine++,
+          content: l.substring(1),
+        });
+      } else if (l.startsWith('-')) {
+        deletions++;
+        diffLines.push({
+          type: 'delete',
+          oldLineNumber: oldLine++,
+          content: l.substring(1),
+        });
+      } else {
+        diffLines.push({
+          type: 'context',
+          oldLineNumber: oldLine++,
+          newLineNumber: newLine++,
+          content: l.startsWith(' ') ? l.substring(1) : l,
+        });
+      }
+    }
+
+    files.push({
+      filename,
+      status:
+        deletions > 0 && additions === 0
+          ? 'deleted'
+          : additions > 0 && deletions === 0
+          ? 'added'
+          : 'modified',
+      additions,
+      deletions,
+      lines: diffLines,
+    });
+  }
+
+  return files;
 }
 
 export class GitService {
@@ -208,6 +336,15 @@ export class GitService {
     };
   }
 
+  async getCurrentBranch(name: string): Promise<string> {
+    const repoPath = this.getRepoPath(name);
+    try {
+      return (await runGit(repoPath, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim();
+    } catch {
+      return 'main';
+    }
+  }
+
   async listBranches(name: string): Promise<string[]> {
     const repoPath = this.getRepoPath(name);
     const raw = await runGit(repoPath, ['branch', '-a', '--format=%(refname:short)']);
@@ -294,73 +431,8 @@ export class GitService {
   async getBranchDiff(name: string, base: string, head: string): Promise<DiffFile[]> {
     const repoPath = this.getRepoPath(name);
     try {
-      const rawDiff = await runGit(repoPath, ['diff', `${base}...${head}`]);
-      if (!rawDiff) return [];
-
-      const files: DiffFile[] = [];
-      const fileChunks = rawDiff.split('diff --git ');
-
-      for (const chunk of fileChunks) {
-        if (!chunk.trim()) continue;
-        const lines = chunk.split('\n');
-        const header = lines[0]; // e.g. "a/file.txt b/file.txt"
-        const filename = header.split(' ')[1]?.replace(/^b\//, '') || 'unknown';
-
-        let additions = 0;
-        let deletions = 0;
-        const diffLines: DiffLine[] = [];
-
-        let oldLine = 0;
-        let newLine = 0;
-
-        for (let i = 1; i < lines.length; i++) {
-          const l = lines[i];
-          if (l.startsWith('@@')) {
-            const match = l.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
-            if (match) {
-              oldLine = parseInt(match[1], 10);
-              newLine = parseInt(match[2], 10);
-            }
-            continue;
-          }
-          if (l.startsWith('index ') || l.startsWith('--- ') || l.startsWith('+++ ') || l.startsWith('new file ') || l.startsWith('deleted file ')) {
-            continue;
-          }
-
-          if (l.startsWith('+')) {
-            additions++;
-            diffLines.push({
-              type: 'add',
-              newLineNumber: newLine++,
-              content: l.substring(1),
-            });
-          } else if (l.startsWith('-')) {
-            deletions++;
-            diffLines.push({
-              type: 'delete',
-              oldLineNumber: oldLine++,
-              content: l.substring(1),
-            });
-          } else {
-            diffLines.push({
-              type: 'context',
-              oldLineNumber: oldLine++,
-              newLineNumber: newLine++,
-              content: l.startsWith(' ') ? l.substring(1) : l,
-            });
-          }
-        }
-
-        files.push({
-          filename,
-          status: deletions > 0 && additions === 0 ? 'deleted' : additions > 0 && deletions === 0 ? 'added' : 'modified',
-          additions,
-          deletions,
-          lines: diffLines,
-        });
-      }
-
-      return files;
+      const rawDiff = await runGitSafe(repoPath, ['diff', `${base}...${head}`]);
+      return parseUnifiedDiffString(rawDiff);
     } catch (e) {
       console.warn(`Could not compute diff for ${name} ${base}...${head}:`, e);
       return [];
@@ -775,5 +847,382 @@ export class GitService {
     req.pipe(child.stdin);
     child.stdout.pipe(res);
     child.stderr.on('data', d => console.error('git upload-pack execution stderr:', d.toString()));
+  }
+
+  // ==========================================
+  // §17 Desktop / Local Git Source Control
+  // ==========================================
+
+  async getWorkingCopyStatus(name: string): Promise<WorkingCopyStatus> {
+    const repoPath = this.getRepoPath(name);
+    const branch = await this.getCurrentBranch(name);
+    const remotes = await this.getRemotes(name);
+    const stashes = await this.listStashes(name);
+
+    // 1. Working copy files via porcelain status
+    const rawStatus = await runGitSafe(repoPath, ['status', '--porcelain=v1', '-uall']);
+    const files: WorkingFile[] = [];
+
+    if (rawStatus.trim()) {
+      for (const line of rawStatus.split('\n')) {
+        if (!line.trim()) continue;
+        const x = line[0];
+        const y = line[1];
+        let rest = line.substring(3).trim();
+        let oldPath: string | undefined;
+
+        if (rest.includes(' -> ')) {
+          const parts = rest.split(' -> ');
+          oldPath = parts[0];
+          rest = parts[1];
+        }
+
+        if (x === '?' && y === '?') {
+          files.push({
+            path: rest,
+            status: 'untracked',
+            staged: false,
+          });
+        } else {
+          // Staged change
+          if (x !== ' ' && x !== '?') {
+            files.push({
+              path: rest,
+              status: x === 'A' ? 'added' : x === 'D' ? 'deleted' : x === 'R' ? 'renamed' : 'modified',
+              staged: true,
+              oldPath,
+            });
+          }
+          // Unstaged change
+          if (y !== ' ' && y !== '?') {
+            files.push({
+              path: rest,
+              status: y === 'D' ? 'deleted' : 'modified',
+              staged: false,
+            });
+          }
+        }
+      }
+    }
+
+    // 2. Upstream ahead / behind counts
+    let ahead = 0;
+    let behind = 0;
+    let hasUpstream = false;
+    let upstream: string | null = null;
+
+    try {
+      upstream = (await runGit(repoPath, ['rev-parse', '--abbrev-ref', '@{u}'])).trim();
+      const counts = (await runGit(repoPath, ['rev-list', '--left-right', '--count', 'HEAD...@{u}'])).trim().split(/\s+/);
+      ahead = parseInt(counts[0], 10) || 0;
+      behind = parseInt(counts[1], 10) || 0;
+      hasUpstream = true;
+    } catch {
+      // Check if origin/branch exists
+      try {
+        await runGit(repoPath, ['rev-parse', '--verify', `origin/${branch}`]);
+        const counts = (await runGit(repoPath, ['rev-list', '--left-right', '--count', `HEAD...origin/${branch}`])).trim().split(/\s+/);
+        ahead = parseInt(counts[0], 10) || 0;
+        behind = parseInt(counts[1], 10) || 0;
+        hasUpstream = true;
+        upstream = `origin/${branch}`;
+      } catch {
+        // No upstream tracked; count total branch commits
+        try {
+          ahead = parseInt((await runGit(repoPath, ['rev-list', '--count', 'HEAD'])).trim(), 10) || 0;
+        } catch {
+          ahead = 0;
+        }
+        behind = 0;
+        hasUpstream = false;
+        upstream = null;
+      }
+    }
+
+    // 3. Last fetched timestamp
+    let lastFetched: string | null = null;
+    try {
+      const fetchHead = path.join(repoPath, '.git', 'FETCH_HEAD');
+      const stat = await fs.stat(fetchHead);
+      const diffMs = Date.now() - stat.mtimeMs;
+      const diffMins = Math.floor(diffMs / 60000);
+      if (diffMins < 1) lastFetched = 'Just now';
+      else if (diffMins < 60) lastFetched = `${diffMins}m ago`;
+      else if (diffMins < 1440) lastFetched = `${Math.floor(diffMins / 60)}h ago`;
+      else lastFetched = `${Math.floor(diffMins / 1440)}d ago`;
+    } catch {
+      lastFetched = null;
+    }
+
+    return {
+      branch,
+      upstream,
+      ahead,
+      behind,
+      hasUpstream,
+      isClean: files.length === 0,
+      files,
+      remotes,
+      lastFetched,
+      stashes,
+    };
+  }
+
+  async getWorkingDiff(name: string, filePath: string, staged: boolean = false): Promise<DiffFile | null> {
+    const repoPath = this.getRepoPath(name);
+    try {
+      // Check if file is untracked
+      let isTracked = true;
+      try {
+        await runGit(repoPath, ['ls-files', '--error-unmatch', '--', filePath]);
+      } catch {
+        isTracked = false;
+      }
+
+      let rawDiff = '';
+      if (!isTracked) {
+        rawDiff = await runGitSafe(repoPath, ['diff', '--no-index', '--', '/dev/null', filePath]);
+      } else if (staged) {
+        rawDiff = await runGitSafe(repoPath, ['diff', '--cached', '--', filePath]);
+      } else {
+        rawDiff = await runGitSafe(repoPath, ['diff', '--', filePath]);
+      }
+
+      const diffs = parseUnifiedDiffString(rawDiff);
+      if (diffs.length > 0) return diffs[0];
+
+      // If empty diff but file is untracked, try reading it directly
+      if (!isTracked) {
+        try {
+          const content = await fs.readFile(path.join(repoPath, filePath), 'utf-8');
+          const lines = content.split('\n');
+          return {
+            filename: filePath,
+            status: 'added',
+            additions: lines.length,
+            deletions: 0,
+            lines: lines.map((l, i) => ({
+              type: 'add',
+              newLineNumber: i + 1,
+              content: l,
+            })),
+          };
+        } catch {}
+      }
+
+      return null;
+    } catch (e) {
+      console.warn(`Could not get working diff for ${filePath}:`, e);
+      return null;
+    }
+  }
+
+  async stageFiles(name: string, paths: string[]): Promise<void> {
+    const repoPath = this.getRepoPath(name);
+    if (!paths || paths.length === 0) return;
+    await runGit(repoPath, ['add', '--', ...paths]);
+  }
+
+  async unstageFiles(name: string, paths: string[]): Promise<void> {
+    const repoPath = this.getRepoPath(name);
+    if (!paths || paths.length === 0) return;
+    await runGit(repoPath, ['restore', '--staged', '--', ...paths]);
+  }
+
+  async stageAll(name: string): Promise<void> {
+    const repoPath = this.getRepoPath(name);
+    await runGit(repoPath, ['add', '-A']);
+  }
+
+  async unstageAll(name: string): Promise<void> {
+    const repoPath = this.getRepoPath(name);
+    await runGit(repoPath, ['restore', '--staged', '.']);
+  }
+
+  async discardFileChanges(name: string, filePath: string): Promise<void> {
+    const repoPath = this.getRepoPath(name);
+    let isTracked = true;
+    try {
+      await runGit(repoPath, ['ls-files', '--error-unmatch', '--', filePath]);
+    } catch {
+      isTracked = false;
+    }
+
+    if (isTracked) {
+      await runGit(repoPath, ['restore', '--', filePath]);
+    } else {
+      await runGit(repoPath, ['clean', '-f', '--', filePath]);
+    }
+  }
+
+  async discardAllChanges(name: string): Promise<void> {
+    const repoPath = this.getRepoPath(name);
+    await runGitSafe(repoPath, ['restore', '.']);
+    await runGitSafe(repoPath, ['clean', '-fd']);
+  }
+
+  async commitWorkingCopy(
+    name: string,
+    summary: string,
+    description?: string,
+    files?: string[]
+  ): Promise<{ sha: string }> {
+    const repoPath = this.getRepoPath(name);
+    if (files && files.length > 0) {
+      await runGit(repoPath, ['add', '--', ...files]);
+    } else {
+      const stagedFiles = (await runGitSafe(repoPath, ['diff', '--cached', '--name-only'])).trim();
+      if (!stagedFiles) {
+        await runGit(repoPath, ['add', '-A']);
+      }
+    }
+
+    const args = ['commit', '-m', summary];
+    if (description && description.trim()) {
+      args.push('-m', description.trim());
+    }
+
+    await runGit(repoPath, args);
+    const sha = (await runGit(repoPath, ['rev-parse', 'HEAD'])).trim();
+    return { sha };
+  }
+
+  async undoLastCommit(name: string): Promise<void> {
+    const repoPath = this.getRepoPath(name);
+    await runGit(repoPath, ['reset', '--soft', 'HEAD~1']);
+  }
+
+  async getRemotes(name: string): Promise<GitRemote[]> {
+    const repoPath = this.getRepoPath(name);
+    const raw = await runGitSafe(repoPath, ['remote', '-v']);
+    const map = new Map<string, { fetchUrl: string; pushUrl: string }>();
+
+    for (const line of raw.split('\n')) {
+      if (!line.trim()) continue;
+      const parts = line.split(/\s+/);
+      if (parts.length >= 3) {
+        const remoteName = parts[0];
+        const url = parts[1];
+        const type = parts[2]; // '(fetch)' or '(push)'
+
+        if (!map.has(remoteName)) {
+          map.set(remoteName, { fetchUrl: url, pushUrl: url });
+        }
+        const entry = map.get(remoteName)!;
+        if (type.includes('fetch')) entry.fetchUrl = url;
+        if (type.includes('push')) entry.pushUrl = url;
+      }
+    }
+
+    return Array.from(map.entries()).map(([remoteName, { fetchUrl, pushUrl }]) => ({
+      name: remoteName,
+      fetchUrl,
+      pushUrl,
+    }));
+  }
+
+  async addRemote(name: string, remoteName: string, url: string): Promise<void> {
+    const repoPath = this.getRepoPath(name);
+    await runGit(repoPath, ['remote', 'add', remoteName, url]);
+  }
+
+  async setRemoteUrl(name: string, remoteName: string, url: string): Promise<void> {
+    const repoPath = this.getRepoPath(name);
+    await runGit(repoPath, ['remote', 'set-url', remoteName, url]);
+  }
+
+  async removeRemote(name: string, remoteName: string): Promise<void> {
+    const repoPath = this.getRepoPath(name);
+    await runGit(repoPath, ['remote', 'remove', remoteName]);
+  }
+
+  async fetchRemote(name: string, remote: string = 'origin'): Promise<{ success: boolean; message: string }> {
+    const repoPath = this.getRepoPath(name);
+    try {
+      const output = await runGit(repoPath, ['fetch', remote]);
+      return { success: true, message: output || `Fetched ${remote} successfully.` };
+    } catch (err: any) {
+      throw new Error(`Fetch failed: ${err.message}`);
+    }
+  }
+
+  async pullRemote(
+    name: string,
+    remote: string = 'origin',
+    branch?: string
+  ): Promise<{ success: boolean; message: string }> {
+    const repoPath = this.getRepoPath(name);
+    const targetBranch = branch || (await this.getCurrentBranch(name));
+    try {
+      const output = await runGit(repoPath, ['pull', remote, targetBranch]);
+      return { success: true, message: output || `Pulled ${remote}/${targetBranch} successfully.` };
+    } catch (err: any) {
+      throw new Error(`Pull failed: ${err.message}`);
+    }
+  }
+
+  async pushRemote(
+    name: string,
+    remote: string = 'origin',
+    branch?: string,
+    setUpstream: boolean = true
+  ): Promise<{ success: boolean; message: string }> {
+    const repoPath = this.getRepoPath(name);
+    const targetBranch = branch || (await this.getCurrentBranch(name));
+    const args = ['push'];
+    if (setUpstream) args.push('-u');
+    args.push(remote, targetBranch);
+
+    try {
+      const output = await runGit(repoPath, args);
+      return { success: true, message: output || `Pushed to ${remote}/${targetBranch} successfully.` };
+    } catch (err: any) {
+      throw new Error(`Push failed: ${err.message}`);
+    }
+  }
+
+  async listStashes(name: string): Promise<GitStashEntry[]> {
+    const repoPath = this.getRepoPath(name);
+    const raw = await runGitSafe(repoPath, ['stash', 'list', '--format=%gd|%cr|%gs']);
+    if (!raw.trim()) return [];
+
+    return raw
+      .split('\n')
+      .filter(Boolean)
+      .map(line => {
+        const [ref, date, message] = line.split('|');
+        const match = ref.match(/stash@\{(\d+)\}/);
+        const index = match ? parseInt(match[1], 10) : 0;
+        return { index, date: date || '', message: message || 'WIP on branch' };
+      });
+  }
+
+  async manageStash(
+    name: string,
+    action: 'save' | 'pop' | 'drop',
+    message?: string,
+    index: number = 0
+  ): Promise<void> {
+    const repoPath = this.getRepoPath(name);
+    if (action === 'save') {
+      const msg = message || `Stash created from SourceHub at ${new Date().toLocaleTimeString()}`;
+      await runGit(repoPath, ['stash', 'push', '-m', msg]);
+    } else if (action === 'pop') {
+      await runGit(repoPath, ['stash', 'pop', `stash@{${index}}`]);
+    } else if (action === 'drop') {
+      await runGit(repoPath, ['stash', 'drop', `stash@{${index}}`]);
+    }
+  }
+
+  async switchBranch(name: string, branchName: string): Promise<void> {
+    const repoPath = this.getRepoPath(name);
+    await runGit(repoPath, ['checkout', branchName]);
+  }
+
+  async createAndSwitchBranch(name: string, branchName: string, baseBranch?: string): Promise<void> {
+    const repoPath = this.getRepoPath(name);
+    const args = ['checkout', '-b', branchName];
+    if (baseBranch) args.push(baseBranch);
+    await runGit(repoPath, args);
   }
 }

@@ -6,7 +6,8 @@ import {
   PlayCircle, 
   Bot, 
   Settings,
-  Sparkles
+  Sparkles,
+  Laptop
 } from 'lucide-react';
 import { TabType } from '../../types';
 
@@ -15,6 +16,7 @@ interface RepoNavTabsProps {
   onSelectTab: (tab: TabType) => void;
   openPRsCount: number;
   activeAgentsCount: number;
+  uncommittedCount?: number;
 }
 
 interface TabItem {
@@ -32,9 +34,18 @@ export const RepoNavTabs: React.FC<RepoNavTabsProps> = ({
   onSelectTab,
   openPRsCount,
   activeAgentsCount,
+  uncommittedCount = 0,
 }) => {
   const tabs: TabItem[] = [
     { id: 'code', label: 'Code', icon: Code2 },
+    { 
+      id: 'desktop', 
+      label: 'Desktop', 
+      icon: Laptop, 
+      count: uncommittedCount,
+      badge: uncommittedCount > 0 ? undefined : 'Git',
+      pulse: uncommittedCount > 0 
+    },
     { id: 'issues', label: 'Issues', icon: CircleDot, badge: 'MVP-lite' },
     { id: 'pulls', label: 'Pull requests', icon: GitPullRequest, count: openPRsCount },
     { id: 'actions', label: 'Actions', icon: PlayCircle },

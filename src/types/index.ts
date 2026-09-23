@@ -1,4 +1,36 @@
-export type TabType = 'code' | 'issues' | 'pulls' | 'actions' | 'agents' | 'settings';
+export type TabType = 'code' | 'desktop' | 'issues' | 'pulls' | 'actions' | 'agents' | 'settings';
+
+export interface WorkingFile {
+  path: string;
+  status: 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked';
+  staged: boolean;
+  oldPath?: string;
+}
+
+export interface GitRemote {
+  name: string;
+  fetchUrl: string;
+  pushUrl: string;
+}
+
+export interface GitStashEntry {
+  index: number;
+  message: string;
+  date: string;
+}
+
+export interface WorkingCopyStatus {
+  branch: string;
+  upstream: string | null;
+  ahead: number;
+  behind: number;
+  hasUpstream: boolean;
+  isClean: boolean;
+  files: WorkingFile[];
+  remotes: GitRemote[];
+  lastFetched: string | null;
+  stashes: GitStashEntry[];
+}
 
 export interface Repository {
   id: string;
@@ -7,6 +39,7 @@ export interface Repository {
   description: string;
   visibility: 'private' | 'public';
   defaultBranch: string;
+  currentBranch?: string;
   starsCount: number;
   forksCount: number;
   branches: string[];

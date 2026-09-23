@@ -230,9 +230,19 @@ export function vitePluginGitApi(): Plugin {
           }
 
           // --- Commits ---
+          if (subResource === 'commits' && parts.length >= 3 && req.method === 'GET') {
+            const commitSha = parts[2];
+            try {
+              const diffs = await gitService.getBranchDiff(repoName, `${commitSha}^`, commitSha);
+              return sendJson(res, 200, diffs);
+            } catch {
+              return sendJson(res, 200, []);
+            }
+          }
+
           if (subResource === 'commits' && req.method === 'GET') {
             const branch = searchParams.get('branch') || 'HEAD';
-            const limit = parseInt(searchParams.get('limit') || '25', 10);
+            const limit = parseInt(searchParams.get('limit') || '50', 10);
             const commits = await gitService.getCommits(repoName, branch, limit);
             return sendJson(res, 200, commits);
           }
@@ -251,6 +261,214 @@ export function vitePluginGitApi(): Plugin {
             if (!pathParam) return sendError(res, 400, 'File path is required');
             const content = await gitService.getBlob(repoName, branch, pathParam);
             return sendJson(res, 200, { path: pathParam, content });
+          }
+
+          // ==========================================
+          // --- Desktop / Local Git Source Control ---
+          // ==========================================
+          if (subResource === 'desktop') {
+            const action = parts[2];
+
+            // GET /api/v1/repos/:name/desktop/status
+            if (action === 'status' && req.method === 'GET') {
+              try {
+                const status = await gitService.getWorkingCopyStatus(repoName);
+                return sendJson(res, 200, status);
+              } catch (e: any) {
+                return sendError(res, 500, e.message);
+              }
+            }
+
+            // GET /api/v1/repos/:name/desktop/diff?file=...&staged=...
+            if (action === 'diff' && req.method === 'GET') {
+              const file = searchParams.get('file');
+              const staged = searchParams.get('staged') === 'true';
+              if (!file) return sendError(res, 400, 'File is required');
+              try {
+                const diff = await gitService.getWorkingDiff(repoName, file, staged);
+                return sendJson(res, 200, diff || { filename: file, status: 'modified', additions: 0, deletions: 0, lines: [] });
+              } catch (e: any) {
+                return sendError(res, 500, e.message);
+              }
+            }
+
+            // POST /api/v1/repos/:name/desktop/stage
+            if (action === 'stage' && req.method === 'POST') {
+              const body = await readJsonBody(req);
+              try {
+                if (body.all) {
+                  await gitService.stageAll(repoName);
+                } else if (body.files && Array.isArray(body.files)) {
+                  await gitService.stageFiles(repoName, body.files);
+                } else if (body.file) {
+                  await gitService.stageFiles(repoName, [body.file]);
+                }
+                return sendJson(res, 200, { success: true });
+              } catch (e: any) {
+                return sendError(res, 500, e.message);
+              }
+            }
+
+            // POST /api/v1/repos/:name/desktop/unstage
+            if (action === 'unstage' && req.method === 'POST') {
+              const body = await readJsonBody(req);
+              try {
+                if (body.all) {
+                  await gitService.unstageAll(repoName);
+                } else if (body.files && Array.isArray(body.files)) {
+                  await gitService.unstageFiles(repoName, body.files);
+                } else if (body.file) {
+                  await gitService.unstageFiles(repoName, [body.file]);
+                }
+                return sendJson(res, 200, { success: true });
+              } catch (e: any) {
+                return sendError(res, 500, e.message);
+              }
+            }
+
+            // POST /api/v1/repos/:name/desktop/discard
+            if (action === 'discard' && req.method === 'POST') {
+              const body = await readJsonBody(req);
+              try {
+                if (body.all) {
+                  await gitService.discardAllChanges(repoName);
+                } else if (body.file) {
+                  await gitService.discardFileChanges(repoName, body.file);
+                }
+                return sendJson(res, 200, { success: true });
+              } catch (e: any) {
+                return sendError(res, 500, e.message);
+              }
+            }
+
+            // POST /api/v1/repos/:name/desktop/commit
+            if (action === 'commit' && req.method === 'POST') {
+              const body = await readJsonBody(req);
+              if (!body.summary) return sendError(res, 400, 'Commit summary is required');
+              try {
+                const result = await gitService.commitWorkingCopy(repoName, body.summary, body.description, body.files);
+                return sendJson(res, 200, { success: true, sha: result.sha });
+              } catch (e: any) {
+                return sendError(res, 500, e.message);
+              }
+            }
+
+            // POST /api/v1/repos/:name/desktop/undo-commit
+            if (action === 'undo-commit' && req.method === 'POST') {
+              try {
+                await gitService.undoLastCommit(repoName);
+                return sendJson(res, 200, { success: true, message: 'Undid last commit' });
+              } catch (e: any) {
+                return sendError(res, 500, e.message);
+              }
+            }
+
+            // POST /api/v1/repos/:name/desktop/fetch
+            if (action === 'fetch' && req.method === 'POST') {
+              const body = await readJsonBody(req);
+              try {
+                const result = await gitService.fetchRemote(repoName, body.remote || 'origin');
+                return sendJson(res, 200, result);
+              } catch (e: any) {
+                return sendError(res, 500, e.message);
+              }
+            }
+
+            // POST /api/v1/repos/:name/desktop/pull
+            if (action === 'pull' && req.method === 'POST') {
+              const body = await readJsonBody(req);
+              try {
+                const result = await gitService.pullRemote(repoName, body.remote || 'origin', body.branch);
+                return sendJson(res, 200, result);
+              } catch (e: any) {
+                return sendError(res, 500, e.message);
+              }
+            }
+
+            // POST /api/v1/repos/:name/desktop/push
+            if (action === 'push' && req.method === 'POST') {
+              const body = await readJsonBody(req);
+              try {
+                const result = await gitService.pushRemote(
+                  repoName,
+                  body.remote || 'origin',
+                  body.branch,
+                  body.setUpstream !== false
+                );
+                return sendJson(res, 200, result);
+              } catch (e: any) {
+                return sendError(res, 500, e.message);
+              }
+            }
+
+            // GET /api/v1/repos/:name/desktop/remotes
+            if (action === 'remotes' && req.method === 'GET') {
+              try {
+                const remotes = await gitService.getRemotes(repoName);
+                return sendJson(res, 200, remotes);
+              } catch (e: any) {
+                return sendError(res, 500, e.message);
+              }
+            }
+
+            // POST /api/v1/repos/:name/desktop/remotes
+            if (action === 'remotes' && req.method === 'POST') {
+              const body = await readJsonBody(req);
+              if (!body.name || !body.url) return sendError(res, 400, 'Remote name and url are required');
+              try {
+                if (body.update) {
+                  await gitService.setRemoteUrl(repoName, body.name, body.url);
+                } else {
+                  await gitService.addRemote(repoName, body.name, body.url);
+                }
+                const remotes = await gitService.getRemotes(repoName);
+                return sendJson(res, 200, { success: true, remotes });
+              } catch (e: any) {
+                return sendError(res, 500, e.message);
+              }
+            }
+
+            // DELETE /api/v1/repos/:name/desktop/remotes/:remoteName
+            if (action === 'remotes' && parts.length >= 4 && req.method === 'DELETE') {
+              const remoteName = parts[3];
+              try {
+                await gitService.removeRemote(repoName, remoteName);
+                const remotes = await gitService.getRemotes(repoName);
+                return sendJson(res, 200, { success: true, remotes });
+              } catch (e: any) {
+                return sendError(res, 500, e.message);
+              }
+            }
+
+            // POST /api/v1/repos/:name/desktop/stash
+            if (action === 'stash' && req.method === 'POST') {
+              const body = await readJsonBody(req);
+              try {
+                await gitService.manageStash(repoName, body.action || 'save', body.message, body.index);
+                const stashes = await gitService.listStashes(repoName);
+                return sendJson(res, 200, { success: true, stashes });
+              } catch (e: any) {
+                return sendError(res, 500, e.message);
+              }
+            }
+
+            // POST /api/v1/repos/:name/desktop/branch
+            if (action === 'branch' && req.method === 'POST') {
+              const body = await readJsonBody(req);
+              if (!body.branchName) return sendError(res, 400, 'branchName is required');
+              try {
+                if (body.create) {
+                  await gitService.createAndSwitchBranch(repoName, body.branchName, body.baseBranch);
+                } else {
+                  await gitService.switchBranch(repoName, body.branchName);
+                }
+                return sendJson(res, 200, { success: true, branch: body.branchName });
+              } catch (e: any) {
+                return sendError(res, 500, e.message);
+              }
+            }
+
+            return sendError(res, 404, `Desktop action ${action} not found`);
           }
 
           // --- Real Pull Requests ---

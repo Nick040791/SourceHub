@@ -1,4 +1,4 @@
-import { Repository, FileItem, Commit, PullRequest, Secret, PersonalAccessToken, SSHKey, DiffFile, WorkflowRun, AgentRun, Webhook } from '../types';
+import { Repository, FileItem, Commit, PullRequest, Secret, PersonalAccessToken, SSHKey, DiffFile, WorkflowRun, AgentRun, Webhook, WorkingCopyStatus, GitRemote, GitStashEntry } from '../types';
 
 export const api = {
   // --- Repositories ---
@@ -47,11 +47,17 @@ export const api = {
   },
 
   // --- Commits & Files ---
-  async fetchCommits(repoName: string, branch: string = 'HEAD', limit: number = 25): Promise<Commit[]> {
+  async fetchCommits(repoName: string, branch: string = 'HEAD', limit: number = 50): Promise<Commit[]> {
     const res = await fetch(
       `/api/v1/repos/${encodeURIComponent(repoName)}/commits?branch=${encodeURIComponent(branch)}&limit=${limit}`
     );
     if (!res.ok) throw new Error('Failed to fetch commits');
+    return await res.json();
+  },
+
+  async fetchCommitDiff(repoName: string, sha: string): Promise<DiffFile[]> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/commits/${encodeURIComponent(sha)}`);
+    if (!res.ok) throw new Error('Failed to fetch commit diff');
     return await res.json();
   },
 
@@ -371,5 +377,228 @@ export const api = {
       method: 'DELETE',
     });
     if (!res.ok) throw new Error('Failed to delete webhook');
+  },
+
+  // ==========================================
+  // --- Desktop / Local Git Source Control ---
+  // ==========================================
+
+  async fetchDesktopStatus(repoName: string): Promise<WorkingCopyStatus> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/status`);
+    if (!res.ok) throw new Error('Failed to fetch working copy status');
+    return await res.json();
+  },
+
+  async fetchWorkingDiff(repoName: string, file: string, staged: boolean = false): Promise<DiffFile> {
+    const res = await fetch(
+      `/api/v1/repos/${encodeURIComponent(repoName)}/desktop/diff?file=${encodeURIComponent(file)}&staged=${staged}`
+    );
+    if (!res.ok) throw new Error('Failed to fetch working diff');
+    return await res.json();
+  },
+
+  async stageFile(repoName: string, file: string): Promise<void> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/stage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file }),
+    });
+    if (!res.ok) throw new Error('Failed to stage file');
+  },
+
+  async stageFiles(repoName: string, files: string[]): Promise<void> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/stage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ files }),
+    });
+    if (!res.ok) throw new Error('Failed to stage files');
+  },
+
+  async stageAll(repoName: string): Promise<void> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/stage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ all: true }),
+    });
+    if (!res.ok) throw new Error('Failed to stage all');
+  },
+
+  async unstageFile(repoName: string, file: string): Promise<void> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/unstage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file }),
+    });
+    if (!res.ok) throw new Error('Failed to unstage file');
+  },
+
+  async unstageFiles(repoName: string, files: string[]): Promise<void> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/unstage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ files }),
+    });
+    if (!res.ok) throw new Error('Failed to unstage files');
+  },
+
+  async unstageAll(repoName: string): Promise<void> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/unstage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ all: true }),
+    });
+    if (!res.ok) throw new Error('Failed to unstage all');
+  },
+
+  async discardFileChanges(repoName: string, file: string): Promise<void> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/discard`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file }),
+    });
+    if (!res.ok) throw new Error('Failed to discard file changes');
+  },
+
+  async discardAllChanges(repoName: string): Promise<void> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/discard`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ all: true }),
+    });
+    if (!res.ok) throw new Error('Failed to discard all changes');
+  },
+
+  async commitWorkingCopy(
+    repoName: string,
+    summary: string,
+    description?: string,
+    files?: string[]
+  ): Promise<{ sha: string }> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/commit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ summary, description, files }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to commit');
+    }
+    return await res.json();
+  },
+
+  async undoLastCommit(repoName: string): Promise<void> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/undo-commit`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw new Error('Failed to undo last commit');
+  },
+
+  async fetchRemote(repoName: string, remote: string = 'origin'): Promise<{ success: boolean; message: string }> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/fetch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ remote }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to fetch from remote');
+    }
+    return await res.json();
+  },
+
+  async pullRemote(
+    repoName: string,
+    remote: string = 'origin',
+    branch?: string
+  ): Promise<{ success: boolean; message: string }> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/pull`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ remote, branch }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to pull from remote');
+    }
+    return await res.json();
+  },
+
+  async pushRemote(
+    repoName: string,
+    remote: string = 'origin',
+    branch?: string,
+    setUpstream: boolean = true
+  ): Promise<{ success: boolean; message: string }> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/push`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ remote, branch, setUpstream }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to push to remote');
+    }
+    return await res.json();
+  },
+
+  async fetchRemotes(repoName: string): Promise<GitRemote[]> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/remotes`);
+    if (!res.ok) throw new Error('Failed to fetch remotes');
+    return await res.json();
+  },
+
+  async addRemote(repoName: string, name: string, url: string, update?: boolean): Promise<{ success: boolean; remotes: GitRemote[] }> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/remotes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, url, update }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to add remote');
+    }
+    return await res.json();
+  },
+
+  async deleteRemote(repoName: string, remoteName: string): Promise<{ success: boolean; remotes: GitRemote[] }> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/remotes/${encodeURIComponent(remoteName)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw new Error('Failed to delete remote');
+    return await res.json();
+  },
+
+  async manageStash(
+    repoName: string,
+    action: 'save' | 'pop' | 'drop',
+    message?: string,
+    index?: number
+  ): Promise<{ success: boolean; stashes: GitStashEntry[] }> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/stash`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, message, index }),
+    });
+    if (!res.ok) throw new Error('Failed to manage stash');
+    return await res.json();
+  },
+
+  async switchBranch(repoName: string, branchName: string): Promise<void> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/branch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ branchName, create: false }),
+    });
+    if (!res.ok) throw new Error('Failed to switch branch');
+  },
+
+  async createAndSwitchBranch(repoName: string, branchName: string, baseBranch?: string): Promise<void> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/branch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ branchName, baseBranch, create: true }),
+    });
+    if (!res.ok) throw new Error('Failed to create branch');
   },
 };
