@@ -496,6 +496,22 @@ export const api = {
     if (!res.ok) throw new Error('Failed to discard all changes');
   },
 
+  async applyPatch(
+    repoName: string,
+    patch: string,
+    options: { reverse?: boolean; cached?: boolean } = {}
+  ): Promise<void> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/apply-patch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ patch, ...options }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Failed to apply patch' }));
+      throw new Error(err.error || 'Failed to apply patch');
+    }
+  },
+
   async commitWorkingCopy(
     repoName: string,
     summary: string,

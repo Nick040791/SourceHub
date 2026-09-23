@@ -58,6 +58,16 @@ export interface DiffLine {
   content: string;
 }
 
+export interface DiffHunk {
+  header: string;
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: DiffLine[];
+  patch: string;
+}
+
 export interface DiffFile {
   filename: string;
   oldPath?: string;
@@ -65,6 +75,7 @@ export interface DiffFile {
   additions: number;
   deletions: number;
   lines: DiffLine[];
+  hunks?: DiffHunk[];
 }
 
 export interface WorkflowSummary {
@@ -143,61 +154,113 @@ export function parseUnifiedDiffString(rawDiff: string): DiffFile[] {
 
   for (const chunk of fileChunks) {
     if (!chunk.trim()) continue;
-    const lines = chunk.split('\n');
-    const header = lines[0]; // e.g. "a/file.txt b/file.txt"
+    const rawLines = chunk.split('\n');
+    const header = rawLines[0]; // e.g. "a/file.txt b/file.txt"
     const parts = header.trim().split(' ');
     const filename = (parts[1] || parts[0] || 'unknown').replace(/^[ab]\//, '');
 
     let additions = 0;
     let deletions = 0;
     const diffLines: DiffLine[] = [];
+    const hunks: DiffHunk[] = [];
 
+    let currentHunk: DiffHunk | null = null;
+    let currentHunkRawLines: string[] = [];
     let oldLine = 0;
     let newLine = 0;
 
-    for (let i = 1; i < lines.length; i++) {
-      const l = lines[i];
+    const finalizeHunk = () => {
+      if (currentHunk) {
+        const patchHeader = `diff --git a/${filename} b/${filename}\n--- a/${filename}\n+++ b/${filename}\n${currentHunk.header}\n`;
+        currentHunk.patch = patchHeader + currentHunkRawLines.join('\n') + '\n';
+        hunks.push(currentHunk);
+        currentHunk = null;
+        currentHunkRawLines = [];
+      }
+    };
+
+    for (let i = 1; i < rawLines.length; i++) {
+      const l = rawLines[i];
       if (l.startsWith('@@')) {
-        const match = l.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
-        if (match) {
-          oldLine = parseInt(match[1], 10);
-          newLine = parseInt(match[2], 10);
-        }
+        finalizeHunk();
+        const match = l.match(/@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
+        const oldStart = match ? parseInt(match[1], 10) : 1;
+        const oldCnt = match && match[2] !== undefined ? parseInt(match[2], 10) : 1;
+        const newStart = match ? parseInt(match[3], 10) : 1;
+        const newCnt = match && match[4] !== undefined ? parseInt(match[4], 10) : 1;
+
+        oldLine = oldStart;
+        newLine = newStart;
+
+        currentHunk = {
+          header: l,
+          oldStart,
+          oldLines: oldCnt,
+          newStart,
+          newLines: newCnt,
+          lines: [],
+          patch: '',
+        };
         continue;
       }
+
       if (
         l.startsWith('index ') ||
         l.startsWith('--- ') ||
         l.startsWith('+++ ') ||
         l.startsWith('new file ') ||
-        l.startsWith('deleted file ')
+        l.startsWith('deleted file ') ||
+        l.startsWith('old mode ') ||
+        l.startsWith('new mode ') ||
+        l.startsWith('similarity index ')
       ) {
         continue;
       }
 
+      if (l.startsWith('\\ No newline at end of file')) {
+        if (currentHunk) {
+          currentHunkRawLines.push(l);
+        }
+        continue;
+      }
+
+      if (!currentHunk) {
+        continue;
+      }
+
+      currentHunkRawLines.push(l);
+
       if (l.startsWith('+')) {
         additions++;
-        diffLines.push({
+        const lineObj: DiffLine = {
           type: 'add',
           newLineNumber: newLine++,
           content: l.substring(1),
-        });
+        };
+        diffLines.push(lineObj);
+        currentHunk.lines.push(lineObj);
       } else if (l.startsWith('-')) {
         deletions++;
-        diffLines.push({
+        const lineObj: DiffLine = {
           type: 'delete',
           oldLineNumber: oldLine++,
           content: l.substring(1),
-        });
+        };
+        diffLines.push(lineObj);
+        currentHunk.lines.push(lineObj);
       } else {
-        diffLines.push({
+        const lineObj: DiffLine = {
           type: 'context',
           oldLineNumber: oldLine++,
           newLineNumber: newLine++,
           content: l.startsWith(' ') ? l.substring(1) : l,
-        });
+        };
+        diffLines.push(lineObj);
+        currentHunk.lines.push(lineObj);
       }
     }
+
+    finalizeHunk();
 
     files.push({
       filename,
@@ -210,6 +273,7 @@ export function parseUnifiedDiffString(rawDiff: string): DiffFile[] {
       additions,
       deletions,
       lines: diffLines,
+      hunks,
     });
   }
 
@@ -1088,16 +1152,33 @@ export class GitService {
         try {
           const content = await fs.readFile(path.join(repoPath, filePath), 'utf-8');
           const lines = content.split('\n');
+          const diffLines: DiffLine[] = lines.map((l, i) => ({
+            type: 'add' as const,
+            newLineNumber: i + 1,
+            content: l,
+          }));
+          const patch =
+            `diff --git a/${filePath} b/${filePath}\n--- /dev/null\n+++ b/${filePath}\n@@ -0,0 +1,${lines.length} @@\n` +
+            lines.map(l => `+${l}`).join('\n') +
+            '\n';
+
           return {
             filename: filePath,
             status: 'added',
             additions: lines.length,
             deletions: 0,
-            lines: lines.map((l, i) => ({
-              type: 'add',
-              newLineNumber: i + 1,
-              content: l,
-            })),
+            lines: diffLines,
+            hunks: [
+              {
+                header: `@@ -0,0 +1,${lines.length} @@`,
+                oldStart: 0,
+                oldLines: 0,
+                newStart: 1,
+                newLines: lines.length,
+                lines: diffLines,
+                patch,
+              },
+            ],
           };
         } catch {}
       }
@@ -1145,6 +1226,32 @@ export class GitService {
     } else {
       await runGit(repoPath, ['clean', '-f', '--', filePath]);
     }
+  }
+
+  async applyPatch(
+    name: string,
+    patch: string,
+    options: { reverse?: boolean; cached?: boolean } = {}
+  ): Promise<void> {
+    const repoPath = this.getRepoPath(name);
+    const args = ['apply'];
+    if (options.cached !== false) args.push('--cached');
+    if (options.reverse) args.push('--reverse');
+    args.push('-');
+
+    return new Promise((resolve, reject) => {
+      const proc = spawn('git', args, { cwd: repoPath });
+      let stderr = '';
+      proc.stderr.on('data', chunk => {
+        stderr += chunk.toString();
+      });
+      proc.on('close', code => {
+        if (code === 0) resolve();
+        else reject(new Error(stderr || `git apply failed with exit code ${code}`));
+      });
+      proc.stdin.write(patch);
+      proc.stdin.end();
+    });
   }
 
   async discardAllChanges(name: string): Promise<void> {

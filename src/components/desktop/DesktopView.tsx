@@ -23,7 +23,7 @@ import {
   Plus,
   RefreshCw
 } from 'lucide-react';
-import { Repository, WorkingCopyStatus, WorkingFile, DiffFile, Commit } from '../../types';
+import { Repository, WorkingCopyStatus, WorkingFile, DiffFile, DiffHunk, Commit } from '../../types';
 import { api } from '../../services/api';
 
 interface DesktopViewProps {
@@ -45,6 +45,7 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
   const [fileDiff, setFileDiff] = useState<DiffFile | null>(null);
   const [isLoadingDiff, setIsLoadingDiff] = useState(false);
   const [fileFilter, setFileFilter] = useState('');
+  const [hunkActionIndex, setHunkActionIndex] = useState<number | null>(null);
 
   // Commit box state
   const [summary, setSummary] = useState('');
@@ -181,6 +182,58 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
       onRefreshStatus();
     } catch (err: any) {
       alert(`Discard all failed: ${err.message}`);
+    }
+  };
+
+  // Stage a single hunk to git index
+  const handleStageHunk = async (hunk: DiffHunk, idx: number) => {
+    setHunkActionIndex(idx);
+    try {
+      await api.applyPatch(repo.name, hunk.patch, { cached: true });
+      onRefreshStatus();
+      if (selectedFile) {
+        const d = await api.fetchWorkingDiff(repo.name, selectedFile.path, selectedFile.staged);
+        setFileDiff(d);
+      }
+    } catch (err: any) {
+      alert(`Failed to stage hunk: ${err.message}`);
+    } finally {
+      setHunkActionIndex(null);
+    }
+  };
+
+  // Unstage a single hunk from git index
+  const handleUnstageHunk = async (hunk: DiffHunk, idx: number) => {
+    setHunkActionIndex(idx);
+    try {
+      await api.applyPatch(repo.name, hunk.patch, { reverse: true, cached: true });
+      onRefreshStatus();
+      if (selectedFile) {
+        const d = await api.fetchWorkingDiff(repo.name, selectedFile.path, selectedFile.staged);
+        setFileDiff(d);
+      }
+    } catch (err: any) {
+      alert(`Failed to unstage hunk: ${err.message}`);
+    } finally {
+      setHunkActionIndex(null);
+    }
+  };
+
+  // Discard a single hunk from working copy
+  const handleDiscardHunk = async (hunk: DiffHunk, idx: number) => {
+    if (!window.confirm('Discard changes in this hunk? This cannot be undone.')) return;
+    setHunkActionIndex(idx);
+    try {
+      await api.applyPatch(repo.name, hunk.patch, { reverse: true, cached: false });
+      onRefreshStatus();
+      if (selectedFile) {
+        const d = await api.fetchWorkingDiff(repo.name, selectedFile.path, selectedFile.staged);
+        setFileDiff(d);
+      }
+    } catch (err: any) {
+      alert(`Failed to discard hunk: ${err.message}`);
+    } finally {
+      setHunkActionIndex(null);
     }
   };
 
@@ -647,6 +700,90 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
                   ) : !fileDiff || fileDiff.lines.length === 0 ? (
                     <div className="p-8 text-center text-hub-muted text-xs">
                       No line differences found or file is binary/empty.
+                    </div>
+                  ) : fileDiff.hunks && fileDiff.hunks.length > 0 ? (
+                    <div className="space-y-4 p-3">
+                      {fileDiff.hunks.map((hunk, hIdx) => (
+                        <div key={hIdx} className="border border-gray-800 rounded-md overflow-hidden bg-[#0d1117]">
+                          {/* Hunk Header Bar */}
+                          <div className="bg-[#161b22] px-3 py-1.5 flex items-center justify-between border-b border-gray-800 select-none">
+                            <span className="text-[11px] font-mono text-hub-muted font-semibold">
+                              {hunk.header}
+                            </span>
+                            <div className="flex items-center space-x-1.5">
+                              {selectedFile.staged ? (
+                                <button
+                                  onClick={() => handleUnstageHunk(hunk, hIdx)}
+                                  disabled={hunkActionIndex === hIdx}
+                                  className="px-2 py-0.5 rounded text-[11px] bg-hub-bg hover:bg-hub-subtle border border-hub-border text-yellow-300 font-sans font-medium transition-colors flex items-center space-x-1 disabled:opacity-50"
+                                  title="Unstage only this hunk"
+                                >
+                                  {hunkActionIndex === hIdx ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <MinusSquare className="w-3 h-3" />
+                                  )}
+                                  <span>Unstage Hunk</span>
+                                </button>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => handleStageHunk(hunk, hIdx)}
+                                    disabled={hunkActionIndex === hIdx}
+                                    className="px-2 py-0.5 rounded text-[11px] bg-green-950/70 hover:bg-green-900 border border-green-800 text-green-300 font-sans font-medium transition-colors flex items-center space-x-1 disabled:opacity-50"
+                                    title="Stage only this hunk"
+                                  >
+                                    {hunkActionIndex === hIdx ? (
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                    ) : (
+                                      <CheckSquare className="w-3 h-3" />
+                                    )}
+                                    <span>Stage Hunk</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleDiscardHunk(hunk, hIdx)}
+                                    disabled={hunkActionIndex === hIdx}
+                                    className="px-2 py-0.5 rounded text-[11px] bg-hub-bg hover:bg-red-950/60 border border-hub-border hover:border-red-800 text-hub-muted hover:text-red-300 font-sans transition-colors flex items-center space-x-1 disabled:opacity-50"
+                                    title="Discard only this hunk"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                    <span>Discard Hunk</span>
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Hunk Lines */}
+                          <div className="divide-y divide-gray-800/40">
+                            {hunk.lines.map((line, lIdx) => (
+                              <div
+                                key={lIdx}
+                                className={`flex items-start leading-5 transition-colors ${
+                                  line.type === 'add'
+                                    ? 'bg-green-950/40 text-green-300'
+                                    : line.type === 'delete'
+                                    ? 'bg-red-950/40 text-red-300'
+                                    : 'text-gray-300 hover:bg-gray-800/30'
+                                }`}
+                              >
+                                <div className="w-10 px-2 py-0.5 text-right select-none text-gray-600 text-[11px] shrink-0 border-r border-gray-800">
+                                  {line.oldLineNumber || ''}
+                                </div>
+                                <div className="w-10 px-2 py-0.5 text-right select-none text-gray-600 text-[11px] shrink-0 border-r border-gray-800">
+                                  {line.newLineNumber || ''}
+                                </div>
+                                <div className="w-5 text-center select-none shrink-0 font-bold">
+                                  {line.type === 'add' ? '+' : line.type === 'delete' ? '-' : ' '}
+                                </div>
+                                <div className="flex-1 px-2 py-0.5 whitespace-pre break-all overflow-x-auto">
+                                  {line.content}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   ) : (
                     <div className="divide-y divide-gray-800/40">

@@ -89,6 +89,16 @@ export interface DiffLine {
   content: string;
 }
 
+export interface DiffHunk {
+  header: string;
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: DiffLine[];
+  patch: string;
+}
+
 export interface DiffFile {
   filename: string;
   oldPath?: string;
@@ -96,6 +106,7 @@ export interface DiffFile {
   additions: number;
   deletions: number;
   lines: DiffLine[];
+  hunks?: DiffHunk[];
 }
 
 export interface PullRequest {

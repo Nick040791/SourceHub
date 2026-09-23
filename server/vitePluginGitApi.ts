@@ -352,6 +352,21 @@ export function vitePluginGitApi(): Plugin {
               }
             }
 
+            // POST /api/v1/repos/:name/desktop/apply-patch
+            if (action === 'apply-patch' && req.method === 'POST') {
+              const body = await readJsonBody(req);
+              if (!body.patch) return sendError(res, 400, 'Patch content is required');
+              try {
+                await gitService.applyPatch(repoName, body.patch, {
+                  reverse: Boolean(body.reverse),
+                  cached: body.cached !== false,
+                });
+                return sendJson(res, 200, { success: true });
+              } catch (e: any) {
+                return sendError(res, 500, e.message);
+              }
+            }
+
             // POST /api/v1/repos/:name/desktop/commit
             if (action === 'commit' && req.method === 'POST') {
               const body = await readJsonBody(req);

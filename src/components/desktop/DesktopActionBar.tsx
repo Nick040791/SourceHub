@@ -14,7 +14,9 @@ import {
   Archive,
   Trash2,
   RotateCw,
-  Sliders
+  Sliders,
+  AlertCircle,
+  ExternalLink
 } from 'lucide-react';
 import { WorkingCopyStatus, Repository } from '../../types';
 import { api } from '../../services/api';
@@ -40,6 +42,7 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [isRemoteModalOpen, setIsRemoteModalOpen] = useState(false);
+  const [pushErrorModal, setPushErrorModal] = useState<{ message: string; remoteUrl?: string } | null>(null);
 
   const branches = repo.branches || [repo.defaultBranch || 'main'];
   const filteredBranches = branches.filter(b => 
@@ -124,7 +127,11 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
       await api.pushRemote(repo.name, 'origin', currentBranch, true);
       onRefresh();
     } catch (e: any) {
-      alert(`Push error: ${e.message}\n\nTip: If the remote repo does not exist on GitHub yet, please create it first.`);
+      const originRemote = status?.remotes.find(r => r.name === 'origin')?.fetchUrl || '';
+      setPushErrorModal({
+        message: e.message,
+        remoteUrl: originRemote,
+      });
     } finally {
       setIsActionLoading(false);
       setActionMessage(null);
@@ -316,6 +323,62 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
         repoName={repo.name}
         onRemotesChanged={onRefresh}
       />
+
+      {pushErrorModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
+          <div className="bg-hub-surface border border-hub-border rounded-lg shadow-2xl max-w-md w-full p-5 space-y-4">
+            <div className="flex items-center space-x-2.5 text-red-400">
+              <AlertCircle className="w-5 h-5 shrink-0" />
+              <h3 className="font-bold text-sm text-hub-text">Push to Remote Failed</h3>
+            </div>
+
+            <p className="text-xs text-hub-muted leading-relaxed">
+              Git was unable to push <span className="font-mono text-purple-300 font-semibold">{currentBranch}</span> to the remote repository.
+            </p>
+
+            <div className="p-3 bg-red-950/30 border border-red-900/60 rounded font-mono text-[11px] text-red-200 overflow-x-auto max-h-32 whitespace-pre-wrap break-all">
+              {pushErrorModal.message}
+            </div>
+
+            <div className="p-3 bg-hub-bg border border-hub-border rounded space-y-2 text-xs">
+              <div className="font-semibold text-hub-text flex items-center space-x-1.5">
+                <Globe className="w-3.5 h-3.5 text-hub-accent" />
+                <span>Does this repository exist on GitHub?</span>
+              </div>
+              <p className="text-[11px] text-hub-muted">
+                If the repository does not exist on GitHub yet, you can create it with the matching repository name <code className="font-mono text-hub-text font-bold">{repo.name}</code>:
+              </p>
+              <a
+                href={`https://github.com/new?name=${encodeURIComponent(repo.name)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-hub-accent hover:bg-blue-600 text-white rounded text-xs font-semibold transition-colors shadow-sm"
+              >
+                <span>Create repository on GitHub</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+
+            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-hub-border">
+              <button
+                onClick={() => {
+                  setPushErrorModal(null);
+                  setIsRemoteModalOpen(true);
+                }}
+                className="px-3 py-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border rounded text-xs text-hub-text transition-colors"
+              >
+                Configure Remote URL
+              </button>
+              <button
+                onClick={() => setPushErrorModal(null)}
+                className="px-3 py-1.5 bg-hub-subtle hover:bg-hub-border rounded text-xs font-semibold text-hub-text transition-colors"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
