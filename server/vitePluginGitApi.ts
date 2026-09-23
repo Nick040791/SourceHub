@@ -35,34 +35,40 @@ async function readJsonBody(req: IncomingMessage): Promise<any> {
   });
 }
 
-function sendJson(res: ServerResponse, statusCode: number, data: any) {
+function sendJson(res: ServerResponse, statusCode: number, data: any): boolean {
   res.statusCode = statusCode;
   res.setHeader('Content-Type', 'application/json');
   res.end(JSON.stringify(data));
+  return true;
 }
 
-function sendError(res: ServerResponse, statusCode: number, message: string) {
-  sendJson(res, statusCode, { error: message });
+function sendError(res: ServerResponse, statusCode: number, message: string): boolean {
+  return sendJson(res, statusCode, { error: message });
 }
 
-export function vitePluginGitApi(): Plugin {
-  const gitService = new GitService();
-  const agentService = new AgentService();
-  const workflowService = new WorkflowService();
+const defaultGitService = new GitService();
+const defaultAgentService = new AgentService();
+const defaultWorkflowService = new WorkflowService();
 
-  return {
-    name: 'vite-plugin-git-api',
-    configureServer(server: ViteDevServer) {
-      server.middlewares.use(async (req, res, next) => {
-        if (!req.url) return next();
+export async function handleApiAndGit(
+  req: IncomingMessage,
+  res: ServerResponse,
+  services = {
+    gitService: defaultGitService,
+    agentService: defaultAgentService,
+    workflowService: defaultWorkflowService,
+  }
+): Promise<boolean> {
+  const { gitService, agentService, workflowService } = services;
+  if (!req.url) return false;
 
-        const { pathname, searchParams } = parseUrl(req.url);
+  const { pathname, searchParams } = parseUrl(req.url);
 
-        // ==========================================
-        // 1. SMART HTTP GIT CLONE PROTOCOL
-        // Format: /git/:repo.git/info/refs?service=git-upload-pack
-        //         /git/:repo.git/git-upload-pack
-        // ==========================================
+  // ==========================================
+  // 1. SMART HTTP GIT CLONE PROTOCOL
+  // Format: /git/:repo.git/info/refs?service=git-upload-pack
+  //         /git/:repo.git/git-upload-pack
+  // ==========================================
         if (pathname.startsWith('/git/')) {
           const match = pathname.match(/^\/git\/([^\/]+)\.git\/(info\/refs|git-upload-pack)$/);
           if (match) {
@@ -71,11 +77,13 @@ export function vitePluginGitApi(): Plugin {
 
             if (action === 'info/refs' && req.method === 'GET') {
               const service = searchParams.get('service') || '';
-              return gitService.handleGitInfoRefs(repoName, service, res);
+              await gitService.handleGitInfoRefs(repoName, service, res);
+              return true;
             }
 
             if (action === 'git-upload-pack' && req.method === 'POST') {
-              return gitService.handleGitUploadPack(repoName, req, res);
+              await gitService.handleGitUploadPack(repoName, req, res);
+              return true;
             }
           }
         }
@@ -186,7 +194,7 @@ export function vitePluginGitApi(): Plugin {
         // 3. REPOSITORY SPECIFIC ENDPOINTS
         // ==========================================
         if (!pathname.startsWith('/api/v1/repos')) {
-          return next();
+          return false;
         }
 
         try {
@@ -991,10 +999,25 @@ export function vitePluginGitApi(): Plugin {
             }
           }
 
-          return next();
+          return false;
         } catch (err: any) {
           console.error('API Error:', err);
           return sendError(res, 500, err.message || 'Internal server error');
+        }
+
+  return false;
+}
+
+export function vitePluginGitApi(): Plugin {
+  return {
+    name: 'vite-plugin-git-api',
+    configureServer(server: ViteDevServer) {
+      server.middlewares.use(async (req, res, next) => {
+        try {
+          const handled = await handleApiAndGit(req, res);
+          if (!handled) next();
+        } catch (err: any) {
+          next(err);
         }
       });
     },
