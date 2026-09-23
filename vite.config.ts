@@ -13,8 +13,24 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    host: '0.0.0.0',
+    host: process.env.HOST || '127.0.0.1',
     allowedHosts: true,
-    cors: true,
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+            return 'vendor-react';
+          }
+          if (id.includes('node_modules/lucide-react')) {
+            return 'vendor-icons';
+          }
+          if (id.includes('node_modules/marked')) {
+            return 'vendor-markdown';
+          }
+        },
+      },
+    },
   },
 });

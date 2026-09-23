@@ -118,6 +118,70 @@ export interface WorkingCopyStatus {
   stashes: GitStashEntry[];
 }
 
+export interface BlameLine {
+  lineNumber: number;
+  commitSha: string;
+  shortSha: string;
+  author: string;
+  authorEmail: string;
+  date: string;
+  summary: string;
+  content: string;
+}
+
+export function parsePorcelainBlame(rawOutput: string): BlameLine[] {
+  if (!rawOutput) return [];
+  const lines = rawOutput.split('\n');
+  const result: BlameLine[] = [];
+  const commitMetaMap = new Map<string, { author: string; authorEmail: string; timestamp: number; summary: string }>();
+
+  let currentSha = '';
+  let currentFinalLine = 0;
+  let tempMeta = { author: '', authorEmail: '', timestamp: 0, summary: '' };
+
+  for (const line of lines) {
+    if (line.startsWith('\t')) {
+      const content = line.substring(1);
+      const meta = commitMetaMap.get(currentSha) || tempMeta;
+      const dateStr = meta.timestamp ? new Date(meta.timestamp * 1000).toISOString() : '';
+      result.push({
+        lineNumber: currentFinalLine,
+        commitSha: currentSha,
+        shortSha: currentSha.substring(0, 7),
+        author: meta.author || 'Unknown',
+        authorEmail: meta.authorEmail || '',
+        date: dateStr,
+        summary: meta.summary || '',
+        content,
+      });
+      continue;
+    }
+
+    const firstSpace = line.indexOf(' ');
+    if (firstSpace === 40) {
+      currentSha = line.substring(0, 40);
+      const parts = line.substring(41).trim().split(/\s+/);
+      currentFinalLine = parseInt(parts[1] || parts[0], 10) || 0;
+      if (!commitMetaMap.has(currentSha)) {
+        tempMeta = { author: '', authorEmail: '', timestamp: 0, summary: '' };
+        commitMetaMap.set(currentSha, tempMeta);
+      } else {
+        tempMeta = commitMetaMap.get(currentSha)!;
+      }
+    } else if (line.startsWith('author ')) {
+      tempMeta.author = line.substring(7).trim();
+    } else if (line.startsWith('author-mail ')) {
+      tempMeta.authorEmail = line.substring(12).trim().replace(/^<|>$/g, '');
+    } else if (line.startsWith('author-time ')) {
+      tempMeta.timestamp = parseInt(line.substring(12).trim(), 10) || 0;
+    } else if (line.startsWith('summary ')) {
+      tempMeta.summary = line.substring(8).trim();
+    }
+  }
+
+  return result;
+}
+
 async function runGit(repoPath: string, args: string[]): Promise<string> {
   try {
     const { stdout } = await execFileAsync('git', args, {
@@ -248,12 +312,23 @@ export function parseUnifiedDiffString(rawDiff: string): DiffFile[] {
         };
         diffLines.push(lineObj);
         currentHunk.lines.push(lineObj);
+      } else if (l.startsWith(' ')) {
+        const lineObj: DiffLine = {
+          type: 'context',
+          oldLineNumber: oldLine++,
+          newLineNumber: newLine++,
+          content: l.substring(1),
+        };
+        diffLines.push(lineObj);
+        currentHunk.lines.push(lineObj);
+      } else if (!l) {
+        continue;
       } else {
         const lineObj: DiffLine = {
           type: 'context',
           oldLineNumber: oldLine++,
           newLineNumber: newLine++,
-          content: l.startsWith(' ') ? l.substring(1) : l,
+          content: l,
         };
         diffLines.push(lineObj);
         currentHunk.lines.push(lineObj);
@@ -288,8 +363,19 @@ export class GitService {
   }
 
   getRepoPath(name: string): string {
-    const cleanName = name.replace(/\.git$/, '');
-    return path.join(this.rootDir, cleanName);
+    if (!name || typeof name !== 'string') {
+      throw new Error('Repository name is required');
+    }
+    const cleanName = name.replace(/\.git$/, '').trim();
+    if (cleanName.includes('..') || cleanName.includes('/') || cleanName.includes('\\')) {
+      throw new Error('Invalid repository name: path traversal characters detected');
+    }
+    const normalizedRoot = path.resolve(this.rootDir);
+    const resolved = path.resolve(normalizedRoot, cleanName);
+    if (!resolved.startsWith(normalizedRoot + path.sep) && resolved !== normalizedRoot) {
+      throw new Error('Invalid repository path: outside root directory');
+    }
+    return resolved;
   }
 
   async listRepositories(): Promise<RepoSummary[]> {
@@ -522,7 +608,8 @@ export class GitService {
         const msg = commitMessage || `Merge PR: ${sourceBranch} into ${targetBranch}`;
         await runGit(worktreePath, ['commit', '-m', msg, '--author=Forge Operator <operator@sourcehub.local>']);
       } else if (strategy === 'rebase') {
-        await runGit(worktreePath, ['rebase', sourceBranch]);
+        await runGit(worktreePath, ['checkout', sourceBranch]);
+        await runGit(worktreePath, ['rebase', targetBranch]);
       } else {
         const msg = commitMessage || `Merge branch '${sourceBranch}' into ${targetBranch}`;
         await runGit(worktreePath, ['merge', '--no-ff', sourceBranch, '-m', msg]);
@@ -694,7 +781,26 @@ export class GitService {
     } catch {
       targetRef = 'HEAD';
     }
-    return await runGit(repoPath, ['show', `${targetRef}:${filePath}`]);
+    const safePath = path.normalize(filePath).replace(/^(\.\.(\/|\\|$))+/, '');
+    return await runGit(repoPath, ['show', `${targetRef}:${safePath}`]);
+  }
+
+  async getBlame(name: string, ref: string = 'HEAD', filePath: string): Promise<BlameLine[]> {
+    const repoPath = this.getRepoPath(name);
+    let targetRef = ref;
+    try {
+      await runGit(repoPath, ['rev-parse', '--verify', targetRef]);
+    } catch {
+      targetRef = 'HEAD';
+    }
+    const safePath = path.normalize(filePath).replace(/^(\.\.(\/|\\|$))+/, '');
+    try {
+      const raw = await runGit(repoPath, ['blame', '--porcelain', targetRef, '--', safePath]);
+      return parsePorcelainBlame(raw);
+    } catch (err: any) {
+      console.warn(`Could not get blame for ${name} ${targetRef}:${filePath}:`, err.message);
+      return [];
+    }
   }
 
   async getAllTrackedFiles(name: string, ref: string = 'HEAD'): Promise<string[]> {
@@ -982,6 +1088,13 @@ export class GitService {
     res.write(`${hexLen}${serviceHeader}0000`);
 
     const child = spawn('git', ['upload-pack', '--stateless-rpc', '--advertise-refs', repoPath]);
+    child.on('error', err => {
+      console.error('git upload-pack spawn error:', err);
+      if (!res.headersSent) {
+        res.statusCode = 500;
+        res.end('Git server error');
+      }
+    });
     child.stdout.pipe(res);
     child.stderr.on('data', d => console.error('git upload-pack stderr:', d.toString()));
   }
@@ -1000,6 +1113,13 @@ export class GitService {
     res.setHeader('Cache-Control', 'no-cache');
 
     const child = spawn('git', ['upload-pack', '--stateless-rpc', repoPath]);
+    child.on('error', err => {
+      console.error('git upload-pack execution spawn error:', err);
+      if (!res.headersSent) {
+        res.statusCode = 500;
+        res.end('Git server error');
+      }
+    });
     req.pipe(child.stdin);
     child.stdout.pipe(res);
     child.stderr.on('data', d => console.error('git upload-pack execution stderr:', d.toString()));
@@ -1248,6 +1368,7 @@ export class GitService {
     return new Promise((resolve, reject) => {
       const proc = spawn('git', args, { cwd: repoPath });
       let stderr = '';
+      proc.on('error', reject);
       proc.stderr.on('data', chunk => {
         stderr += chunk.toString();
       });
@@ -1255,6 +1376,7 @@ export class GitService {
         if (code === 0) resolve();
         else reject(new Error(stderr || `git apply failed with exit code ${code}`));
       });
+      proc.stdin.on('error', () => {});
       proc.stdin.write(patch);
       proc.stdin.end();
     });

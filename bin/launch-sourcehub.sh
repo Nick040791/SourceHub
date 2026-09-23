@@ -1,15 +1,25 @@
 #!/usr/bin/env bash
 set -e
 
-SOURCEHUB_DIR="/home/mrnicholas/Dev/SourceHub"
-URL="http://localhost:5173/"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SOURCEHUB_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+DATA_DIR="${SOURCEHUB_DATA_DIR:-${HOME}/.sourcehub}"
+PORT="${PORT:-5173}"
+URL="http://localhost:${PORT}/"
 
-# Check if SourceHub dev server is already running
+mkdir -p "${DATA_DIR}"
+
+# Check if SourceHub server is already running
 if ! curl -s --connect-timeout 1 "$URL" > /dev/null 2>&1; then
-  echo "SourceHub dev server is not running. Starting it now..."
+  echo "SourceHub server is not running. Starting it now..."
   cd "$SOURCEHUB_DIR"
-  nohup npm run dev -- --host 0.0.0.0 --port 5173 > "/home/mrnicholas/.sourcehub/server.log" 2>&1 &
-  
+
+  if [ -f "${SOURCEHUB_DIR}/dist/index.html" ]; then
+    nohup npm run serve > "${DATA_DIR}/server.log" 2>&1 &
+  else
+    nohup npm run dev -- --port "${PORT}" > "${DATA_DIR}/server.log" 2>&1 &
+  fi
+
   # Wait for server to become responsive
   for i in {1..20}; do
     if curl -s --connect-timeout 1 "$URL" > /dev/null 2>&1; then
@@ -20,5 +30,10 @@ if ! curl -s --connect-timeout 1 "$URL" > /dev/null 2>&1; then
 fi
 
 # Launch in user's default browser
-xdg-open "$URL" > /dev/null 2>&1 &
+if command -v xdg-open > /dev/null 2>&1; then
+  xdg-open "$URL" > /dev/null 2>&1 &
+elif command -v open > /dev/null 2>&1; then
+  open "$URL" > /dev/null 2>&1 &
+fi
+
 exit 0

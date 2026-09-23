@@ -138,6 +138,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       await api.createSecret(repoName, {
         name: newSecretName.trim(),
         scope: newSecretScope,
+        value: newSecretValue.trim(),
       });
       setNewSecretName('');
       setNewSecretValue('');

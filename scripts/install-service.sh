@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
 set -e
 
-SOURCEHUB_DIR="/home/mrnicholas/Dev/SourceHub"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SOURCEHUB_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SERVICE_DIR="${HOME}/.config/systemd/user"
 SERVICE_FILE="${SERVICE_DIR}/sourcehub.service"
 NPM_BIN="$(which npm || echo /usr/bin/npm)"
+REPOS_DIR="${SOURCEHUB_REPOS_DIR:-${HOME}/Dev}"
+BIND_HOST="${HOST:-127.0.0.1}"
+SERVER_PORT="${PORT:-5173}"
 
 echo "=== SourceHub Systemd Service Installer ==="
 echo "Working directory: ${SOURCEHUB_DIR}"
 echo "NPM binary:        ${NPM_BIN}"
+echo "Repos directory:   ${REPOS_DIR}"
+echo "Host / Port:       ${BIND_HOST}:${SERVER_PORT}"
 
 # 1. Build production frontend
 echo ""
@@ -35,9 +41,9 @@ Restart=always
 RestartSec=5
 KillMode=process
 Environment=NODE_ENV=production
-Environment=PORT=5173
-Environment=HOST=0.0.0.0
-Environment=SOURCEHUB_REPOS_DIR=/home/mrnicholas/Dev
+Environment=PORT=${SERVER_PORT}
+Environment=HOST=${BIND_HOST}
+Environment=SOURCEHUB_REPOS_DIR=${REPOS_DIR}
 
 [Install]
 WantedBy=default.target

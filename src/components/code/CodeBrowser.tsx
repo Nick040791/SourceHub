@@ -19,7 +19,7 @@ import {
   Loader2,
   FolderGit2
 } from 'lucide-react';
-import { Repository, FileItem, Commit } from '../../types';
+import { Repository, FileItem, Commit, BlameLine } from '../../types';
 import { api } from '../../services/api';
 import { MarkdownDocView } from '../common/MarkdownDocView';
 
@@ -41,6 +41,8 @@ export const CodeBrowser: React.FC<CodeBrowserProps> = ({
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [copied, setCopied] = useState(false);
   const [viewMode, setViewMode] = useState<'preview' | 'raw' | 'blame'>('preview');
+  const [blameLines, setBlameLines] = useState<BlameLine[]>([]);
+  const [isLoadingBlame, setIsLoadingBlame] = useState(false);
 
   // Branch creation modal state
   const [showNewBranchModal, setShowNewBranchModal] = useState(false);
@@ -133,6 +135,26 @@ export const CodeBrowser: React.FC<CodeBrowserProps> = ({
     }
     setActiveFile(null);
   };
+
+  // Load real blame attribution when blame mode is active
+  useEffect(() => {
+    if (viewMode === 'blame' && activeFile) {
+      let isMounted = true;
+      setIsLoadingBlame(true);
+      api.fetchBlame(repo.name, selectedBranch, activeFile.path)
+        .then(lines => {
+          if (isMounted) setBlameLines(lines);
+        })
+        .catch(err => {
+          console.warn('Could not fetch blame:', err);
+          if (isMounted) setBlameLines([]);
+        })
+        .finally(() => {
+          if (isMounted) setIsLoadingBlame(false);
+        });
+      return () => { isMounted = false; };
+    }
+  }, [viewMode, activeFile?.path, selectedBranch, repo.name]);
 
   const latestCommit = commits[0] || repo.lastCommit;
 
@@ -382,20 +404,38 @@ export const CodeBrowser: React.FC<CodeBrowserProps> = ({
               <pre className="text-hub-text">{activeFile.content}</pre>
             </div>
           ) : viewMode === 'blame' ? (
-            <div className="p-4 bg-hub-bg overflow-x-auto font-mono text-xs leading-relaxed text-hub-text space-y-1">
-              <div className="flex items-center space-x-4 border-b border-hub-border pb-1 mb-2 text-[11px] text-hub-text font-bold">
-                <span className="w-16">Commit</span>
-                <span className="w-24">Author</span>
-                <span>Code</span>
+            isLoadingBlame ? (
+              <div className="p-12 flex items-center justify-center space-x-2 text-hub-muted">
+                <Loader2 className="w-5 h-5 animate-spin text-hub-accent" />
+                <span>Loading Git blame attribution...</span>
               </div>
-              {activeFile.content.split('\n').map((line, i) => (
-                <div key={i} className="flex items-center space-x-4 hover:bg-hub-surface py-0.5">
-                  <span className="w-16 text-hub-link">{latestCommit ? latestCommit.shortSha : 'git'}</span>
-                  <span className="w-24 truncate text-hub-muted">{latestCommit ? latestCommit.author : 'Nick'}</span>
-                  <span className="text-hub-text">{line}</span>
+            ) : (
+              <div className="p-4 bg-hub-bg overflow-x-auto font-mono text-xs leading-relaxed text-hub-text space-y-0.5">
+                <div className="flex items-center space-x-4 border-b border-hub-border pb-1 mb-2 text-[11px] text-hub-text font-bold">
+                  <span className="w-16">Commit</span>
+                  <span className="w-28">Author</span>
+                  <span className="w-10 text-right pr-2">Line</span>
+                  <span>Code</span>
                 </div>
-              ))}
-            </div>
+                {(blameLines.length > 0 ? blameLines : activeFile.content.split('\n').map((l, idx) => ({
+                  lineNumber: idx + 1,
+                  shortSha: latestCommit ? latestCommit.shortSha : 'local',
+                  author: latestCommit ? latestCommit.author : 'Operator',
+                  content: l,
+                  summary: '',
+                  date: '',
+                  commitSha: '',
+                  authorEmail: '',
+                }))).map((b, i) => (
+                  <div key={i} className="flex items-center space-x-4 hover:bg-hub-surface py-0.5" title={b.summary || undefined}>
+                    <span className="w-16 text-hub-link font-mono">{b.shortSha}</span>
+                    <span className="w-28 truncate text-hub-muted text-[11px]">{b.author}</span>
+                    <span className="w-10 select-none text-hub-muted/50 text-right pr-2 text-[11px]">{b.lineNumber}</span>
+                    <span className="text-hub-text whitespace-pre flex-1">{b.content || ' '}</span>
+                  </div>
+                ))}
+              </div>
+            )
           ) : (activeFile.name.endsWith('.md') || activeFile.name.endsWith('.markdown')) ? (
             <MarkdownDocView content={activeFile.content} filename={activeFile.name} />
           ) : (

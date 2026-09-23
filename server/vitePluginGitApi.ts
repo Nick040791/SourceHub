@@ -4,6 +4,7 @@ import { AgentService } from './agentService';
 import { WorkflowService } from './workflowService';
 import { webhookService } from './webhookService';
 import { db } from './db';
+import { encryptSecret, maskSecret } from './crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import os from 'node:os';
 import { execSync } from 'node:child_process';
@@ -361,6 +362,14 @@ export async function handleApiAndGit(
             if (!pathParam) return sendError(res, 400, 'File path is required');
             const content = await gitService.getBlob(repoName, branch, pathParam);
             return sendJson(res, 200, { path: pathParam, content });
+          }
+
+          if (subResource === 'blame' && req.method === 'GET') {
+            const branch = searchParams.get('branch') || 'HEAD';
+            const pathParam = searchParams.get('path');
+            if (!pathParam) return sendError(res, 400, 'File path is required');
+            const blame = await gitService.getBlame(repoName, branch, pathParam);
+            return sendJson(res, 200, blame);
           }
 
           // ==========================================
@@ -994,7 +1003,11 @@ export async function handleApiAndGit(
             if (req.method === 'POST') {
               const body = await readJsonBody(req);
               if (!body.name) return sendError(res, 400, 'Secret name is required');
+              const secretValue = typeof body.value === 'string' ? body.value : '';
               const id = `sec-${Date.now()}`;
+              const encryptedValue = encryptSecret(secretValue);
+              const maskedValue = maskSecret(secretValue);
+
               db.prepare(`
                 INSERT INTO secrets (id, repo_name, name, scope, encrypted_value, masked_value, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -1003,11 +1016,11 @@ export async function handleApiAndGit(
                 repoName,
                 body.name.toUpperCase(),
                 body.scope || 'actions',
-                'ENCRYPTED_AES256_GCM_PAYLOAD',
-                '••••••••••••••••••••••••••••••••',
+                encryptedValue,
+                maskedValue,
                 'Just now'
               );
-              return sendJson(res, 201, { id, name: body.name });
+              return sendJson(res, 201, { id, name: body.name, maskedValue });
             }
           }
 

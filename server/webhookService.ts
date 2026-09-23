@@ -100,7 +100,9 @@ export class WebhookService {
     if (hook.secret) {
       const hmac = crypto.createHmac('sha256', hook.secret);
       hmac.update(payloadString);
-      headers['X-Hub-Signature-256'] = `sha256=${hmac.digest('hex')}`;
+      const signature = `sha256=${hmac.digest('hex')}`;
+      headers['X-SourceHub-Signature-256'] = signature;
+      headers['X-Hub-Signature-256'] = signature;
     }
 
     const controller = new AbortController();

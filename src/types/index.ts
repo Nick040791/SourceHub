@@ -136,12 +136,25 @@ export interface PRMergeability {
 
 export type WorkflowStatus = 'success' | 'running' | 'failed' | 'queued' | 'cancelled';
 
+export interface BlameLine {
+  lineNumber: number;
+  commitSha: string;
+  shortSha: string;
+  author: string;
+  authorEmail: string;
+  date: string;
+  summary: string;
+  content: string;
+}
+
 export interface JobStep {
   name: string;
   status: 'success' | 'running' | 'failed' | 'queued';
   duration: string;
   logs: string[];
 }
+
+export type WorkflowStep = JobStep;
 
 export interface WorkflowRun {
   id: string;

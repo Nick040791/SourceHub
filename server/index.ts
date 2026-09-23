@@ -11,7 +11,7 @@ const __dirname = path.dirname(__filename);
 const distDir = path.resolve(__dirname, '../dist');
 
 const PORT = parseInt(process.env.PORT || '5173', 10);
-const HOST = process.env.HOST || '0.0.0.0';
+const HOST = process.env.HOST || '127.0.0.1';
 
 const MIME_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -101,15 +101,47 @@ async function serveStatic(req: http.IncomingMessage, res: http.ServerResponse) 
   stream.pipe(res);
 }
 
+function isAllowedOrigin(origin: string | undefined): boolean {
+  if (!origin) return true; // Direct access, curl, git cli
+  try {
+    const parsed = new URL(origin);
+    const hostname = parsed.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+      return true;
+    }
+    const networks = getNetworkAddresses();
+    if (networks.includes(hostname)) {
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
 const server = http.createServer(async (req, res) => {
-  // CORS Headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin as string | undefined;
+  const allowed = isAllowedOrigin(origin);
+
+  if (origin && allowed) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  } else if (!origin) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-SourceHub-Event, X-SourceHub-Delivery');
 
   if (req.method === 'OPTIONS') {
-    res.statusCode = 204;
+    res.statusCode = allowed ? 204 : 403;
     res.end();
+    return;
+  }
+
+  // Reject untrusted cross-origin mutating requests
+  if (origin && !allowed && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method || '')) {
+    res.statusCode = 403;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'Cross-Origin Forbidden' }));
     return;
   }
 

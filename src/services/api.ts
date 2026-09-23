@@ -1,4 +1,4 @@
-import { Repository, FileItem, Commit, PullRequest, Secret, PersonalAccessToken, SSHKey, DiffFile, WorkflowRun, AgentRun, Webhook, WorkingCopyStatus, GitRemote, GitStashEntry, PRMergeability, NetworkInfo, UserProfile } from '../types';
+import { Repository, FileItem, Commit, PullRequest, Secret, PersonalAccessToken, SSHKey, DiffFile, WorkflowRun, AgentRun, Webhook, WorkingCopyStatus, GitRemote, GitStashEntry, PRMergeability, NetworkInfo, UserProfile, BlameLine } from '../types';
 
 export const api = {
   // --- Repositories ---
@@ -94,6 +94,14 @@ export const api = {
     if (!res.ok) throw new Error('Failed to fetch file content');
     const data = await res.json();
     return data.content || '';
+  },
+
+  async fetchBlame(repoName: string, branch: string = 'HEAD', path: string): Promise<BlameLine[]> {
+    const res = await fetch(
+      `/api/v1/repos/${encodeURIComponent(repoName)}/blame?branch=${encodeURIComponent(branch)}&path=${encodeURIComponent(path)}`
+    );
+    if (!res.ok) throw new Error('Failed to fetch file blame');
+    return await res.json();
   },
 
   // --- Real Pull Requests ---
@@ -256,7 +264,7 @@ export const api = {
     return await res.json();
   },
 
-  async createSecret(repoName: string, data: { name: string; scope: string }): Promise<void> {
+  async createSecret(repoName: string, data: { name: string; scope: string; value?: string }): Promise<void> {
     const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/secrets`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

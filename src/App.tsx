@@ -2,16 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { AppHeader, AppTheme } from './components/layout/AppHeader';
 import { RepoHeader } from './components/layout/RepoHeader';
 import { RepoNavTabs } from './components/layout/RepoNavTabs';
-import { CodeBrowser } from './components/code/CodeBrowser';
-import { PullRequestsView } from './components/pr/PullRequestsView';
-import { ActionsView } from './components/actions/ActionsView';
-import { AgentsView } from './components/agents/AgentsView';
-import { SettingsView } from './components/settings/SettingsView';
-import { IssuesView } from './components/issues/IssuesView';
+const CodeBrowser = React.lazy(() => import('./components/code/CodeBrowser').then(m => ({ default: m.CodeBrowser })));
+const PullRequestsView = React.lazy(() => import('./components/pr/PullRequestsView').then(m => ({ default: m.PullRequestsView })));
+const ActionsView = React.lazy(() => import('./components/actions/ActionsView').then(m => ({ default: m.ActionsView })));
+const AgentsView = React.lazy(() => import('./components/agents/AgentsView').then(m => ({ default: m.AgentsView })));
+const SettingsView = React.lazy(() => import('./components/settings/SettingsView').then(m => ({ default: m.SettingsView })));
+const IssuesView = React.lazy(() => import('./components/issues/IssuesView').then(m => ({ default: m.IssuesView })));
+const DesktopView = React.lazy(() => import('./components/desktop/DesktopView').then(m => ({ default: m.DesktopView })));
 import { HamburgerMenu } from './components/layout/HamburgerMenu';
 import { NewRepoModal } from './components/repo/NewRepoModal';
 import { DesktopActionBar } from './components/desktop/DesktopActionBar';
-import { DesktopView } from './components/desktop/DesktopView';
 import { ProfileModal } from './components/profile/ProfileModal';
 
 import { mockRepo } from './mock/mockData';
@@ -188,64 +188,71 @@ export const App: React.FC = () => {
 
       {/* 4. Main Tab Content Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 transition-all">
-        {activeTab === 'code' && (
-          <CodeBrowser
-            repo={selectedRepo}
-            onNavigateToAgentRun={handleNavigateToAgentRun}
-          />
-        )}
+        <React.Suspense fallback={
+          <div className="py-16 flex items-center justify-center space-x-2 text-hub-muted text-xs">
+            <span className="inline-block w-2 h-2 rounded-full bg-hub-accent animate-pulse"></span>
+            <span>Loading forge view...</span>
+          </div>
+        }>
+          {activeTab === 'code' && (
+            <CodeBrowser
+              repo={selectedRepo}
+              onNavigateToAgentRun={handleNavigateToAgentRun}
+            />
+          )}
 
-        {activeTab === 'desktop' && (
-          <DesktopView
-            repo={selectedRepo}
-            status={desktopStatus}
-            onRefreshStatus={loadDesktopStatus}
-            profile={profile}
-            onBranchSwitched={handleBranchSwitched}
-          />
-        )}
+          {activeTab === 'desktop' && (
+            <DesktopView
+              repo={selectedRepo}
+              status={desktopStatus}
+              onRefreshStatus={loadDesktopStatus}
+              profile={profile}
+              onBranchSwitched={handleBranchSwitched}
+            />
+          )}
 
-        {activeTab === 'issues' && (
-          <IssuesView
-            repoName={selectedRepo.name}
-            onAssignToAgent={handleAssignIssueToAgent}
-          />
-        )}
+          {activeTab === 'issues' && (
+            <IssuesView
+              repoName={selectedRepo.name}
+              onAssignToAgent={handleAssignIssueToAgent}
+            />
+          )}
 
-        {activeTab === 'pulls' && (
-          <PullRequestsView
-            repoName={selectedRepo.name}
-            branches={selectedRepo.branches || [selectedRepo.defaultBranch]}
-            defaultBase={selectedRepo.defaultBranch}
-            onNavigateToAgentRun={handleNavigateToAgentRun}
-            onNavigateToActionsRun={handleNavigateToActionsRun}
-          />
-        )}
+          {activeTab === 'pulls' && (
+            <PullRequestsView
+              repoName={selectedRepo.name}
+              branches={selectedRepo.branches || [selectedRepo.defaultBranch]}
+              defaultBase={selectedRepo.defaultBranch}
+              onNavigateToAgentRun={handleNavigateToAgentRun}
+              onNavigateToActionsRun={handleNavigateToActionsRun}
+            />
+          )}
 
-        {activeTab === 'actions' && (
-          <ActionsView
-            repoName={selectedRepo.name}
-          />
-        )}
+          {activeTab === 'actions' && (
+            <ActionsView
+              repoName={selectedRepo.name}
+            />
+          )}
 
-        {activeTab === 'agents' && (
-          <AgentsView
-            repoName={selectedRepo.name}
-            branches={selectedRepo.branches || [selectedRepo.defaultBranch]}
-            defaultBranch={selectedRepo.defaultBranch}
-            onNavigateToPR={handleNavigateToPR}
-            onNavigateToActionsRun={handleNavigateToActionsRun}
-            initialPrompt={agentInitialPrompt}
-            onClearInitialPrompt={() => setAgentInitialPrompt('')}
-          />
-        )}
+          {activeTab === 'agents' && (
+            <AgentsView
+              repoName={selectedRepo.name}
+              branches={selectedRepo.branches || [selectedRepo.defaultBranch]}
+              defaultBranch={selectedRepo.defaultBranch}
+              onNavigateToPR={handleNavigateToPR}
+              onNavigateToActionsRun={handleNavigateToActionsRun}
+              initialPrompt={agentInitialPrompt}
+              onClearInitialPrompt={() => setAgentInitialPrompt('')}
+            />
+          )}
 
-        {activeTab === 'settings' && (
-          <SettingsView
-            repoName={selectedRepo.name}
-            initialSection={settingsSection}
-          />
-        )}
+          {activeTab === 'settings' && (
+            <SettingsView
+              repoName={selectedRepo.name}
+              initialSection={settingsSection}
+            />
+          )}
+        </React.Suspense>
       </main>
 
       {/* 5. Slide-Out Hamburger Configuration & Settings Drawer */}
