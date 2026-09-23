@@ -22,7 +22,8 @@ export const RepoHeader: React.FC<RepoHeaderProps> = ({ repo }) => {
   const [cloneProtocol, setCloneProtocol] = useState<'http' | 'ssh' | 'local' | 'cli'>('http');
   const [copied, setCopied] = useState(false);
 
-  const httpUrl = `http://localhost:5173/git/${repo.name}.git`;
+  const origin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'http://localhost:5173';
+  const httpUrl = `${origin}/git/${repo.name}.git`;
   const sshUrl = `ssh://git@sourcehub.local:2222/nicholas/${repo.name}.git`;
   const localPath = `git clone /home/mrnicholas/Dev/${repo.name}`;
   const cliCmd = `sh repo clone nicholas/${repo.name}`;
