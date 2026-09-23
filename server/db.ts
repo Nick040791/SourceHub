@@ -168,6 +168,15 @@ db.exec(`
 try {
   db.exec('ALTER TABLE secrets ADD COLUMN encrypted_value TEXT;');
 } catch (_) {}
+try {
+  db.exec("ALTER TABLE pull_requests ADD COLUMN checks_status TEXT DEFAULT 'passed';");
+} catch (_) {}
+try {
+  db.exec("ALTER TABLE pull_requests ADD COLUMN checks_summary TEXT DEFAULT 'All checks passed';");
+} catch (_) {}
+try {
+  db.exec('ALTER TABLE pull_requests ADD COLUMN workflow_run_id TEXT;');
+} catch (_) {}
 
 // Auto-seed initial SSH key if user has ~/.ssh/id_ed25519.pub or id_rsa.pub
 try {

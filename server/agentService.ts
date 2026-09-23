@@ -1,5 +1,6 @@
 import { db } from './db';
 import { GitService } from './gitService';
+import { WorkflowService } from './workflowService';
 interface ParsedFile {
   path: string;
   content: string;
@@ -35,9 +36,11 @@ export function parseGeneratedFiles(response: string): ParsedFile[] {
 
 export class AgentService {
   private gitService: GitService;
+  private workflowService: WorkflowService;
 
   constructor() {
     this.gitService = new GitService();
+    this.workflowService = new WorkflowService();
   }
 
   // 1. AI Settings (Persisted in SQLite)
@@ -444,11 +447,53 @@ ${prompt}
         `Workflow checks queued on local runner for branch \`${targetBranch}\`.`
       );
 
-      addEvent(
-        'agent.checks_completed',
-        'All CI checks passed',
-        'Build, type check, and unit tests completed with 0 errors.'
-      );
+      db.prepare(`
+        UPDATE pull_requests
+        SET checks_status = 'running', checks_summary = 'Running CI workflow on local runner...'
+        WHERE id = ?
+      `).run(prId);
+
+      try {
+        const run = await this.workflowService.dispatchWorkflow(repoName, 'ci.yml', targetBranch, 'agent_run');
+        const checksPassed = run.status === 'success';
+        const summaryText = checksPassed
+          ? `All CI checks passed in ${run.duration}`
+          : `CI checks failed in ${run.duration}`;
+
+        db.prepare(`
+          UPDATE pull_requests
+          SET checks_status = ?, checks_summary = ?, workflow_run_id = ?
+          WHERE id = ?
+        `).run(checksPassed ? 'passed' : 'failed', summaryText, run.id, prId);
+
+        if (checksPassed) {
+          addEvent(
+            'agent.checks_completed',
+            'All CI checks passed',
+            `Workflow \`${run.workflowName}\` passed in ${run.duration}. Build and tests verified clean.`,
+            { workflowRunId: run.id }
+          );
+        } else {
+          addEvent(
+            'agent.checks_failed',
+            'Actions CI checks failed',
+            `Workflow \`${run.workflowName}\` failed in ${run.duration}. Check step logs in Actions tab.`,
+            { workflowRunId: run.id }
+          );
+        }
+      } catch (err: any) {
+        db.prepare(`
+          UPDATE pull_requests
+          SET checks_status = 'failed', checks_summary = ?
+          WHERE id = ?
+        `).run(`Runner error: ${err.message}`, prId);
+
+        addEvent(
+          'agent.checks_failed',
+          'Actions CI runner error',
+          `Failed to execute workflow: ${err.message}`
+        );
+      }
     }
 
     // Step E: Ready for Review
@@ -456,7 +501,7 @@ ${prompt}
       'agent.ready_for_review',
       'Ready for operator review',
       ollamaResponse || 'Stopped at review gate. Waiting for Nicholas to review.',
-      { filesTouched }
+      { filesTouched, prId }
     );
 
     db.prepare(`

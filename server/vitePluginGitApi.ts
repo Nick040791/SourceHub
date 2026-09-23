@@ -229,6 +229,16 @@ export function vitePluginGitApi(): Plugin {
             return sendJson(res, 201, { message: `Branch ${body.name} created` });
           }
 
+          if (subResource === 'branches' && parts.length >= 3 && req.method === 'DELETE') {
+            const branchName = decodeURIComponent(parts.slice(2).join('/'));
+            try {
+              await gitService.deleteBranch(repoName, branchName);
+              return sendJson(res, 200, { message: `Branch ${branchName} deleted` });
+            } catch (err: any) {
+              return sendError(res, 400, err.message);
+            }
+          }
+
           // --- Commits ---
           if (subResource === 'commits' && parts.length >= 3 && req.method === 'GET') {
             const commitSha = parts[2];
@@ -533,8 +543,9 @@ export function vitePluginGitApi(): Plugin {
                   targetBranch: p.target_branch,
                   createdAt: p.created_at,
                   updatedAt: p.updated_at,
-                  checksStatus: 'passed',
-                  checksSummary: 'All checks passed',
+                  checksStatus: p.checks_status || 'passed',
+                  checksSummary: p.checks_summary || 'All checks passed',
+                  workflowRunId: p.workflow_run_id || undefined,
                   commentCount: p.comment_count,
                   additions,
                   deletions,
@@ -601,8 +612,9 @@ export function vitePluginGitApi(): Plugin {
                 targetBranch: p.target_branch,
                 createdAt: p.created_at,
                 updatedAt: p.updated_at,
-                checksStatus: 'passed',
-                checksSummary: 'All checks passed',
+                checksStatus: p.checks_status || 'passed',
+                checksSummary: p.checks_summary || 'All checks passed',
+                workflowRunId: p.workflow_run_id || undefined,
                 comments: comments.map(c => ({
                   id: `c-${c.id}`,
                   author: c.author,
@@ -613,6 +625,15 @@ export function vitePluginGitApi(): Plugin {
                 commits,
                 diffs,
               });
+            }
+
+            // GET /api/v1/repos/:name/pulls/:id/mergeability
+            if (parts.length === 4 && parts[3] === 'mergeability' && req.method === 'GET') {
+              const p = db.prepare('SELECT * FROM pull_requests WHERE id = ? AND repo_name = ?').get(prId, repoName) as any;
+              if (!p) return sendError(res, 404, 'Pull request not found');
+
+              const result = await gitService.checkMergeConflict(repoName, p.target_branch, p.source_branch);
+              return sendJson(res, 200, result);
             }
 
             // POST /api/v1/repos/:name/pulls/:id/comments (add comment)
@@ -649,7 +670,27 @@ export function vitePluginGitApi(): Plugin {
                 VALUES (?, ?, ?, ?, ?)
               `).run(prId, 'SourceHub Forge', 0, `Merged into \`${p.target_branch}\` with commit \`${mergeResult.commitSha?.substring(0, 7)}\`.`, 'Just now');
 
-              return sendJson(res, 200, mergeResult);
+              // Auto-close issues referenced in PR body or title (e.g. Fixes #1, Closes #2, Resolves #3)
+              const fullText = `${p.title}\n${p.body || ''}`;
+              const issueRegex = /(?:fixes|closes|resolves)\s+#(\d+)/gi;
+              let match: RegExpExecArray | null;
+              const closedIssues: number[] = [];
+              while ((match = issueRegex.exec(fullText)) !== null) {
+                const issueId = parseInt(match[1], 10);
+                if (!closedIssues.includes(issueId)) {
+                  closedIssues.push(issueId);
+                  const issueRow = db.prepare('SELECT * FROM issues WHERE id = ? AND repo_name = ?').get(issueId, repoName) as any;
+                  if (issueRow && issueRow.status === 'open') {
+                    db.prepare("UPDATE issues SET status = 'closed' WHERE id = ?").run(issueId);
+                    db.prepare(`
+                      INSERT INTO issue_comments (issue_id, author, content, created_at)
+                      VALUES (?, ?, ?, ?)
+                    `).run(issueId, 'SourceHub Forge', `Closed automatically by Pull Request #${prId}.`, 'Just now');
+                  }
+                }
+              }
+
+              return sendJson(res, 200, { ...mergeResult, closedIssues });
             }
 
             // POST /api/v1/repos/:name/pulls/:id/close

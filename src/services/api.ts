@@ -1,4 +1,4 @@
-import { Repository, FileItem, Commit, PullRequest, Secret, PersonalAccessToken, SSHKey, DiffFile, WorkflowRun, AgentRun, Webhook, WorkingCopyStatus, GitRemote, GitStashEntry } from '../types';
+import { Repository, FileItem, Commit, PullRequest, Secret, PersonalAccessToken, SSHKey, DiffFile, WorkflowRun, AgentRun, Webhook, WorkingCopyStatus, GitRemote, GitStashEntry, PRMergeability } from '../types';
 
 export const api = {
   // --- Repositories ---
@@ -43,6 +43,16 @@ export const api = {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Failed to create branch');
+    }
+  },
+
+  async deleteBranch(repoName: string, branchName: string): Promise<void> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/branches/${encodeURIComponent(branchName)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to delete branch');
     }
   },
 
@@ -159,6 +169,12 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Failed to merge pull request');
     }
+    return await res.json();
+  },
+
+  async checkPRMergeability(repoName: string, id: number): Promise<PRMergeability> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/${id}/mergeability`);
+    if (!res.ok) throw new Error('Failed to check PR mergeability');
     return await res.json();
   },
 

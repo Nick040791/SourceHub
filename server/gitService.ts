@@ -501,6 +501,48 @@ export class GitService {
     }
   }
 
+  async checkMergeConflict(
+    name: string,
+    base: string,
+    head: string
+  ): Promise<{ canMerge: boolean; conflictedFiles: string[] }> {
+    const repoPath = this.getRepoPath(name);
+    try {
+      await execFileAsync('git', ['merge-tree', '--write-tree', '--messages', base, head], {
+        cwd: repoPath,
+        maxBuffer: 5 * 1024 * 1024,
+      });
+      return { canMerge: true, conflictedFiles: [] };
+    } catch (err: any) {
+      const output = `${err.stdout || ''}\n${err.stderr || ''}`;
+      const conflictedFiles: string[] = [];
+      const lines = output.split('\n');
+      for (const line of lines) {
+        const match = line.match(/CONFLICT\s*\([^)]+\):\s*(?:Merge conflict in\s+)?([^\s\r\n]+)/i);
+        if (match && match[1]) {
+          const cleanPath = match[1].replace(/^[ "']+|[ "':]+$/g, '');
+          if (cleanPath && !conflictedFiles.includes(cleanPath)) {
+            conflictedFiles.push(cleanPath);
+          }
+        }
+      }
+      return {
+        canMerge: false,
+        conflictedFiles: conflictedFiles.length > 0 ? conflictedFiles : ['Conflicting files detected'],
+      };
+    }
+  }
+
+  async deleteBranch(name: string, branchName: string): Promise<boolean> {
+    const repoPath = this.getRepoPath(name);
+    const currentBranch = await this.getCurrentBranch(name);
+    if (currentBranch === branchName) {
+      throw new Error(`Cannot delete currently active branch '${branchName}'. Switch to another branch first.`);
+    }
+    await runGit(repoPath, ['branch', '-D', branchName]);
+    return true;
+  }
+
   async getTree(name: string, ref: string = 'HEAD', subPath: string = ''): Promise<GitTreeEntry[]> {
     const repoPath = this.getRepoPath(name);
     try {

@@ -31,6 +31,8 @@ interface AgentsViewProps {
   defaultBranch?: string;
   onNavigateToPR: (prId: number) => void;
   onNavigateToActionsRun: (runId: string) => void;
+  initialPrompt?: string;
+  onClearInitialPrompt?: () => void;
 }
 
 export const AgentsView: React.FC<AgentsViewProps> = ({
@@ -38,6 +40,9 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
   branches = ['main'],
   defaultBranch = 'main',
   onNavigateToPR,
+  onNavigateToActionsRun,
+  initialPrompt,
+  onClearInitialPrompt,
 }) => {
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string>('');
@@ -47,11 +52,18 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
   const [availableModels, setAvailableModels] = useState<string[]>(['glm-5.3-flash:cloud']);
   
   // New task form state
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPrompt] = useState(initialPrompt || '');
   const [baseBranch, setBaseBranch] = useState(defaultBranch);
   const [mode, setMode] = useState<'open_pr' | 'branch_only'>('open_pr');
   const [model, setModel] = useState('glm-5.3-flash:cloud');
   const [isLaunching, setIsLaunching] = useState(false);
+
+  useEffect(() => {
+    if (initialPrompt) {
+      setPrompt(initialPrompt);
+      if (onClearInitialPrompt) onClearInitialPrompt();
+    }
+  }, [initialPrompt]);
 
   // Load runs from SQLite
   const loadRuns = async () => {

@@ -112,8 +112,14 @@ export interface PullRequest {
   updatedAt: string;
   checksStatus: 'passed' | 'running' | 'failed' | 'pending';
   checksSummary: string;
+  workflowRunId?: string;
   comments: PRReviewComment[];
   diffs: DiffFile[];
+}
+
+export interface PRMergeability {
+  canMerge: boolean;
+  conflictedFiles: string[];
 }
 
 export type WorkflowStatus = 'success' | 'running' | 'failed' | 'queued' | 'cancelled';

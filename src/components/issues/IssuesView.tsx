@@ -12,7 +12,7 @@ import { api } from '../../services/api';
 
 interface IssuesViewProps {
   repoName: string;
-  onAssignToAgent: (title: string) => void;
+  onAssignToAgent: (issue: { id: number; title: string; body?: string }) => void;
 }
 
 export const IssuesView: React.FC<IssuesViewProps> = ({ repoName, onAssignToAgent }) => {
@@ -70,7 +70,7 @@ export const IssuesView: React.FC<IssuesViewProps> = ({ repoName, onAssignToAgen
     try {
       await api.updateIssue(repoName, issue.id, { assignedToAgent: true });
       loadIssues();
-      onAssignToAgent(issue.title);
+      onAssignToAgent({ id: issue.id, title: issue.title, body: issue.body });
     } catch (err: any) {
       alert(`Error assigning agent: ${err.message}`);
     }

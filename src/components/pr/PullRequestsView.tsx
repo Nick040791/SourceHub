@@ -15,9 +15,10 @@ import {
   ArrowRight,
   Plus,
   Loader2,
-  XCircle
+  XCircle,
+  Trash2
 } from 'lucide-react';
-import { PullRequest, PRReviewComment } from '../../types';
+import { PullRequest, PRReviewComment, PRMergeability } from '../../types';
 import { api } from '../../services/api';
 import { NewPRModal } from './NewPRModal';
 import { MarkdownContent } from '../common/MarkdownDocView';
@@ -51,6 +52,10 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
   const [isReopening, setIsReopening] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
   const [isAddressingComments, setIsAddressingComments] = useState(false);
+  const [mergeability, setMergeability] = useState<PRMergeability | null>(null);
+  const [isCheckingMergeability, setIsCheckingMergeability] = useState(false);
+  const [isDeletingBranch, setIsDeletingBranch] = useState(false);
+  const [branchDeleted, setBranchDeleted] = useState(false);
 
   const loadPRs = async () => {
     setIsLoadingPRs(true);
@@ -69,15 +74,48 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
     }
   };
 
+  const checkMergeability = async (id: number) => {
+    setIsCheckingMergeability(true);
+    try {
+      const result = await api.checkPRMergeability(repoName, id);
+      setMergeability(result);
+    } catch (err) {
+      console.warn('Failed to check mergeability:', err);
+      setMergeability(null);
+    } finally {
+      setIsCheckingMergeability(false);
+    }
+  };
+
   const loadPRDetail = async (id: number) => {
     setIsLoadingDetail(true);
+    setBranchDeleted(false);
     try {
       const detail = await api.fetchPR(repoName, id);
       setSelectedPR(detail);
+      if (detail.state === 'open') {
+        checkMergeability(id);
+      } else {
+        setMergeability(null);
+      }
     } catch (err) {
       console.warn('Failed to load PR detail:', err);
     } finally {
       setIsLoadingDetail(false);
+    }
+  };
+
+  const handleDeleteBranch = async () => {
+    if (!selectedPR) return;
+    if (!confirm(`Are you sure you want to delete branch '${selectedPR.sourceBranch}'?`)) return;
+    setIsDeletingBranch(true);
+    try {
+      await api.deleteBranch(repoName, selectedPR.sourceBranch);
+      setBranchDeleted(true);
+    } catch (err: any) {
+      alert(`Error deleting branch: ${err.message}`);
+    } finally {
+      setIsDeletingBranch(false);
     }
   };
 
@@ -277,6 +315,18 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                         )}
                         <span className="truncate">#{pr.id} {pr.title}</span>
                       </span>
+
+                      <div className="shrink-0 flex items-center">
+                        {pr.checksStatus === 'passed' && (
+                          <span title="CI checks passed"><CheckCircle2 className="w-3.5 h-3.5 text-green-400" /></span>
+                        )}
+                        {pr.checksStatus === 'failed' && (
+                          <span title="CI checks failed"><XCircle className="w-3.5 h-3.5 text-red-400" /></span>
+                        )}
+                        {pr.checksStatus === 'running' && (
+                          <span title="CI checks running..."><Loader2 className="w-3.5 h-3.5 text-amber-400 animate-spin" /></span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] text-hub-muted font-mono">
@@ -374,6 +424,31 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                       )}
                     </span>
 
+                    <span className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                      selectedPR.checksStatus === 'passed'
+                        ? 'bg-green-950/60 text-green-300 border border-green-800'
+                        : selectedPR.checksStatus === 'failed'
+                        ? 'bg-red-950/60 text-red-300 border border-red-800'
+                        : 'bg-amber-950/60 text-amber-300 border border-amber-800'
+                    }`}>
+                      {selectedPR.checksStatus === 'passed' ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
+                          <span>Checks: passed</span>
+                        </>
+                      ) : selectedPR.checksStatus === 'failed' ? (
+                        <>
+                          <XCircle className="w-3.5 h-3.5 text-red-400" />
+                          <span>Checks: failed</span>
+                        </>
+                      ) : (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+                          <span>Checks: running</span>
+                        </>
+                      )}
+                    </span>
+
                     <span className="text-hub-muted">
                       <strong className="text-hub-text">{selectedPR.author}</strong> wants to merge commits into{' '}
                       <span className="bg-hub-subtle px-1.5 py-0.5 rounded font-mono text-hub-text border border-hub-border">
@@ -416,6 +491,28 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                     <span>Commits</span>
                     <span className="px-1.5 py-0.2 rounded-full bg-hub-subtle text-[11px] font-mono">
                       {(selectedPR as any).commits?.length || 0}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveSubTab('checks')}
+                    className={`py-2 border-b-2 flex items-center space-x-1.5 ${
+                      activeSubTab === 'checks'
+                        ? 'border-hub-accent text-hub-text font-bold'
+                        : 'border-transparent text-hub-muted hover:text-white'
+                    }`}
+                  >
+                    <CheckCircle2 className={`w-3.5 h-3.5 ${
+                      selectedPR.checksStatus === 'passed' ? 'text-green-400' :
+                      selectedPR.checksStatus === 'failed' ? 'text-red-400' : 'text-amber-400'
+                    }`} />
+                    <span>Checks</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-semibold ${
+                      selectedPR.checksStatus === 'passed' ? 'bg-green-950 text-green-300 border border-green-800' :
+                      selectedPR.checksStatus === 'failed' ? 'bg-red-950 text-red-300 border border-red-800' :
+                      'bg-amber-950 text-amber-300 border border-amber-800'
+                    }`}>
+                      {selectedPR.checksStatus || 'passed'}
                     </span>
                   </button>
 
@@ -481,6 +578,90 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                       ))}
                     </div>
 
+                    {/* Pre-Flight Mergeability Status (§6.2) */}
+                    {selectedPR.state === 'open' && (
+                      <div className={`border rounded-md p-3 text-xs flex items-center justify-between ${
+                        isCheckingMergeability
+                          ? 'bg-hub-subtle border-hub-border text-hub-muted'
+                          : mergeability?.canMerge
+                          ? 'bg-green-950/40 border-green-800/60 text-green-200'
+                          : 'bg-red-950/40 border-red-800/60 text-red-200'
+                      }`}>
+                        <div className="flex items-center space-x-2">
+                          {isCheckingMergeability ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-hub-accent" />
+                          ) : mergeability?.canMerge ? (
+                            <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                          )}
+                          <div>
+                            <span className="font-semibold">
+                              {isCheckingMergeability
+                                ? 'Checking branch mergeability...'
+                                : mergeability?.canMerge
+                                ? `Able to merge automatically — no conflicts with ${selectedPR.targetBranch}`
+                                : `Cannot merge automatically — conflict in: ${mergeability?.conflictedFiles.join(', ')}`}
+                            </span>
+                            {!isCheckingMergeability && !mergeability?.canMerge && (
+                              <p className="text-[11px] text-red-300/80 mt-0.5">
+                                Rebase or resolve conflicting files locally before merging this pull request.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {selectedPR.workflowRunId && (
+                          <button
+                            onClick={() => onNavigateToActionsRun(selectedPR.workflowRunId!)}
+                            className="hidden sm:flex items-center space-x-1 text-[11px] text-hub-muted hover:text-white transition-colors"
+                          >
+                            <span>CI Details</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Post-Merge Branch Deletion Banner */}
+                    {selectedPR.state === 'merged' && (
+                      <div className="border border-purple-900/60 rounded-md p-3.5 bg-purple-950/30 flex items-center justify-between text-xs">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center space-x-2">
+                            <GitMerge className="w-4 h-4 text-purple-400" />
+                            <span className="font-semibold text-purple-200">Pull request successfully merged</span>
+                          </div>
+                          <p className="text-[11px] text-purple-300/70">
+                            You can safely delete the head branch <code className="bg-purple-950 px-1 py-0.5 rounded text-purple-200 border border-purple-800">{selectedPR.sourceBranch}</code>.
+                          </p>
+                        </div>
+
+                        {branchDeleted ? (
+                          <span className="px-2.5 py-1 text-xs text-hub-muted font-medium bg-hub-subtle rounded border border-hub-border">
+                            ✓ Branch deleted
+                          </span>
+                        ) : (
+                          <button
+                            onClick={handleDeleteBranch}
+                            disabled={isDeletingBranch}
+                            className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-red-950/60 hover:bg-red-900 border border-red-800 text-red-300 text-xs font-medium transition-colors disabled:opacity-50"
+                          >
+                            {isDeletingBranch ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <span>Deleting...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Delete branch</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    )}
+
                     {/* Real Merge Box (§6.2) */}
                     <div className="border border-hub-border rounded-md p-4 bg-hub-subtle space-y-3">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -514,10 +695,12 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
 
                               <button
                                 onClick={handleMerge}
-                                disabled={isMerging || selectedPR.state === 'merged'}
+                                disabled={isMerging || selectedPR.state === 'merged' || (mergeability !== null && !mergeability.canMerge)}
                                 className={`px-3 py-1.5 rounded-md text-xs font-semibold text-white shadow-sm transition-colors flex items-center space-x-1.5 ${
                                   selectedPR.state === 'merged'
                                     ? 'bg-hub-border text-hub-muted cursor-not-allowed'
+                                    : mergeability !== null && !mergeability.canMerge
+                                    ? 'bg-red-950/60 text-red-300 border border-red-800 cursor-not-allowed'
                                     : 'bg-hub-success hover:bg-green-700'
                                 }`}
                               >
@@ -528,6 +711,8 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                                   </>
                                 ) : selectedPR.state === 'merged' ? (
                                   <span>Merged</span>
+                                ) : mergeability !== null && !mergeability.canMerge ? (
+                                  <span>Blocked by Conflicts</span>
                                 ) : (
                                   <span>Confirm Merge</span>
                                 )}
@@ -642,6 +827,57 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                         <span className="text-hub-muted font-mono text-[11px]">{c.shortSha}</span>
                       </div>
                     ))}
+                  </div>
+                ) : activeSubTab === 'checks' ? (
+                  <div className="space-y-4">
+                    <div className="border border-hub-border rounded-md bg-hub-surface p-4 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          {selectedPR.checksStatus === 'passed' ? (
+                            <CheckCircle2 className="w-6 h-6 text-green-400" />
+                          ) : selectedPR.checksStatus === 'failed' ? (
+                            <XCircle className="w-6 h-6 text-red-400" />
+                          ) : (
+                            <Loader2 className="w-6 h-6 text-amber-400 animate-spin" />
+                          )}
+                          <div>
+                            <h3 className="text-sm font-bold text-hub-text">Continuous Integration (CI) Checks</h3>
+                            <p className="text-xs text-hub-muted">{selectedPR.checksSummary || 'Automated verification pipeline'}</p>
+                          </div>
+                        </div>
+
+                        {selectedPR.workflowRunId && (
+                          <button
+                            onClick={() => onNavigateToActionsRun(selectedPR.workflowRunId!)}
+                            className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-subtle hover:bg-hub-border text-hub-text border border-hub-border rounded text-xs font-semibold transition-colors"
+                          >
+                            <span>Open Workflow Run</span>
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="pt-3 border-t border-hub-border text-xs text-hub-muted space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span>Target branch under test:</span>
+                          <span className="font-mono text-hub-text bg-hub-subtle px-1.5 py-0.5 rounded border border-hub-border">{selectedPR.sourceBranch}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Workflow file:</span>
+                          <span className="font-mono text-hub-text bg-hub-subtle px-1.5 py-0.5 rounded border border-hub-border">.sourcehub/workflows/ci.yml</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Run Status:</span>
+                          <span className={`font-semibold capitalize px-2 py-0.5 rounded ${
+                            selectedPR.checksStatus === 'passed' ? 'bg-green-950/80 text-green-300 border border-green-800' :
+                            selectedPR.checksStatus === 'failed' ? 'bg-red-950/80 text-red-300 border border-red-800' :
+                            'bg-amber-950/80 text-amber-300 border border-amber-800'
+                          }`}>
+                            {selectedPR.checksStatus}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-4">

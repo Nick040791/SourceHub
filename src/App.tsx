@@ -70,7 +70,11 @@ export const App: React.FC = () => {
     setActiveTab('actions');
   };
 
-  const handleAssignIssueToAgent = (title: string) => {
+  const [agentInitialPrompt, setAgentInitialPrompt] = useState<string>('');
+
+  const handleAssignIssueToAgent = (issue: { id: number; title: string; body?: string }) => {
+    const formattedPrompt = `Fix Issue #${issue.id}: ${issue.title}${issue.body ? `\n\n${issue.body}` : ''}`;
+    setAgentInitialPrompt(formattedPrompt);
     setActiveTab('agents');
   };
 
@@ -200,6 +204,8 @@ export const App: React.FC = () => {
             defaultBranch={selectedRepo.defaultBranch}
             onNavigateToPR={handleNavigateToPR}
             onNavigateToActionsRun={handleNavigateToActionsRun}
+            initialPrompt={agentInitialPrompt}
+            onClearInitialPrompt={() => setAgentInitialPrompt('')}
           />
         )}
 
