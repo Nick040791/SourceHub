@@ -63,6 +63,107 @@
   --hub-accent: 9, 105, 218;
 }
 
+.theme-dracula {
+  --hub-bg: 40, 42, 54;
+  --hub-surface: 68, 71, 90;
+  --hub-subtle: 52, 55, 70;
+  --hub-border: 98, 114, 164;
+  --hub-border-strong: 139, 155, 204;
+  --hub-muted: 189, 195, 219;
+  --hub-text: 248, 248, 242;
+  --hub-link: 139, 233, 253;
+  --hub-success: 80, 250, 123;
+  --hub-success-text: 80, 250, 123;
+  --hub-warning: 255, 184, 108;
+  --hub-warning-text: 255, 184, 108;
+  --hub-danger: 255, 85, 85;
+  --hub-danger-text: 255, 85, 85;
+  --hub-purple: 189, 147, 249;
+  --hub-purple-text: 189, 147, 249;
+  --hub-accent: 189, 147, 249;
+}
+
+.theme-nord {
+  --hub-bg: 46, 52, 64;
+  --hub-surface: 59, 66, 82;
+  --hub-subtle: 67, 76, 94;
+  --hub-border: 76, 86, 106;
+  --hub-border-strong: 104, 117, 145;
+  --hub-muted: 216, 222, 233;
+  --hub-text: 236, 239, 244;
+  --hub-link: 136, 192, 208;
+  --hub-success: 163, 190, 140;
+  --hub-success-text: 163, 190, 140;
+  --hub-warning: 235, 203, 139;
+  --hub-warning-text: 235, 203, 139;
+  --hub-danger: 191, 97, 106;
+  --hub-danger-text: 191, 97, 106;
+  --hub-purple: 180, 142, 173;
+  --hub-purple-text: 180, 142, 173;
+  --hub-accent: 136, 192, 208;
+}
+
+.theme-midnight {
+  --hub-bg: 0, 0, 0;
+  --hub-surface: 11, 15, 25;
+  --hub-subtle: 17, 24, 39;
+  --hub-border: 31, 41, 55;
+  --hub-border-strong: 75, 85, 99;
+  --hub-muted: 156, 163, 175;
+  --hub-text: 249, 250, 251;
+  --hub-link: 56, 189, 248;
+  --hub-success: 34, 197, 94;
+  --hub-success-text: 74, 222, 128;
+  --hub-warning: 234, 179, 8;
+  --hub-warning-text: 250, 204, 21;
+  --hub-danger: 239, 68, 68;
+  --hub-danger-text: 248, 113, 113;
+  --hub-purple: 168, 85, 247;
+  --hub-purple-text: 192, 132, 252;
+  --hub-accent: 56, 189, 248;
+}
+
+.theme-synthwave {
+  --hub-bg: 26, 26, 46;
+  --hub-surface: 22, 33, 62;
+  --hub-subtle: 15, 52, 96;
+  --hub-border: 62, 80, 130;
+  --hub-border-strong: 120, 140, 200;
+  --hub-muted: 180, 190, 220;
+  --hub-text: 255, 255, 255;
+  --hub-link: 0, 255, 245;
+  --hub-success: 0, 255, 170;
+  --hub-success-text: 0, 255, 170;
+  --hub-warning: 255, 217, 61;
+  --hub-warning-text: 255, 217, 61;
+  --hub-danger: 255, 0, 110;
+  --hub-danger-text: 255, 0, 110;
+  --hub-purple: 233, 69, 96;
+  --hub-purple-text: 255, 117, 140;
+  --hub-accent: 233, 69, 96;
+}
+
+.theme-sepia {
+  --hub-bg: 251, 240, 217;
+  --hub-surface: 244, 228, 193;
+  --hub-subtle: 237, 214, 169;
+  --hub-border: 180, 155, 120;
+  --hub-border-strong: 130, 100, 70;
+  --hub-muted: 100, 80, 60;
+  --hub-text: 45, 30, 15;
+  --hub-link: 184, 93, 25;
+  --hub-success: 46, 125, 50;
+  --hub-success-text: 46, 125, 50;
+  --hub-warning: 194, 94, 0;
+  --hub-warning-text: 194, 94, 0;
+  --hub-danger: 198, 40, 40;
+  --hub-danger-text: 198, 40, 40;
+  --hub-purple: 123, 31, 162;
+  --hub-purple-text: 123, 31, 162;
+  --hub-accent: 184, 93, 25;
+}
+
+
 @layer base {
   body {
     @apply bg-hub-bg text-hub-text;

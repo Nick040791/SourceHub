@@ -1222,9 +1222,15 @@ export class GitService {
     }
 
     if (isTracked) {
-      await runGit(repoPath, ['restore', '--', filePath]);
+      await runGitSafe(repoPath, ['restore', '--staged', '--worktree', '--', filePath]);
     } else {
-      await runGit(repoPath, ['clean', '-f', '--', filePath]);
+      await runGitSafe(repoPath, ['clean', '-f', '--', filePath]);
+    }
+  }
+
+  async discardSelectedChanges(name: string, files: string[]): Promise<void> {
+    for (const file of files) {
+      await this.discardFileChanges(name, file);
     }
   }
 
@@ -1256,7 +1262,7 @@ export class GitService {
 
   async discardAllChanges(name: string): Promise<void> {
     const repoPath = this.getRepoPath(name);
-    await runGitSafe(repoPath, ['restore', '.']);
+    await runGitSafe(repoPath, ['restore', '--staged', '--worktree', '.']);
     await runGitSafe(repoPath, ['clean', '-fd']);
   }
 

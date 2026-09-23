@@ -16,9 +16,10 @@ import {
   BookOpen,
   Menu,
 } from 'lucide-react';
-import { Repository } from '../../types';
+import { Repository, UserProfile, AppTheme } from '../../types';
+import { THEME_OPTIONS, AVATAR_COLOR_GRADIENTS } from '../profile/ProfileModal';
 
-export type AppTheme = 'high-contrast-dark' | 'dark' | 'high-contrast-light';
+export type { AppTheme };
 
 interface AppHeaderProps {
   activeTab: string;
@@ -32,6 +33,8 @@ interface AppHeaderProps {
   selectedRepo: Repository;
   onSelectRepo: (repo: Repository) => void;
   onOpenNewRepoModal: () => void;
+  profile?: UserProfile;
+  onOpenProfileModal?: () => void;
 }
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
@@ -45,6 +48,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   selectedRepo,
   onSelectRepo,
   onOpenNewRepoModal,
+  profile,
+  onOpenProfileModal,
 }) => {
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [showRepoMenu, setShowRepoMenu] = useState(false);
@@ -219,37 +224,25 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           </button>
 
           {showThemeMenu && (
-            <div className="absolute right-0 mt-2 w-52 bg-hub-surface border border-hub-border rounded-lg shadow-xl z-50 p-1.5 text-xs animate-in fade-in duration-100">
+            <div className="absolute right-0 mt-2 w-60 bg-hub-surface border border-hub-border rounded-lg shadow-xl z-50 p-1.5 text-xs animate-in fade-in duration-100 max-h-80 overflow-y-auto">
               <div className="px-2 py-1 text-[10px] font-bold text-hub-muted uppercase tracking-wider">
-                Select Display Theme
+                Select Display Theme (8 Presets)
               </div>
-              <button
-                onClick={() => { onChangeTheme('high-contrast-dark'); setShowThemeMenu(false); }}
-                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded transition-colors text-left ${
-                  theme === 'high-contrast-dark' ? 'bg-hub-subtle text-hub-text font-bold' : 'text-hub-muted hover:text-hub-text hover:bg-hub-subtle/50'
-                }`}
-              >
-                <span>⚡ High Contrast Dark (Default)</span>
-                {theme === 'high-contrast-dark' && <Check className="w-3.5 h-3.5 text-hub-success-text" />}
-              </button>
-              <button
-                onClick={() => { onChangeTheme('dark'); setShowThemeMenu(false); }}
-                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded transition-colors text-left ${
-                  theme === 'dark' ? 'bg-hub-subtle text-hub-text font-bold' : 'text-hub-muted hover:text-hub-text hover:bg-hub-subtle/50'
-                }`}
-              >
-                <span>🌑 GitHub Dark (Dimmed)</span>
-                {theme === 'dark' && <Check className="w-3.5 h-3.5 text-hub-success-text" />}
-              </button>
-              <button
-                onClick={() => { onChangeTheme('high-contrast-light'); setShowThemeMenu(false); }}
-                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded transition-colors text-left ${
-                  theme === 'high-contrast-light' ? 'bg-hub-subtle text-hub-text font-bold' : 'text-hub-muted hover:text-hub-text hover:bg-hub-subtle/50'
-                }`}
-              >
-                <span>☀️ High Contrast Light</span>
-                {theme === 'high-contrast-light' && <Check className="w-3.5 h-3.5 text-hub-success-text" />}
-              </button>
+              {THEME_OPTIONS.map((opt) => (
+                <button
+                  key={opt.id}
+                  onClick={() => { onChangeTheme(opt.id); setShowThemeMenu(false); }}
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded transition-colors text-left ${
+                    theme === opt.id ? 'bg-hub-subtle text-hub-text font-bold' : 'text-hub-muted hover:text-hub-text hover:bg-hub-subtle/50'
+                  }`}
+                >
+                  <div className="flex items-center space-x-1.5 truncate">
+                    <span>{opt.icon}</span>
+                    <span className="truncate">{opt.label}</span>
+                  </div>
+                  {theme === opt.id && <Check className="w-3.5 h-3.5 text-hub-success-text shrink-0 ml-1" />}
+                </button>
+              ))}
             </div>
           )}
         </div>
@@ -270,14 +263,25 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           <span className="hidden sm:inline">New Task</span>
         </button>
 
-        {/* User avatar */}
-        <div className="flex items-center space-x-2 pl-1 border-l border-hub-border">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-xs flex items-center justify-center ring-1 ring-hub-border">
-            NB
+        {/* User avatar button (opens profile modal) */}
+        <button
+          onClick={onOpenProfileModal}
+          className="flex items-center space-x-2 pl-1 border-l border-hub-border group hover:opacity-90 transition-opacity text-left cursor-pointer"
+          title="Customize Profile & Theme"
+        >
+          <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${
+            profile?.avatarColor && AVATAR_COLOR_GRADIENTS[profile.avatarColor]
+              ? AVATAR_COLOR_GRADIENTS[profile.avatarColor].class
+              : 'from-indigo-500 to-purple-600'
+          } text-white font-bold text-xs flex items-center justify-center ring-1 ring-hub-border group-hover:scale-105 transition-transform shadow-sm`}>
+            {profile?.initials || 'NB'}
           </div>
-          <span className="hidden xl:inline text-xs font-medium text-hub-text">Nicholas</span>
-        </div>
+          <span className="hidden xl:inline text-xs font-medium text-hub-text group-hover:text-hub-accent transition-colors">
+            {profile?.name?.split(' ')[0] || 'Nicholas'}
+          </span>
+        </button>
       </div>
     </header>
   );
 };
+

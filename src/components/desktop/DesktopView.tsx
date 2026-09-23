@@ -21,21 +21,29 @@ import {
   ChevronRight, 
   GitBranch, 
   Plus,
-  RefreshCw
+  RefreshCw,
+  Sparkles,
+  ArrowUp,
+  X,
 } from 'lucide-react';
-import { Repository, WorkingCopyStatus, WorkingFile, DiffFile, DiffHunk, Commit } from '../../types';
+import { Repository, WorkingCopyStatus, WorkingFile, DiffFile, DiffHunk, Commit, UserProfile } from '../../types';
 import { api } from '../../services/api';
+import { AVATAR_COLOR_GRADIENTS } from '../profile/ProfileModal';
 
 interface DesktopViewProps {
   repo: Repository;
   status: WorkingCopyStatus | null;
   onRefreshStatus: () => void;
+  profile?: UserProfile;
+  onBranchSwitched?: () => void;
 }
 
 export const DesktopView: React.FC<DesktopViewProps> = ({
   repo,
   status,
   onRefreshStatus,
+  profile,
+  onBranchSwitched,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'changes' | 'history'>('changes');
 
@@ -51,7 +59,13 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
   const [summary, setSummary] = useState('');
   const [description, setDescription] = useState('');
   const [isCommitting, setIsCommitting] = useState(false);
+  const [isPushing, setIsPushing] = useState(false);
   const [isUndoing, setIsUndoing] = useState(false);
+
+  // Branch creation modal state
+  const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
+  const [newBranchInput, setNewBranchInput] = useState('');
+  const [isCreatingBranch, setIsCreatingBranch] = useState(false);
 
   // Stash state
   const [isStashDrawerOpen, setIsStashDrawerOpen] = useState(false);
@@ -237,6 +251,125 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
     }
   };
 
+  // Discard only selected files
+  const handleDiscardSelected = async () => {
+    if (selectedPaths.size === 0) return;
+    if (!window.confirm(`Discard changes in ${selectedPaths.size} selected file(s)? This cannot be undone.`)) return;
+
+    try {
+      await api.discardSelectedChanges(repo.name, Array.from(selectedPaths));
+      onRefreshStatus();
+    } catch (err: any) {
+      alert(`Discard selected failed: ${err.message}`);
+    }
+  };
+
+  // Smart Auto-fill commit fields
+  const handleAutoFillCommit = () => {
+    let files = Array.from(selectedPaths);
+    if (files.length === 0 && changedFiles.length > 0) {
+      files = changedFiles.map(f => f.path);
+      setSelectedPaths(new Set(files));
+    }
+    if (files.length === 0) return;
+
+    let scope = 'app';
+    let type = 'feat';
+
+    const hasServer = files.some(f => f.startsWith('server/'));
+    const hasUI = files.some(f => f.startsWith('src/components/'));
+    const hasDesktop = files.some(f => f.includes('desktop'));
+    const hasPR = files.some(f => f.includes('/pr/'));
+    const hasStyles = files.some(f => f.endsWith('.css'));
+    const hasTypes = files.some(f => f.includes('types'));
+
+    if (hasDesktop) {
+      scope = 'desktop';
+      type = 'feat';
+    } else if (hasServer && hasUI) {
+      scope = 'forge';
+      type = 'feat';
+    } else if (hasServer) {
+      scope = 'api';
+      type = 'feat';
+    } else if (hasPR) {
+      scope = 'pr';
+      type = 'feat';
+    } else if (hasStyles) {
+      scope = 'theme';
+      type = 'style';
+    } else if (hasTypes) {
+      scope = 'types';
+      type = 'refactor';
+    } else if (files.length === 1) {
+      const name = files[0].split('/').pop()?.split('.')[0] || 'file';
+      scope = name;
+      type = 'feat';
+    }
+
+    const fileListSnippet = files.slice(0, 3).map(f => f.split('/').pop()).join(', ');
+    const moreCount = files.length > 3 ? ` and ${files.length - 3} more` : '';
+    const generatedSummary = `${type}(${scope}): update ${fileListSnippet}${moreCount}`;
+
+    const generatedDescription = `Changes included in this commit:\n` +
+      files.map(f => {
+        const fileObj = changedFiles.find(cf => cf.path === f);
+        return `- ${f} (${fileObj?.status || 'modified'})`;
+      }).join('\n') +
+      `\n\nAuto-generated commit summary for SourceHub Desktop.`;
+
+    setSummary(generatedSummary);
+    setDescription(generatedDescription);
+  };
+
+  // Create branch directly within Desktop View
+  const handleCreateBranchInDesktop = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newBranchInput.trim()) return;
+
+    setIsCreatingBranch(true);
+    try {
+      await api.createAndSwitchBranch(repo.name, newBranchInput.trim(), currentBranch);
+      setNewBranchInput('');
+      setIsBranchModalOpen(false);
+      onRefreshStatus();
+      onBranchSwitched?.();
+    } catch (err: any) {
+      alert(`Could not create branch: ${err.message}`);
+    } finally {
+      setIsCreatingBranch(false);
+    }
+  };
+
+  // Commit and immediately push to remote
+  const handleCommitAndPush = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!summary.trim() || selectedPaths.size === 0) return;
+
+    setIsCommitting(true);
+    try {
+      const filesToCommit = Array.from(selectedPaths);
+      await api.commitWorkingCopy(repo.name, summary.trim(), description.trim() || undefined, filesToCommit);
+      setSummary('');
+      setDescription('');
+      onRefreshStatus();
+
+      setIsPushing(true);
+      try {
+        await api.pushRemote(repo.name, 'origin', currentBranch);
+        alert(`Committed and pushed cleanly to origin/${currentBranch}!`);
+      } catch (pushErr: any) {
+        alert(`Committed successfully, but push to remote failed: ${pushErr.message}`);
+      } finally {
+        setIsPushing(false);
+      }
+    } catch (err: any) {
+      alert(`Commit error: ${err.message}`);
+    } finally {
+      setIsCommitting(false);
+    }
+  };
+
   // Commit selected files
   const handleCommit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -364,6 +497,16 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
             <History className="w-3.5 h-3.5 text-purple-400" />
             <span>History</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setIsBranchModalOpen(true)}
+            className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold text-hub-muted hover:text-hub-text hover:bg-hub-surface/50 border border-transparent hover:border-hub-border transition-colors"
+            title="Create and switch to a new branch"
+          >
+            <GitBranch className="w-3.5 h-3.5 text-hub-accent" />
+            <span className="hidden sm:inline">New Branch</span>
+          </button>
         </div>
 
         {/* Right: Quick actions for Changes */}
@@ -381,6 +524,18 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
               <Archive className="w-3.5 h-3.5" />
               <span>Stash ({(status?.stashes || []).length})</span>
             </button>
+
+            {selectedPaths.size > 0 && selectedPaths.size < changedFiles.length && (
+              <button
+                type="button"
+                onClick={handleDiscardSelected}
+                className="flex items-center space-x-1 px-2 py-1 bg-hub-bg hover:bg-red-950/40 text-hub-muted hover:text-red-400 border border-hub-border hover:border-red-800 rounded transition-colors"
+                title={`Discard changes in ${selectedPaths.size} selected file(s)`}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Discard ({selectedPaths.size})</span>
+              </button>
+            )}
 
             {changedFiles.length > 0 && (
               <button
@@ -598,6 +753,20 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
 
             {/* Bottom: GitHub Desktop Commit Box */}
             <form onSubmit={handleCommit} className="p-3.5 border-t border-hub-border bg-hub-surface space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-hub-text">Commit changes</span>
+                <button
+                  type="button"
+                  onClick={handleAutoFillCommit}
+                  disabled={changedFiles.length === 0}
+                  className="flex items-center space-x-1 px-2 py-0.5 rounded bg-purple-950/60 hover:bg-purple-900 border border-purple-700 text-purple-300 text-[11px] font-semibold transition-colors disabled:opacity-50"
+                  title="Automatically generate commit summary and description from changed files"
+                >
+                  <Sparkles className="w-3 h-3 text-purple-400" />
+                  <span>Auto-fill Commit</span>
+                </button>
+              </div>
+
               <div className="space-y-1">
                 <input
                   type="text"
@@ -618,8 +787,12 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
 
               <div className="flex items-center justify-between text-[11px] text-hub-muted pt-0.5">
                 <div className="flex items-center space-x-1.5 truncate">
-                  <div className="w-4 h-4 rounded-full bg-indigo-600 text-white font-bold text-[9px] flex items-center justify-center">
-                    NB
+                  <div className={`w-4 h-4 rounded-full bg-gradient-to-br ${
+                    profile?.avatarColor && AVATAR_COLOR_GRADIENTS[profile.avatarColor]
+                      ? AVATAR_COLOR_GRADIENTS[profile.avatarColor].class
+                      : 'from-indigo-500 to-purple-600'
+                  } text-white font-bold text-[9px] flex items-center justify-center shrink-0`}>
+                    {profile?.initials || 'NB'}
                   </div>
                   <span className="truncate">Commit to <strong className="text-hub-text font-mono">{currentBranch}</strong></span>
                 </div>
@@ -636,23 +809,45 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
                 </button>
               </div>
 
-              <button
-                type="submit"
-                disabled={isCommitting || !summary.trim() || selectedPaths.size === 0}
-                className="w-full flex items-center justify-center space-x-1.5 py-2 bg-hub-accent hover:bg-blue-600 disabled:opacity-50 text-white rounded-md text-xs font-semibold shadow-sm transition-colors"
-              >
-                {isCommitting ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Committing...</span>
-                  </>
-                ) : (
-                  <>
-                    <GitCommit className="w-3.5 h-3.5" />
-                    <span>Commit to {currentBranch}</span>
-                  </>
-                )}
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="submit"
+                  disabled={isCommitting || isPushing || !summary.trim() || selectedPaths.size === 0}
+                  className="flex items-center justify-center space-x-1.5 py-2 bg-hub-accent hover:bg-blue-600 disabled:opacity-50 text-white rounded-md text-xs font-semibold shadow-sm transition-colors"
+                >
+                  {isCommitting && !isPushing ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Committing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <GitCommit className="w-3.5 h-3.5" />
+                      <span>Commit</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCommitAndPush}
+                  disabled={isCommitting || isPushing || !summary.trim() || selectedPaths.size === 0}
+                  className="flex items-center justify-center space-x-1.5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-md text-xs font-semibold shadow-sm transition-colors"
+                  title={`Commit selected changes and push directly to origin/${currentBranch}`}
+                >
+                  {isPushing ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Pushing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ArrowUp className="w-3.5 h-3.5" />
+                      <span>Commit & Push</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </form>
           </div>
 
@@ -1035,6 +1230,76 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Branch Creation Modal */}
+      {isBranchModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-100">
+          <div className="bg-hub-surface border border-hub-border rounded-xl shadow-2xl max-w-md w-full p-5 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-hub-border">
+              <div className="flex items-center space-x-2">
+                <GitBranch className="w-4 h-4 text-hub-accent" />
+                <h3 className="text-sm font-bold text-hub-text">Create New Branch</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBranchModalOpen(false)}
+                className="text-hub-muted hover:text-hub-text"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateBranchInDesktop} className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-hub-muted mb-1">
+                  Branch Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. feature/my-new-feature"
+                  value={newBranchInput}
+                  onChange={(e) => setNewBranchInput(e.target.value)}
+                  autoFocus
+                  required
+                  className="w-full px-3 py-1.5 bg-hub-bg border border-hub-border rounded text-xs text-hub-text font-mono focus:outline-none focus:border-hub-accent"
+                />
+              </div>
+
+              <div className="text-xs text-hub-muted">
+                Branching off: <strong className="text-hub-text font-mono">{currentBranch}</strong>
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsBranchModalOpen(false)}
+                  className="px-3 py-1.5 rounded border border-hub-border bg-hub-subtle text-xs font-medium text-hub-text hover:bg-hub-border"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingBranch || !newBranchInput.trim()}
+                  className="flex items-center space-x-1.5 px-4 py-1.5 rounded bg-hub-accent text-white text-xs font-semibold hover:bg-blue-600 disabled:opacity-50"
+                >
+                  {isCreatingBranch ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Creating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Create & Switch</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+

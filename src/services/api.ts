@@ -1,4 +1,4 @@
-import { Repository, FileItem, Commit, PullRequest, Secret, PersonalAccessToken, SSHKey, DiffFile, WorkflowRun, AgentRun, Webhook, WorkingCopyStatus, GitRemote, GitStashEntry, PRMergeability, NetworkInfo } from '../types';
+import { Repository, FileItem, Commit, PullRequest, Secret, PersonalAccessToken, SSHKey, DiffFile, WorkflowRun, AgentRun, Webhook, WorkingCopyStatus, GitRemote, GitStashEntry, PRMergeability, NetworkInfo, UserProfile } from '../types';
 
 export const api = {
   // --- Repositories ---
@@ -651,5 +651,32 @@ export const api = {
     if (!res.ok) throw new Error('Failed to fetch system network info');
     return await res.json();
   },
+
+  // --- Profile & Theme ---
+  async fetchUserProfile(): Promise<UserProfile> {
+    const res = await fetch('/api/v1/user/profile');
+    if (!res.ok) throw new Error('Failed to fetch user profile');
+    return await res.json();
+  },
+
+  async saveUserProfile(profile: Partial<UserProfile>): Promise<UserProfile> {
+    const res = await fetch('/api/v1/user/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(profile),
+    });
+    if (!res.ok) throw new Error('Failed to save user profile');
+    return await res.json();
+  },
+
+  async discardSelectedChanges(repoName: string, files: string[]): Promise<void> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/discard`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ files }),
+    });
+    if (!res.ok) throw new Error('Failed to discard selected files');
+  },
 };
+
 

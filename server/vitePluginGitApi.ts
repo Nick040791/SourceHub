@@ -229,6 +229,49 @@ export async function handleApiAndGit(
         }
 
         // ==========================================
+        // 2d. USER PROFILE & THEME SETTINGS (PERSISTED)
+        // ==========================================
+        if (pathname === '/api/v1/user/profile') {
+          if (req.method === 'GET') {
+            const rows = db.prepare("SELECT key, value FROM system_settings WHERE key LIKE 'profile_%'").all() as Array<{ key: string; value: string }>;
+            const map = Object.fromEntries(rows.map(r => [r.key, r.value]));
+            return sendJson(res, 200, {
+              name: map.profile_name || 'Nicholas Beighley',
+              username: map.profile_username || 'nicholas',
+              email: map.profile_email || 'nick040791@gmail.com',
+              bio: map.profile_bio || 'Single-Operator Solo Forge Developer',
+              initials: map.profile_initials || 'NB',
+              avatarColor: map.profile_avatar_color || 'indigo',
+              theme: map.profile_theme || 'high-contrast-dark',
+            });
+          }
+
+          if (req.method === 'POST') {
+            const body = await readJsonBody(req);
+            const upsert = db.prepare("INSERT INTO system_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value");
+            if (body.name !== undefined) upsert.run('profile_name', String(body.name));
+            if (body.username !== undefined) upsert.run('profile_username', String(body.username));
+            if (body.email !== undefined) upsert.run('profile_email', String(body.email));
+            if (body.bio !== undefined) upsert.run('profile_bio', String(body.bio));
+            if (body.initials !== undefined) upsert.run('profile_initials', String(body.initials));
+            if (body.avatarColor !== undefined) upsert.run('profile_avatar_color', String(body.avatarColor));
+            if (body.theme !== undefined) upsert.run('profile_theme', String(body.theme));
+
+            const rows = db.prepare("SELECT key, value FROM system_settings WHERE key LIKE 'profile_%'").all() as Array<{ key: string; value: string }>;
+            const map = Object.fromEntries(rows.map(r => [r.key, r.value]));
+            return sendJson(res, 200, {
+              name: map.profile_name || 'Nicholas Beighley',
+              username: map.profile_username || 'nicholas',
+              email: map.profile_email || 'nick040791@gmail.com',
+              bio: map.profile_bio || 'Single-Operator Solo Forge Developer',
+              initials: map.profile_initials || 'NB',
+              avatarColor: map.profile_avatar_color || 'indigo',
+              theme: map.profile_theme || 'high-contrast-dark',
+            });
+          }
+        }
+
+        // ==========================================
         // 3. REPOSITORY SPECIFIC ENDPOINTS
         // ==========================================
         if (!pathname.startsWith('/api/v1/repos')) {
@@ -389,6 +432,8 @@ export async function handleApiAndGit(
               try {
                 if (body.all) {
                   await gitService.discardAllChanges(repoName);
+                } else if (body.files && Array.isArray(body.files)) {
+                  await gitService.discardSelectedChanges(repoName, body.files);
                 } else if (body.file) {
                   await gitService.discardFileChanges(repoName, body.file);
                 }

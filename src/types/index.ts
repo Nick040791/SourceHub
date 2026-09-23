@@ -283,3 +283,23 @@ export interface NetworkInfo {
   serviceStatus: 'active' | 'inactive' | 'not_installed';
 }
 
+export type AppTheme = 
+  | 'high-contrast-dark' 
+  | 'dark' 
+  | 'high-contrast-light' 
+  | 'dracula' 
+  | 'nord' 
+  | 'midnight' 
+  | 'synthwave' 
+  | 'sepia';
+
+export interface UserProfile {
+  name: string;
+  username: string;
+  email: string;
+  bio: string;
+  initials: string;
+  avatarColor: string;
+  theme: AppTheme;
+}
+

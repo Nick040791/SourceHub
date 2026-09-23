@@ -23,9 +23,10 @@ import {
   Plus,
   RefreshCw,
 } from 'lucide-react';
-import { TabType, Repository, WorkingCopyStatus, NetworkInfo } from '../../types';
+import { TabType, Repository, WorkingCopyStatus, NetworkInfo, UserProfile } from '../../types';
 import { AppTheme } from './AppHeader';
 import { api } from '../../services/api';
+import { THEME_OPTIONS, AVATAR_COLOR_GRADIENTS } from '../profile/ProfileModal';
 
 interface HamburgerMenuProps {
   isOpen: boolean;
@@ -38,6 +39,8 @@ interface HamburgerMenuProps {
   selectedRepo: Repository;
   desktopStatus: WorkingCopyStatus | null;
   onOpenNewRepoModal: () => void;
+  profile?: UserProfile;
+  onOpenProfileModal?: () => void;
 }
 
 export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
@@ -51,6 +54,8 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
   selectedRepo,
   desktopStatus,
   onOpenNewRepoModal,
+  profile,
+  onOpenProfileModal,
 }) => {
   const [networkInfo, setNetworkInfo] = useState<NetworkInfo | null>(null);
   const [copiedLan, setCopiedLan] = useState(false);
@@ -321,45 +326,52 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
               </div>
 
               {/* Display & Appearance */}
-              <div className="pt-4 border-t border-hub-border">
-                <h3 className="text-xs font-bold text-hub-muted uppercase tracking-wider mb-2.5 flex items-center space-x-1.5">
-                  <Contrast className="w-3.5 h-3.5 text-hub-accent" />
-                  <span>Display & Theme</span>
-                </h3>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    onClick={() => onChangeTheme('high-contrast-dark')}
-                    className={`p-2 rounded-lg border text-xs font-medium text-center transition-all ${
-                      theme === 'high-contrast-dark'
-                        ? 'border-hub-accent bg-hub-accent/15 text-hub-accent font-bold ring-1 ring-hub-accent/50'
-                        : 'border-hub-border bg-hub-bg hover:bg-hub-subtle text-hub-muted'
-                    }`}
-                  >
-                    <div className="font-semibold">⚡ High Contrast</div>
-                    <div className="text-[10px] text-hub-muted mt-0.5">Pure Dark</div>
-                  </button>
-                  <button
-                    onClick={() => onChangeTheme('dark')}
-                    className={`p-2 rounded-lg border text-xs font-medium text-center transition-all ${
-                      theme === 'dark'
-                        ? 'border-hub-accent bg-hub-accent/15 text-hub-accent font-bold ring-1 ring-hub-accent/50'
-                        : 'border-hub-border bg-hub-bg hover:bg-hub-subtle text-hub-muted'
-                    }`}
-                  >
-                    <div className="font-semibold">🌑 Dimmed</div>
-                    <div className="text-[10px] text-hub-muted mt-0.5">GitHub Dark</div>
-                  </button>
-                  <button
-                    onClick={() => onChangeTheme('high-contrast-light')}
-                    className={`p-2 rounded-lg border text-xs font-medium text-center transition-all ${
-                      theme === 'high-contrast-light'
-                        ? 'border-hub-accent bg-hub-accent/15 text-hub-accent font-bold ring-1 ring-hub-accent/50'
-                        : 'border-hub-border bg-hub-bg hover:bg-hub-subtle text-hub-muted'
-                    }`}
-                  >
-                    <div className="font-semibold">☀️ Light Mode</div>
-                    <div className="text-[10px] text-hub-muted mt-0.5">High Contrast</div>
-                  </button>
+              <div className="pt-4 border-t border-hub-border space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-hub-muted uppercase tracking-wider flex items-center space-x-1.5">
+                    <Contrast className="w-3.5 h-3.5 text-hub-accent" />
+                    <span>Display & Theme (8 Presets)</span>
+                  </h3>
+                  {onOpenProfileModal && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onOpenProfileModal();
+                      }}
+                      className="text-[11px] text-hub-accent hover:underline font-semibold"
+                    >
+                      Profile Settings...
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {THEME_OPTIONS.map((opt) => {
+                    const isSelected = theme === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => onChangeTheme(opt.id)}
+                        className={`p-2 rounded-lg border text-left transition-all ${
+                          isSelected
+                            ? 'border-hub-accent bg-hub-accent/15 ring-1 ring-hub-accent text-hub-text'
+                            : 'border-hub-border bg-hub-bg hover:bg-hub-subtle text-hub-muted'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-1.5">
+                          <span className="text-xs">{opt.icon}</span>
+                          <span className="font-semibold text-xs text-hub-text truncate">
+                            {opt.label}
+                          </span>
+                        </div>
+                        <div className="text-[9px] text-hub-muted mt-0.5 truncate">
+                          {opt.desc}
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>

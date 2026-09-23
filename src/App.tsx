@@ -12,27 +12,53 @@ import { HamburgerMenu } from './components/layout/HamburgerMenu';
 import { NewRepoModal } from './components/repo/NewRepoModal';
 import { DesktopActionBar } from './components/desktop/DesktopActionBar';
 import { DesktopView } from './components/desktop/DesktopView';
+import { ProfileModal } from './components/profile/ProfileModal';
 
 import { mockRepo } from './mock/mockData';
-import { TabType, Repository, WorkingCopyStatus } from './types';
+import { TabType, Repository, WorkingCopyStatus, UserProfile } from './types';
 import { api } from './services/api';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('code');
   const [isHamburgerOpen, setIsHamburgerOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<'secrets' | 'keys' | 'tokens' | 'webhooks' | 'providers'>('secrets');
-  const [theme, setTheme] = useState<AppTheme>('high-contrast-dark');
+  
+  const [theme, setTheme] = useState<AppTheme>(() => 
+    (localStorage.getItem('sourcehub_theme') as AppTheme) || 'high-contrast-dark'
+  );
+
+  const [profile, setProfile] = useState<UserProfile>({
+    name: 'Nicholas Beighley',
+    username: 'nicholas',
+    email: 'nick040791@gmail.com',
+    bio: 'Single-Operator Solo Forge Developer',
+    initials: 'NB',
+    avatarColor: 'indigo',
+    theme: 'high-contrast-dark',
+  });
 
   // Repositories state
   const [repositories, setRepositories] = useState<Repository[]>([mockRepo]);
   const [selectedRepo, setSelectedRepo] = useState<Repository>(mockRepo);
   const [isNewRepoModalOpen, setIsNewRepoModalOpen] = useState(false);
 
-  // Sync theme class to document
+  // Sync theme class to document & local storage
   useEffect(() => {
-    document.documentElement.className = theme === 'high-contrast-light' ? 'light' : 'dark';
+    document.documentElement.className = (theme === 'high-contrast-light' || theme === 'sepia') ? 'light' : 'dark';
     document.documentElement.classList.add(`theme-${theme}`);
+    localStorage.setItem('sourcehub_theme', theme);
   }, [theme]);
+
+  // Load user profile and saved theme from SQLite
+  useEffect(() => {
+    api.fetchUserProfile().then(p => {
+      if (p) {
+        setProfile(p);
+        if (p.theme) setTheme(p.theme);
+      }
+    }).catch(err => console.warn('Could not fetch user profile:', err));
+  }, []);
 
   // Load real git repositories on mount
   useEffect(() => {
@@ -136,6 +162,8 @@ export const App: React.FC = () => {
         selectedRepo={selectedRepo}
         onSelectRepo={setSelectedRepo}
         onOpenNewRepoModal={() => setIsNewRepoModalOpen(true)}
+        profile={profile}
+        onOpenProfileModal={() => setIsProfileModalOpen(true)}
       />
 
       {/* 2. Repository Chrome Header */}
@@ -172,6 +200,8 @@ export const App: React.FC = () => {
             repo={selectedRepo}
             status={desktopStatus}
             onRefreshStatus={loadDesktopStatus}
+            profile={profile}
+            onBranchSwitched={handleBranchSwitched}
           />
         )}
 
@@ -233,6 +263,8 @@ export const App: React.FC = () => {
         selectedRepo={selectedRepo}
         desktopStatus={desktopStatus}
         onOpenNewRepoModal={() => setIsNewRepoModalOpen(true)}
+        profile={profile}
+        onOpenProfileModal={() => setIsProfileModalOpen(true)}
       />
 
       {/* 6. New Repository Modal */}
@@ -242,13 +274,26 @@ export const App: React.FC = () => {
         onCreate={handleCreateRepo}
       />
 
+      {/* 6.5 User Profile Customization Modal */}
+      <ProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        profile={profile}
+        onUpdateProfile={(updated) => {
+          setProfile(updated);
+          if (updated.theme) setTheme(updated.theme);
+        }}
+        currentTheme={theme}
+        onChangeTheme={setTheme}
+      />
+
       {/* 7. Footer */}
       <footer className="border-t border-hub-border py-4 px-6 text-center text-xs text-hub-muted bg-hub-surface/40 mt-auto">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="flex items-center space-x-2">
             <span className="font-bold text-hub-text">SourceHub</span>
             <span>•</span>
-            <span>Single-Operator Self-Hosted Forge for Nicholas Beighley</span>
+            <span>Single-Operator Self-Hosted Forge for {profile.name}</span>
           </div>
           <div className="flex items-center space-x-4 text-[11px] font-mono">
             <span>Repos: {repositories.length} Active</span>
