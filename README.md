@@ -158,6 +158,20 @@ Persist your operator profile (name, username, email, bio, initials, avatar grad
 
 ### Installation
 
+#### Option 1: Pre-Built Debian Package (.deb)
+
+Pre-compiled packages for Debian, Ubuntu, and Linux Mint are available in the [`releases/`](releases/) directory:
+
+```bash
+# Install package
+sudo dpkg -i releases/sourcehub_0.1.0_amd64.deb
+
+# Launch SourceHub (opens in default browser)
+sourcehub
+```
+
+#### Option 2: Install from Source
+
 ```bash
 # Clone the repository
 git clone https://github.com/mrnicholas/SourceHub.git
