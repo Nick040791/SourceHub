@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Bot, 
   Play, 
   GitBranch, 
   GitPullRequest, 
@@ -24,6 +23,7 @@ import {
 import { AgentRun, AgentRunState, AgentTimelineEvent } from '../../types';
 import { api } from '../../services/api';
 import { MarkdownContent } from '../common/MarkdownDocView';
+import { HelperAvatar } from './HelperAvatar';
 
 interface AgentsViewProps {
   repoName: string;
@@ -137,11 +137,11 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
   // Helper State Machine steps for visual progress tracker (§9.2)
   const stateSteps: { key: AgentRunState; label: string }[] = [
     { key: 'queued', label: 'Queued' },
-    { key: 'preparing_workspace', label: 'Preparing Workspace' },
-    { key: 'in_progress', label: 'In Progress (Ollama)' },
-    { key: 'pushing', label: 'Pushing Commits' },
-    { key: 'checks_pending', label: 'Actions CI Checks' },
-    { key: 'ready_for_review', label: 'Ready for Review' },
+    { key: 'preparing_workspace', label: 'Preparing' },
+    { key: 'in_progress', label: 'In Progress' },
+    { key: 'pushing', label: 'Pushing' },
+    { key: 'checks_pending', label: 'CI Checks' },
+    { key: 'ready_for_review', label: 'Ready' },
   ];
 
   const getStepStatus = (stepKey: AgentRunState, currentRunState: AgentRunState) => {
@@ -187,62 +187,55 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Helper Hero & North Star UX (§4 & §9) */}
-      <div className="bg-hub-surface border border-hub-border rounded-xl p-5 sm:p-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1.5">
+    <div className="space-y-5">
+      {/* Helper hero — quieter chrome, lime CTA emphasis */}
+      <div className="bg-hub-surface border border-hub-border rounded-xl p-4 sm:p-5">
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
+          <div className="space-y-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-hub-purple/15 text-hub-purple-text border border-hub-purple/30">
-                <Bot className="w-5 h-5" />
-              </div>
+              <HelperAvatar size="md" className="w-5 h-5 text-hub-accent" />
               <h2 className="text-base font-semibold text-hub-text tracking-tight">
-                SourceHub Helper — Async Repository Agent
+                Helper
               </h2>
-              <span className="px-2 py-0.5 rounded-md text-[10px] font-mono uppercase bg-hub-purple/15 text-hub-purple-text border border-hub-purple/30">
-                {activeProviderName} Active
+              <span className="text-hub-muted text-xs font-medium">Async repository agent</span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono uppercase tracking-wide text-hub-muted bg-hub-bg border border-hub-border/80">
+                {activeProviderName}
               </span>
               {activeThinkingEffort && activeThinkingEffort !== 'none' && (
-                <span className="px-2 py-0.5 rounded-md text-[10px] font-mono uppercase bg-hub-subtle text-hub-purple-text border border-hub-border">
-                  Thinking: {activeThinkingEffort}
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono uppercase tracking-wide text-hub-muted bg-hub-bg border border-hub-border/80">
+                  Think: {activeThinkingEffort}
                 </span>
               )}
             </div>
-            <p className="text-xs text-hub-muted max-w-3xl">
-              Prompt an asynchronous coding task. Helper connects to your active AI provider ({activeProviderName}), creates an isolated branch on your behalf, commits changes with audit trailers, and stops at the review gate.
+            <p className="text-xs text-hub-muted max-w-2xl leading-relaxed">
+              Prompt a coding task. Helper uses {activeProviderName}, works on an isolated branch, commits with audit trailers, and stops at review.
             </p>
           </div>
 
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={loadRuns}
-              disabled={isLoadingRuns}
-              className="p-1.5 text-hub-muted hover:text-hub-text bg-hub-bg hover:bg-hub-subtle border border-hub-border rounded-lg transition-colors"
-              title="Refresh agent runs"
-            >
-              <RotateCw className={`w-3.5 h-3.5 ${isLoadingRuns ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
+          <button
+            onClick={loadRuns}
+            disabled={isLoadingRuns}
+            className="self-start p-1.5 text-hub-muted hover:text-hub-text bg-hub-bg hover:bg-hub-subtle border border-hub-border rounded-lg transition-colors"
+            title="Refresh agent runs"
+          >
+            <RotateCw className={`w-3.5 h-3.5 ${isLoadingRuns ? 'animate-spin' : ''}`} />
+          </button>
         </div>
 
-        {/* Prompt Input Form (§9.1) */}
-        <form onSubmit={handleLaunchTask} className="mt-5 pt-5 border-t border-hub-border/50 space-y-3.5">
-          <div className="relative">
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="What should Helper analyze, build, or refactor? (e.g. 'Optimize repository branch diffing and add test coverage')"
-              rows={2}
-              className="w-full bg-hub-bg border border-hub-border rounded-xl p-3.5 text-xs text-hub-text placeholder-hub-muted focus:outline-none focus:border-hub-accent/50 transition-colors"
-            />
-          </div>
+        <form onSubmit={handleLaunchTask} className="mt-4 pt-4 border-t border-hub-border/40 space-y-3">
+          <textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="What should Helper analyze, build, or refactor?"
+            rows={2}
+            className="w-full bg-hub-bg border border-hub-border rounded-xl p-3 text-xs text-hub-text placeholder-hub-muted focus:outline-none focus:border-hub-accent/50 transition-colors resize-none"
+          />
 
-          <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Target base branch */}
-              <div className="flex items-center space-x-1.5 bg-hub-bg border border-hub-border rounded-lg px-2.5 py-1.5">
+          <div className="flex flex-wrap items-center justify-between gap-2.5 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5 bg-hub-bg border border-hub-border rounded-lg px-2 py-1.5">
                 <GitBranch className="w-3.5 h-3.5 text-hub-muted" />
-                <span className="text-hub-muted">Base:</span>
+                <span className="text-hub-muted">Base</span>
                 <select
                   value={baseBranch}
                   onChange={(e) => setBaseBranch(e.target.value)}
@@ -254,25 +247,24 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
                 </select>
               </div>
 
-              {/* Mode toggle: Branch only vs Open PR (§3 A4 & §9.1) */}
-              <div className="flex items-center space-x-0.5 bg-hub-bg border border-hub-border rounded-lg p-0.5">
+              <div className="flex items-center bg-hub-bg border border-hub-border rounded-lg p-0.5">
                 <button
                   type="button"
                   onClick={() => setMode('open_pr')}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                  className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${
                     mode === 'open_pr'
-                      ? 'bg-hub-subtle text-hub-text font-semibold'
+                      ? 'bg-hub-subtle text-hub-text'
                       : 'text-hub-muted hover:text-hub-text'
                   }`}
                 >
-                  Open PR (Default)
+                  Open PR
                 </button>
                 <button
                   type="button"
                   onClick={() => setMode('branch_only')}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                  className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${
                     mode === 'branch_only'
-                      ? 'bg-hub-subtle text-hub-text font-semibold'
+                      ? 'bg-hub-subtle text-hub-text'
                       : 'text-hub-muted hover:text-hub-text'
                   }`}
                 >
@@ -280,18 +272,16 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
                 </button>
               </div>
 
-              {/* Model / Runtime Selector populated from Ollama endpoint */}
-              <div className="flex items-center space-x-1.5 bg-hub-bg border border-hub-border rounded-lg px-2.5 py-1.5 font-mono text-[11px]">
-                <Cpu className="w-3.5 h-3.5 text-hub-purple-text" />
-                <span className="text-hub-muted">Model:</span>
+              <div className="flex items-center gap-1.5 bg-hub-bg border border-hub-border rounded-lg px-2 py-1.5 font-mono text-[11px]">
+                <Cpu className="w-3.5 h-3.5 text-hub-muted" />
                 <select
                   value={model}
                   onChange={(e) => setModel(e.target.value)}
-                  className="bg-transparent text-hub-text focus:outline-none cursor-pointer"
+                  className="bg-transparent text-hub-text focus:outline-none cursor-pointer max-w-[180px]"
                 >
                   {availableModels.map(m => (
                     <option key={m} value={m} className="bg-hub-surface">
-                      {m} {m === 'glm-5.3-flash:cloud' ? '★ (Cloud)' : ''}
+                      {m}{m === 'glm-5.3-flash:cloud' ? ' ★' : ''}
                     </option>
                   ))}
                 </select>
@@ -301,12 +291,12 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
             <button
               type="submit"
               disabled={isLaunching || !prompt.trim()}
-              className="flex items-center space-x-1.5 px-4 py-2 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-lg text-xs font-bold shadow-sm transition-all disabled:opacity-50"
+              className="flex items-center gap-1.5 px-4 py-2 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-lg text-xs font-bold shadow-sm transition-all disabled:opacity-50"
             >
               {isLaunching ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Launching Agent...</span>
+                  <span>Launching…</span>
                 </>
               ) : (
                 <>
@@ -319,66 +309,75 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
         </form>
       </div>
 
-      {/* Main Agent Runs Grid: List on Left, Active Run Inspection on Right */}
       {runs.length === 0 ? (
-        <div className="border border-hub-border border-dashed rounded-xl p-12 text-center space-y-3 bg-hub-bg/40">
-          <Bot className="w-8 h-8 text-hub-purple-text mx-auto opacity-80" />
-          <h3 className="font-semibold text-hub-text text-sm">No Helper agent tasks yet</h3>
+        <div className="border border-hub-border border-dashed rounded-xl p-10 text-center space-y-2.5 bg-hub-bg/30">
+          <HelperAvatar size="lg" className="w-8 h-8 text-hub-accent/80 mx-auto" />
+          <h3 className="font-semibold text-hub-text text-sm">No Helper tasks yet</h3>
           <p className="text-xs text-hub-muted max-w-md mx-auto leading-relaxed">
-            Helper runs locally or against cloud Ollama models (<code className="text-hub-purple-text font-mono">glm-5.3-flash:cloud</code>). Enter a task prompt above to launch your first session.
+            Enter a prompt above to launch your first session against{' '}
+            <code className="text-hub-text/80 font-mono text-[11px]">{model}</code>.
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-          {/* Runs List */}
-          <div className="lg:col-span-4 space-y-2">
-            <div className="flex items-center justify-between px-1">
-              <span className="text-xs font-bold text-hub-muted uppercase tracking-wider">
-                Agent Runs ({runs.length})
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          {/* Runs list */}
+          <div className="lg:col-span-4 space-y-1.5">
+            <div className="flex items-center justify-between px-0.5">
+              <span className="text-[11px] font-semibold text-hub-muted uppercase tracking-wider">
+                Runs
               </span>
-              <span className="text-[11px] text-hub-muted font-mono">{runs.length} sessions</span>
+              <span className="text-[11px] text-hub-muted font-mono">{runs.length}</span>
             </div>
 
-            <div className="border border-hub-border rounded-xl bg-hub-surface divide-y divide-hub-border/60 overflow-hidden">
+            <div className="border border-hub-border rounded-xl bg-hub-surface overflow-hidden divide-y divide-hub-border/50">
               {runs.map((run) => {
                 const isSelected = selectedRun?.id === run.id;
                 const isRunning = run.state !== 'ready_for_review' && run.state !== 'failed';
+                const isReady = run.state === 'ready_for_review';
+                const isFailed = run.state === 'failed';
 
                 return (
                   <div
                     key={run.id}
                     onClick={() => setSelectedRunId(run.id)}
-                    className={`p-3.5 cursor-pointer transition-colors text-xs space-y-2 ${
-                      isSelected ? 'bg-hub-subtle/80 border-l-2 border-l-hub-purple' : 'hover:bg-hub-subtle/40'
+                    className={`p-3 cursor-pointer transition-colors text-xs space-y-1.5 ${
+                      isSelected
+                        ? 'bg-hub-subtle/90 ring-1 ring-inset ring-hub-accent/35'
+                        : 'hover:bg-hub-subtle/40'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-hub-text flex items-center space-x-1.5">
-                        <Bot className={`w-3.5 h-3.5 ${isRunning ? 'text-hub-accent animate-pulse' : 'text-hub-purple-text'}`} />
-                        <span>{run.id}</span>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-hub-text flex items-center gap-1.5 min-w-0">
+                        <HelperAvatar
+                          size="sm"
+                          className={`w-3.5 h-3.5 ${isRunning ? 'text-hub-accent animate-pulse' : 'text-hub-accent/70'}`}
+                        />
+                        <span className="truncate font-mono text-[11px]">{run.id}</span>
                       </span>
 
-                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono uppercase font-semibold ${
-                        run.state === 'ready_for_review'
-                          ? 'bg-hub-purple/15 text-hub-purple-text border border-hub-purple/35'
-                          : run.state === 'in_progress' || run.state === 'pushing' || run.state === 'checks_pending'
-                          ? 'bg-hub-accent/15 text-hub-accent border border-hub-accent/35'
+                      <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-mono uppercase font-medium ${
+                        isReady
+                          ? 'bg-hub-success/15 text-hub-success-text border border-hub-success/30'
+                          : isFailed
+                          ? 'bg-hub-danger/15 text-hub-danger-text border border-hub-danger/30'
+                          : isRunning
+                          ? 'bg-hub-accent/12 text-hub-accent border border-hub-accent/30'
                           : 'bg-hub-bg text-hub-muted border border-hub-border'
                       }`}>
-                        {run.state.replace('_', ' ')}
+                        {run.state.replace(/_/g, ' ')}
                       </span>
                     </div>
 
-                    <p className="text-hub-text font-medium line-clamp-2 text-xs">
+                    <p className="text-hub-text/90 font-medium line-clamp-2 text-xs leading-snug">
                       {run.prompt}
                     </p>
 
-                    <div className="flex items-center justify-between text-[11px] text-hub-muted font-mono pt-1">
-                      <span className="flex items-center space-x-1">
-                        <GitBranch className="w-3 h-3" />
+                    <div className="flex items-center justify-between text-[11px] text-hub-muted font-mono pt-0.5">
+                      <span className="flex items-center gap-1 min-w-0">
+                        <GitBranch className="w-3 h-3 shrink-0" />
                         <span className="truncate max-w-[120px]">{run.targetBranch}</span>
                       </span>
-                      <span>{run.createdAt}</span>
+                      <span className="shrink-0">{run.createdAt}</span>
                     </div>
                   </div>
                 );
@@ -386,82 +385,80 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
             </div>
           </div>
 
-          {/* Selected Run Inspection */}
+          {/* Selected run detail */}
           {selectedRun && (
-            <div className="lg:col-span-8 space-y-4">
-              <div className="border border-hub-border rounded-xl bg-hub-surface p-5 sm:p-6 space-y-5">
-                {/* Header info */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-hub-border/60 pb-4">
-                  <div className="space-y-1">
+            <div className="lg:col-span-8 space-y-3">
+              <div className="border border-hub-border rounded-xl bg-hub-surface p-4 sm:p-5 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-hub-border/50 pb-3.5">
+                  <div className="space-y-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-semibold text-base text-hub-text tracking-tight">
+                      <HelperAvatar size="sm" className="w-4 h-4 text-hub-accent" />
+                      <h3 className="font-semibold text-sm text-hub-text tracking-tight truncate">
                         {selectedRun.slug}
                       </h3>
-                      <span className="px-2 py-0.5 rounded-md text-[11px] font-mono bg-hub-purple/15 text-hub-purple-text border border-hub-purple/30">
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-mono text-hub-muted bg-hub-bg border border-hub-border">
                         {selectedRun.model}
                       </span>
                     </div>
                     <div className="text-xs text-hub-muted">
-                      Started on behalf of <strong>{selectedRun.operator}</strong> • Base: <code className="text-hub-text">{selectedRun.baseBranch}</code>
+                      On behalf of <span className="text-hub-text/80">{selectedRun.operator}</span>
+                      {' · '}Base <code className="text-hub-text/80">{selectedRun.baseBranch}</code>
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-2">
-                    {selectedRun.prId && (
-                      <button
-                        onClick={() => onNavigateToPR(selectedRun.prId!)}
-                        className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border rounded-lg text-xs font-semibold text-hub-link transition-colors"
-                      >
-                        <GitPullRequest className="w-3.5 h-3.5 text-hub-success-text" />
-                        <span>View PR #{selectedRun.prId}</span>
-                      </button>
-                    )}
-                  </div>
+                  {selectedRun.prId && (
+                    <button
+                      onClick={() => onNavigateToPR(selectedRun.prId!)}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border rounded-lg text-xs font-semibold text-hub-link transition-colors shrink-0"
+                    >
+                      <GitPullRequest className="w-3.5 h-3.5 text-hub-success-text" />
+                      <span>PR #{selectedRun.prId}</span>
+                    </button>
+                  )}
                 </div>
 
-                {/* Prompt Card */}
-                <div className="bg-hub-bg border border-hub-border rounded-xl p-4 text-xs text-hub-text space-y-1.5">
-                  <span className="text-[11px] font-bold text-hub-muted uppercase tracking-wider block">
-                    User Instruction
+                <div className="bg-hub-bg border border-hub-border/70 rounded-xl p-3.5 text-xs space-y-1">
+                  <span className="text-[10px] font-semibold text-hub-muted uppercase tracking-wider block">
+                    Instruction
                   </span>
                   <p className="font-sans leading-relaxed text-hub-text">
-                    "{selectedRun.prompt}"
+                    {selectedRun.prompt}
                   </p>
                 </div>
 
-                {/* Visual State Machine Progress Bar (§9.2) */}
+                {/* Pipeline — purple reserved for Helper mark; progress uses accent/success */}
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs font-semibold text-hub-text">
-                    <span className="flex items-center space-x-1.5">
-                      <Layers className="w-4 h-4 text-hub-purple-text" />
-                      <span>State Machine Pipeline (§9.2)</span>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5 font-semibold text-hub-text">
+                      <Layers className="w-3.5 h-3.5 text-hub-muted" />
+                      <span>Pipeline</span>
                     </span>
-                    <span className="font-mono text-hub-purple-text text-[11px]">
-                      State: {selectedRun.state}
+                    <span className="font-mono text-hub-muted text-[11px]">
+                      {selectedRun.state.replace(/_/g, ' ')}
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-1.5">
                     {stateSteps.map((step) => {
                       const status = getStepStatus(step.key, selectedRun.state);
                       return (
                         <div
                           key={step.key}
-                          className={`p-2.5 rounded-lg border text-center text-[11px] font-medium transition-all ${
+                          className={`p-2 rounded-lg border text-center text-[10px] font-medium transition-all ${
                             status === 'completed'
-                              ? 'bg-hub-purple/10 border-hub-purple/35 text-hub-purple-text'
+                              ? 'bg-hub-success/10 border-hub-success/30 text-hub-success-text'
                               : status === 'current'
-                              ? 'bg-hub-accent/15 border-hub-accent text-hub-accent animate-pulse'
-                              : 'bg-hub-bg border-hub-border text-hub-muted opacity-55'
+                              ? 'bg-hub-accent/12 border-hub-accent/50 text-hub-accent'
+                              : 'bg-hub-bg border-hub-border text-hub-muted opacity-50'
                           }`}
                         >
-                          <div className="flex justify-center mb-1">
+                          <div className="flex justify-center mb-0.5">
                             {status === 'completed' ? (
-                              <Check className="w-3.5 h-3.5 text-hub-purple-text" />
+                              <Check className="w-3 h-3 text-hub-success-text" />
                             ) : status === 'current' ? (
-                              <Loader2 className="w-3.5 h-3.5 text-hub-accent animate-spin" />
+                              <Loader2 className="w-3 h-3 text-hub-accent animate-spin" />
                             ) : (
-                              <Clock className="w-3.5 h-3.5 text-hub-muted" />
+                              <Clock className="w-3 h-3 text-hub-muted" />
                             )}
                           </div>
                           <div className="truncate">{step.label}</div>
@@ -471,16 +468,15 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
                   </div>
                 </div>
 
-                {/* Files Modified / Touched */}
                 {selectedRun.filesTouched && selectedRun.filesTouched.length > 0 && (
-                  <div className="bg-hub-bg border border-hub-border rounded-xl p-3.5 text-xs space-y-2">
-                    <span className="text-[11px] font-bold text-hub-muted uppercase tracking-wider flex items-center space-x-1.5">
-                      <FileCode className="w-3.5 h-3.5 text-hub-purple-text" />
-                      <span>Modified Files ({selectedRun.filesTouched.length})</span>
+                  <div className="bg-hub-bg border border-hub-border/70 rounded-xl p-3 text-xs space-y-2">
+                    <span className="text-[10px] font-semibold text-hub-muted uppercase tracking-wider flex items-center gap-1.5">
+                      <FileCode className="w-3.5 h-3.5 text-hub-muted" />
+                      <span>Files ({selectedRun.filesTouched.length})</span>
                     </span>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-1">
                       {selectedRun.filesTouched.map((f) => (
-                        <span key={f} className="px-2 py-0.5 rounded-md bg-hub-surface border border-hub-border/70 font-mono text-[11px] text-hub-text">
+                        <span key={f} className="px-1.5 py-0.5 rounded-md bg-hub-surface border border-hub-border/60 font-mono text-[11px] text-hub-text">
                           {f}
                         </span>
                       ))}
@@ -488,21 +484,20 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
                   </div>
                 )}
 
-                {/* Run Timeline Events (§9.2) */}
-                <div className="space-y-3 pt-2">
-                  <span className="text-xs font-bold text-hub-text block">
-                    Run Timeline Events ({selectedRun.timeline.length})
+                <div className="space-y-2.5 pt-1">
+                  <span className="text-[11px] font-semibold text-hub-muted uppercase tracking-wider block">
+                    Timeline ({selectedRun.timeline.length})
                   </span>
 
-                  <div className="space-y-2.5 pl-4 border-l-2 border-hub-purple/35 ml-2">
+                  <div className="space-y-2 pl-3 border-l border-hub-border ml-1.5">
                     {selectedRun.timeline.map((event) => (
-                      <div key={event.id} className="bg-hub-bg border border-hub-border rounded-xl p-3.5 text-xs space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-1.5 font-semibold text-hub-text">
-                            <span className="w-2 h-2 rounded-full bg-hub-purple" />
-                            <span>{event.title}</span>
+                      <div key={event.id} className="bg-hub-bg border border-hub-border/70 rounded-xl p-3 text-xs space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 font-semibold text-hub-text min-w-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-hub-accent shrink-0" />
+                            <span className="truncate">{event.title}</span>
                           </div>
-                          <span className="text-[11px] text-hub-muted font-mono">{event.timestamp}</span>
+                          <span className="text-[10px] text-hub-muted font-mono shrink-0">{event.timestamp}</span>
                         </div>
 
                         <div className="text-hub-muted text-[11px] leading-relaxed">
@@ -510,13 +505,13 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
                         </div>
 
                         {event.metadata?.commitSha && (
-                          <div className="pt-1 text-[11px] font-mono text-hub-link">
-                            Commit: {event.metadata.commitSha} (Trailer: SourceHub-Agent-Run: {selectedRun.slug})
+                          <div className="pt-0.5 text-[10px] font-mono text-hub-link">
+                            Commit: {event.metadata.commitSha} · SourceHub-Agent-Run: {selectedRun.slug}
                           </div>
                         )}
                         {event.metadata?.prId && (
-                          <div className="pt-1 text-[11px] font-mono text-hub-success-text">
-                            Pull Request: #{event.metadata.prId}
+                          <div className="pt-0.5 text-[10px] font-mono text-hub-success-text">
+                            Pull Request #{event.metadata.prId}
                           </div>
                         )}
                       </div>

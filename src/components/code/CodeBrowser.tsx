@@ -4,7 +4,6 @@ import {
   GitCommit, 
   Folder, 
   FileText, 
-  Bot, 
   Clock, 
   Check, 
   Copy, 
@@ -19,6 +18,7 @@ import {
   Loader2,
   FolderGit2
 } from 'lucide-react';
+import { HelperAvatar } from '../agents/HelperAvatar';
 import { Repository, FileItem, Commit, BlameLine } from '../../types';
 import { api } from '../../services/api';
 import { MarkdownDocView } from '../common/MarkdownDocView';
@@ -261,10 +261,10 @@ export const CodeBrowser: React.FC<CodeBrowserProps> = ({
             {latestCommit.trailer && (
               <span 
                 onClick={() => onNavigateToAgentRun && latestCommit.agentRunId && onNavigateToAgentRun(latestCommit.agentRunId)}
-                className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-purple-950/60 border border-purple-700/60 text-purple-300 cursor-pointer hover:bg-purple-900/80 transition-colors"
-                title="Authored via SourceHub Helper"
+                className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-hub-accent/10 border border-hub-accent/30 text-hub-accent cursor-pointer hover:bg-hub-accent/15 transition-colors"
+                title="Authored via Helper"
               >
-                <Bot className="w-3 h-3 text-purple-400" />
+                <HelperAvatar size="sm" className="w-3 h-3 text-hub-accent" />
                 <span>{latestCommit.trailer.replace('SourceHub-Agent-Run: ', '')}</span>
               </span>
             )}
@@ -520,8 +520,8 @@ export const CodeBrowser: React.FC<CodeBrowserProps> = ({
                       {c.author} committed {c.date}
                     </div>
                     {c.trailer && (
-                      <span className="inline-flex items-center space-x-1 px-1.5 py-0.2 rounded font-mono text-[10px] bg-purple-950 text-purple-300 border border-purple-800">
-                        <Bot className="w-3 h-3 text-purple-400" />
+                      <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded font-mono text-[10px] bg-hub-accent/10 text-hub-accent border border-hub-accent/30">
+                        <HelperAvatar size="sm" className="w-3 h-3 text-hub-accent" />
                         <span>{c.trailer}</span>
                       </span>
                     )}

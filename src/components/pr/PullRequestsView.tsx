@@ -4,7 +4,6 @@ import {
   CheckCircle2, 
   Clock, 
   MessageSquare, 
-  Bot, 
   GitCommit, 
   Check, 
   FileCode, 
@@ -18,6 +17,7 @@ import {
   XCircle,
   Trash2
 } from 'lucide-react';
+import { HelperAvatar } from '../agents/HelperAvatar';
 import { PullRequest, PRReviewComment, PRMergeability } from '../../types';
 import { api } from '../../services/api';
 import { NewPRModal } from './NewPRModal';
@@ -570,7 +570,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                           <div className="bg-hub-subtle px-3 py-1.5 border-b border-hub-border flex items-center justify-between text-xs">
                             <div className="flex items-center space-x-2">
                               {comment.isAgent ? (
-                                <Bot className="w-4 h-4 text-hub-accent" />
+                                <HelperAvatar size="sm" className="w-4 h-4 text-hub-accent" />
                               ) : (
                                 <div className="w-4 h-4 rounded-full bg-hub-accent text-zinc-950 font-bold text-[9px] flex items-center justify-center">
                                   NB
@@ -803,7 +803,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                                 </>
                               ) : (
                                 <>
-                                  <Bot className="w-3.5 h-3.5" />
+                                  <HelperAvatar size="sm" className="w-3.5 h-3.5 text-hub-accent" />
                                   <span>Address review comments</span>
                                 </>
                               )}

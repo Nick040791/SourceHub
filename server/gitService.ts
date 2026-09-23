@@ -1001,7 +1001,7 @@ export class GitService {
     branch: string,
     files: { path: string; content: string }[],
     message: string,
-    author: string = 'SourceHub Helper',
+    author: string = 'Helper',
     trailer?: string
   ): Promise<{ commitSha: string; filesCommitted: string[] }> {
     const repoPath = this.getRepoPath(name);

@@ -25,7 +25,7 @@
 Designed specifically for solo developers, single operators, and agentic AI pair programming, SourceHub replaces both GitHub and GitHub Desktop without relying on external cloud infrastructure, subscriptions, or telemetry:
 
 - 🖥️ **Full Source Control Workbench** — Hunk-level staging, discard, auto-fill commits, undo commit, stash management, branch switching, and remote sync.
-- 🤖 **Autonomous AI Coding Agent ("SourceHub Helper")** — Async task execution using local Ollama models. The agent snapshots the repository, ranks relevant files, writes code in an isolated git worktree, commits changes with audit trailers, opens PRs, runs reviews, and even addresses review comments automatically.
+- **Autonomous AI Coding Agent ("Helper")** — Async task execution using local Ollama models. The agent snapshots the repository, ranks relevant files, writes code in an isolated git worktree, commits changes with audit trailers, opens PRs, runs reviews, and even addresses review comments automatically.
 - 🔀 **Pull Requests & Code Review** — Full PR lifecycle backed by Node's built-in SQLite, featuring pre-flight merge conflict detection, squash/rebase/merge strategies, CI check gating, post-merge issue auto-closing, and branch pruning.
 - ⚡ **Local Actions CI Runner** — Executes `.sourcehub/workflows/*.yml` locally with live step-by-step logs, status indicators, and duration tracking.
 - 📋 **Issue Tracker** — Built-in issue lifecycle with one-click "Assign to Agent" handoff.
@@ -76,8 +76,8 @@ Designed specifically for solo developers, single operators, and agentic AI pair
 
 ---
 
-### 🤖 AI Agent — SourceHub Helper
-SourceHub Helper is an asynchronous repository agent designed for autonomous code development:
+### AI Agent — Helper
+Helper is an asynchronous repository agent designed for autonomous code development:
 
 1. **Context Snapshotting & File Ranking**: Rather than naive full-repo dumps, SourceHub uses semantic scoring to prioritize and rank relevant tracked files alongside branch diffs, tree structure, and commit history.
 2. **Isolated Worktrees**: The agent performs all edits inside dedicated git worktrees (`~/.sourcehub/worktrees/<run-id>`), preventing interference with your active workspace.

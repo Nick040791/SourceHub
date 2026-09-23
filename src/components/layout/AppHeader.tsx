@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { Repository, UserProfile, AppTheme } from '../../types';
 import { THEME_OPTIONS, AVATAR_COLOR_GRADIENTS } from '../profile/ProfileModal';
+import { HelperAvatar } from '../agents/HelperAvatar';
 
 export type { AppTheme };
 
@@ -191,17 +192,18 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
 
         {/* RIGHT: utilities */}
         <div className="flex items-center gap-2 shrink-0 ml-auto">
-          {/* Helper — green-dot active feel (mock), keep agents nav */}
+          {/* Helper chip — identity mark + green-dot active feel */}
           <button
             onClick={() => onSelectTab('agents')}
-            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-transparent hover:bg-hub-subtle/80 border border-transparent hover:border-hub-border transition-colors text-hub-text"
+            className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium bg-transparent hover:bg-hub-subtle/80 border border-transparent hover:border-hub-border transition-colors text-hub-text"
             title="View active Helper agent runs"
           >
-            <span className="relative flex h-2 w-2 shrink-0">
+            <HelperAvatar size="sm" className="w-3.5 h-3.5 text-hub-accent" />
+            <span className="relative flex h-1.5 w-1.5 shrink-0">
               {helperActive && (
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-hub-success opacity-60" />
               )}
-              <span className={`relative inline-flex rounded-full h-2 w-2 ${helperActive ? 'bg-hub-success-text' : 'bg-hub-success-text/80'}`} />
+              <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${helperActive ? 'bg-hub-success-text' : 'bg-hub-success-text/70'}`} />
             </span>
             <span className="text-hub-muted">Helper active</span>
           </button>
