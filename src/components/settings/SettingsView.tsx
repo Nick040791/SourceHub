@@ -519,7 +519,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             activeSection === 'providers' ? 'bg-hub-subtle text-hub-text font-bold' : 'text-hub-muted hover:text-white'
           }`}
         >
-          <Cpu className="w-4 h-4 text-purple-400" />
+          <Cpu className="w-4 h-4 text-hub-purple-text" />
           <span>AI Model Providers</span>
         </button>
       </div>
@@ -542,7 +542,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
               <button
                 onClick={() => setShowAddSecret(!showAddSecret)}
-                className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-success hover:bg-green-700 text-white rounded text-xs font-semibold"
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-lg text-xs font-semibold"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>New Secret</span>
@@ -551,7 +551,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             {/* Add Secret Form */}
             {showAddSecret && (
-              <form onSubmit={handleAddSecret} className="border border-hub-border rounded-md p-4 bg-hub-surface space-y-3 text-xs">
+              <form onSubmit={handleAddSecret} className="border border-hub-border rounded-xl p-4 bg-hub-surface space-y-3 text-xs">
                 <span className="font-bold text-hub-text block">Add Encrypted Secret to {repoName}</span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
@@ -600,7 +600,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </button>
                   <button
                     type="submit"
-                    className="px-3 py-1 bg-hub-success hover:bg-green-700 text-white rounded font-semibold"
+                    className="px-3 py-1 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-lg font-semibold"
                   >
                     Save Encrypted Secret
                   </button>
@@ -609,7 +609,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             )}
 
             {/* Secrets List */}
-            <div className="border border-hub-border rounded-md bg-hub-surface divide-y divide-hub-border">
+            <div className="border border-hub-border rounded-xl bg-hub-surface divide-y divide-hub-border">
               {secretsList.map((sec) => (
                 <div key={sec.id} className="p-3 flex items-center justify-between text-xs">
                   <div className="space-y-1">
@@ -660,7 +660,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
               <button
                 onClick={() => setShowAddToken(!showAddToken)}
-                className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-success hover:bg-green-700 text-white rounded text-xs font-semibold"
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-lg text-xs font-semibold"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Generate New Token</span>
@@ -668,7 +668,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
 
             {showAddToken && (
-              <form onSubmit={handleCreateToken} className="border border-hub-border rounded-md p-4 bg-hub-surface space-y-4 text-xs">
+              <form onSubmit={handleCreateToken} className="border border-hub-border rounded-xl p-4 bg-hub-surface space-y-4 text-xs">
                 <span className="font-bold text-hub-text block">Generate Personal Access Token</span>
                 <div>
                   <label className="block text-hub-muted text-[11px] mb-1">Token Name / Purpose</label>
@@ -721,7 +721,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </button>
                   <button
                     type="submit"
-                    className="px-3 py-1 bg-hub-success hover:bg-green-700 text-white rounded font-semibold"
+                    className="px-3 py-1 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-lg font-semibold"
                   >
                     Generate Token
                   </button>
@@ -729,7 +729,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </form>
             )}
 
-            <div className="border border-hub-border rounded-md bg-hub-surface divide-y divide-hub-border">
+            <div className="border border-hub-border rounded-xl bg-hub-surface divide-y divide-hub-border">
               {tokensList.map((tok) => (
                 <div key={tok.id} className="p-3.5 space-y-2 text-xs">
                   <div className="flex items-center justify-between">
@@ -777,7 +777,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
               <button
                 onClick={() => setShowAddKey(!showAddKey)}
-                className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-success hover:bg-green-700 text-white rounded text-xs font-semibold"
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-lg text-xs font-semibold"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add SSH Key</span>
@@ -785,7 +785,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
 
             {showAddKey && (
-              <form onSubmit={handleAddKey} className="border border-hub-border rounded-md p-4 bg-hub-surface space-y-3 text-xs">
+              <form onSubmit={handleAddKey} className="border border-hub-border rounded-xl p-4 bg-hub-surface space-y-3 text-xs">
                 <span className="font-bold text-hub-text block">Add SSH Public Key</span>
                 <div>
                   <label className="block text-hub-muted text-[11px] mb-1">Title</label>
@@ -817,7 +817,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </button>
                   <button
                     type="submit"
-                    className="px-3 py-1 bg-hub-success hover:bg-green-700 text-white rounded font-semibold"
+                    className="px-3 py-1 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-lg font-semibold"
                   >
                     Add Key
                   </button>
@@ -825,7 +825,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </form>
             )}
 
-            <div className="border border-hub-border rounded-md bg-hub-surface divide-y divide-hub-border">
+            <div className="border border-hub-border rounded-xl bg-hub-surface divide-y divide-hub-border">
               {sshKeysList.map((key) => (
                 <div key={key.id} className="p-3 text-xs flex items-center justify-between">
                   <div className="space-y-1">
@@ -861,7 +861,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
               <button
                 onClick={() => setShowAddWebhook(!showAddWebhook)}
-                className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-accent hover:bg-blue-600 text-white rounded text-xs font-semibold transition-colors"
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-lg text-xs font-semibold transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Webhook</span>
@@ -869,7 +869,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
 
             {showAddWebhook && (
-              <form onSubmit={handleAddWebhook} className="p-4 border border-hub-border rounded-md bg-hub-surface space-y-3 text-xs">
+              <form onSubmit={handleAddWebhook} className="p-4 border border-hub-border rounded-xl bg-hub-surface space-y-3 text-xs">
                 <h4 className="font-bold text-hub-text">Configure New Outbound Webhook</h4>
                 <div>
                   <label className="block text-hub-muted text-[11px] mb-1">Payload URL</label>
@@ -892,7 +892,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </button>
                   <button
                     type="submit"
-                    className="px-3 py-1 bg-hub-success hover:bg-green-700 text-white rounded font-semibold"
+                    className="px-3 py-1 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-lg font-semibold"
                   >
                     Save Webhook
                   </button>
@@ -901,13 +901,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             )}
 
             {webhooksList.length === 0 ? (
-              <div className="p-6 text-center border border-hub-border border-dashed rounded-md text-xs text-hub-muted">
+              <div className="p-6 text-center border border-hub-border border-dashed rounded-xl text-xs text-hub-muted">
                 No webhooks configured for this repository yet. Click "Add Webhook" above.
               </div>
             ) : (
               <div className="space-y-3">
                 {webhooksList.map((wh) => (
-                  <div key={wh.id} className="border border-hub-border rounded-md bg-hub-surface p-4 space-y-3 text-xs">
+                  <div key={wh.id} className="border border-hub-border rounded-xl bg-hub-surface p-4 space-y-3 text-xs">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
                         <Globe className="w-4 h-4 text-hub-link" />
@@ -927,12 +927,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                           )}
                           <span>Ping</span>
                         </button>
-                        <span className="px-2 py-0.5 rounded text-[10px] bg-green-950 text-hub-success-text border border-green-800 font-mono">
+                        <span className="px-2 py-0.5 rounded text-[10px] bg-hub-success/15 text-hub-success-text border border-hub-success/40 font-mono">
                           Active
                         </span>
                         <button
                           onClick={() => handleDeleteWebhook(wh.id)}
-                          className="text-hub-muted hover:text-red-400 p-1"
+                          className="text-hub-muted hover:text-hub-danger-text p-1"
                           title="Delete webhook"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -953,8 +953,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       <div
                         className={`text-[11px] font-mono px-2 py-1 rounded border ${
                           pingStatus[wh.id]?.success
-                            ? 'bg-green-950/40 text-hub-success-text border-green-900'
-                            : 'bg-red-950/40 text-red-300 border-red-900'
+                            ? 'bg-hub-success/10 text-hub-success-text border-hub-success/35'
+                            : 'bg-hub-danger/10 text-hub-danger-text border-hub-danger/35'
                         }`}
                       >
                         {pingStatus[wh.id]?.message}
@@ -979,7 +979,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <div className="space-y-4">
               <div className="pb-3 border-b border-hub-border">
                 <h3 className="text-sm font-bold text-hub-text flex items-center space-x-2">
-                  <Cpu className="w-4 h-4 text-purple-400" />
+                  <Cpu className="w-4 h-4 text-hub-purple-text" />
                   <span>AI Model & Runtime Providers</span>
                 </h3>
                 <p className="text-xs text-hub-muted mt-0.5">
@@ -988,23 +988,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               {/* Active Runtime Highlight Banner */}
-              <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg bg-gradient-to-r from-purple-950/40 via-hub-surface to-hub-surface border border-purple-900/40 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg bg-gradient-to-r from-hub-purple/10 via-hub-surface to-hub-surface border border-hub-purple/30 text-xs">
                 <div className="flex items-center space-x-2.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-hub-success-text animate-pulse" />
                   <div>
                     <span className="text-hub-muted text-[11px] block">Active Forge Runtime</span>
                     <span className="font-bold text-hub-text">{activeConfig.name}</span>
-                    <span className="ml-2 font-mono text-[11px] text-purple-300">({activeConfig.defaultModel})</span>
+                    <span className="ml-2 font-mono text-[11px] text-hub-purple-text">({activeConfig.defaultModel})</span>
                   </div>
                 </div>
 
                 <div className="flex items-center space-x-2">
                   {activeConfig.thinkingEffort && activeConfig.thinkingEffort !== 'none' && (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-900/60 text-purple-300 border border-purple-700">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-hub-purple/15 text-hub-purple-text border border-hub-purple/35">
                       Thinking: {activeConfig.thinkingEffort}
                     </span>
                   )}
-                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-950 text-purple-300 border border-purple-800">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-hub-purple/15 text-hub-purple-text border border-hub-purple/35">
                     Active Runtime
                   </span>
                 </div>
@@ -1027,7 +1027,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       }}
                       className={`p-2.5 rounded-md border text-left transition-all relative ${
                         isSelected
-                          ? 'bg-hub-surface border-purple-500 shadow-sm shadow-purple-500/10'
+                          ? 'bg-hub-surface border-hub-purple/50 shadow-sm shadow-hub-purple/10'
                           : 'bg-hub-bg/60 border-hub-border hover:bg-hub-surface hover:border-hub-border/80'
                       }`}
                     >
@@ -1051,7 +1051,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               {/* Selected Provider Configuration Card */}
-              <div className="border border-hub-border rounded-md bg-hub-surface p-4 space-y-4 text-xs">
+              <div className="border border-hub-border rounded-xl bg-hub-surface p-4 space-y-4 text-xs">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-hub-border pb-3">
                   <div>
                     <div className="flex items-center space-x-2">
@@ -1067,7 +1067,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
                   <div className="flex items-center space-x-2">
                     {isSelectedActive ? (
-                      <span className="px-2.5 py-1 rounded text-[11px] font-mono bg-purple-950 text-purple-300 border border-purple-800 flex items-center space-x-1.5">
+                      <span className="px-2.5 py-1 rounded text-[11px] font-mono bg-hub-purple/15 text-hub-purple-text border border-hub-purple/35 flex items-center space-x-1.5">
                         <span className="w-2 h-2 rounded-full bg-hub-success-text animate-pulse" />
                         <span>Active Runtime</span>
                       </span>
@@ -1075,9 +1075,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       <button
                         type="button"
                         onClick={() => handleSetActive(selectedProviderId)}
-                        className="flex items-center space-x-1.5 px-2.5 py-1 rounded text-[11px] font-medium bg-hub-subtle hover:bg-purple-950/60 hover:text-purple-300 border border-hub-border hover:border-purple-700 text-hub-muted transition-colors"
+                        className="flex items-center space-x-1.5 px-2.5 py-1 rounded text-[11px] font-medium bg-hub-subtle hover:bg-hub-purple/15 hover:text-hub-purple-text border border-hub-border hover:border-hub-purple/35 text-hub-muted transition-colors"
                       >
-                        <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                        <Sparkles className="w-3.5 h-3.5 text-hub-purple-text" />
                         <span>Set as Active Runtime</span>
                       </button>
                     )}
@@ -1095,7 +1095,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       value={currentConfig.endpointUrl || ''}
                       onChange={(e) => updateProviderConfig(selectedProviderId, { endpointUrl: e.target.value })}
                       placeholder={DEFAULT_PROVIDERS[selectedProviderId]?.endpointUrl}
-                      className="w-full bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text focus:outline-none focus:border-purple-500"
+                      className="w-full bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text focus:outline-none focus:border-hub-purple/50"
                     />
                   </div>
 
@@ -1119,7 +1119,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                           value={currentConfig.apiKey || ''}
                           onChange={(e) => updateProviderConfig(selectedProviderId, { apiKey: e.target.value })}
                           placeholder={currentConfig.isKeySet ? '•••••••• (Encrypted at rest)' : 'Enter API Key...'}
-                          className="w-full bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 pr-16 font-mono text-xs text-hub-text focus:outline-none focus:border-purple-500"
+                          className="w-full bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 pr-16 font-mono text-xs text-hub-text focus:outline-none focus:border-hub-purple/50"
                         />
                         <div className="absolute right-1.5 flex items-center space-x-1">
                           <button
@@ -1143,7 +1143,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         type="button"
                         onClick={() => handleScanModels(selectedProviderId)}
                         disabled={isLoadingModels}
-                        className="text-[10px] text-purple-400 hover:text-purple-300 flex items-center space-x-1"
+                        className="text-[10px] text-hub-purple-text hover:text-hub-purple-text flex items-center space-x-1"
                         title="Scan active models from endpoint"
                       >
                         <RotateCw className={`w-3 h-3 ${isLoadingModels ? 'animate-spin' : ''}`} />
@@ -1158,7 +1158,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                           value={currentConfig.defaultModel || ''}
                           onChange={(e) => updateProviderConfig(selectedProviderId, { defaultModel: e.target.value })}
                           placeholder="e.g. gpt-4o, claude-3-7-sonnet"
-                          className="flex-1 bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text focus:outline-none focus:border-purple-500"
+                          className="flex-1 bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text focus:outline-none focus:border-hub-purple/50"
                         />
                         <button
                           type="button"
@@ -1179,7 +1179,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                               updateProviderConfig(selectedProviderId, { defaultModel: e.target.value });
                             }
                           }}
-                          className="flex-1 bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text focus:outline-none focus:border-purple-500"
+                          className="flex-1 bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text focus:outline-none focus:border-hub-purple/50"
                         >
                           {(currentConfig.availableModels || DEFAULT_PROVIDERS[selectedProviderId]?.availableModels || []).map((m) => (
                             <option key={m} value={m}>
@@ -1207,7 +1207,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="block text-hub-muted text-[11px]">Thinking / Reasoning Effort</label>
-                      <span className="text-[10px] font-mono text-purple-400">
+                      <span className="text-[10px] font-mono text-hub-purple-text">
                         {currentConfig.thinkingEffort || 'none'}
                       </span>
                     </div>
@@ -1222,7 +1222,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                             onClick={() => updateProviderConfig(selectedProviderId, { thinkingEffort: effort })}
                             className={`py-1.5 px-2 rounded text-[11px] font-medium transition-colors text-center capitalize border ${
                               isEffortActive
-                                ? 'bg-purple-950/80 border-purple-600 text-purple-300 font-bold'
+                                ? 'bg-hub-purple/15 border-hub-purple/50 text-hub-purple-text font-bold'
                                 : 'bg-hub-bg border-hub-border text-hub-muted hover:text-white'
                             }`}
                           >
@@ -1245,7 +1245,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         value={currentConfig.apiVersion || '2024-10-21'}
                         onChange={(e) => updateProviderConfig(selectedProviderId, { apiVersion: e.target.value })}
                         placeholder="2024-10-21"
-                        className="w-full bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text focus:outline-none focus:border-purple-500"
+                        className="w-full bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text focus:outline-none focus:border-hub-purple/50"
                       />
                     </div>
                   )}
@@ -1258,7 +1258,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         value={currentConfig.region || 'us-east-1'}
                         onChange={(e) => updateProviderConfig(selectedProviderId, { region: e.target.value })}
                         placeholder="us-east-1"
-                        className="w-full bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text focus:outline-none focus:border-purple-500"
+                        className="w-full bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text focus:outline-none focus:border-hub-purple/50"
                       />
                     </div>
                   )}
@@ -1271,7 +1271,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         value={currentConfig.customHeader || ''}
                         onChange={(e) => updateProviderConfig(selectedProviderId, { customHeader: e.target.value })}
                         placeholder="e.g. X-API-Key or Authorization"
-                        className="w-full bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text focus:outline-none focus:border-purple-500"
+                        className="w-full bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 font-mono text-xs text-hub-text focus:outline-none focus:border-hub-purple/50"
                       />
                     </div>
                   )}
@@ -1282,14 +1282,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <div
                     className={`flex items-start space-x-2 p-2.5 rounded border text-xs font-mono ${
                       testResult.success
-                        ? 'bg-green-950/40 border-green-800 text-hub-success-text'
-                        : 'bg-red-950/40 border-red-800 text-red-300'
+                        ? 'bg-hub-success/10 border-hub-success/40 text-hub-success-text'
+                        : 'bg-hub-danger/10 border-hub-danger/40 text-hub-danger-text'
                     }`}
                   >
                     {testResult.success ? (
                       <CheckCircle2 className="w-4 h-4 text-hub-success-text shrink-0 mt-0.5" />
                     ) : (
-                      <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                      <AlertCircle className="w-4 h-4 text-hub-danger-text shrink-0 mt-0.5" />
                     )}
                     <div className="flex-1 overflow-hidden">
                       <div className="font-bold">
@@ -1313,7 +1313,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     {isTestingProvider ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin text-hub-accent" />
                     ) : (
-                      <Zap className="w-3.5 h-3.5 text-yellow-400" />
+                      <Zap className="w-3.5 h-3.5 text-hub-warning-text" />
                     )}
                     <span>{isTestingProvider ? 'Testing Endpoint...' : 'Test Connection'}</span>
                   </button>
@@ -1321,7 +1321,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <button
                     type="button"
                     onClick={handleSaveProvider}
-                    className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-hub-success hover:bg-green-700 text-white rounded font-semibold transition-colors shadow-sm"
+                    className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-lg font-semibold transition-colors shadow-sm"
                   >
                     {savedProvider ? <Check className="w-3.5 h-3.5" /> : null}
                     <span>{savedProvider ? 'Saved Settings!' : 'Save Provider Settings'}</span>

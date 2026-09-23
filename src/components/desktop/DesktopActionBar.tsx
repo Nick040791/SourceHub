@@ -202,7 +202,7 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
                         <button
                           type="submit"
                           disabled={!newBranchName.trim()}
-                          className="px-2 py-0.5 bg-hub-accent hover:bg-hub-success text-white rounded-md text-[11px] font-semibold"
+                          className="px-2 py-0.5 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-md text-[11px] font-semibold"
                         >
                           Create
                         </button>
@@ -362,7 +362,7 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
                 href={`https://github.com/new?name=${encodeURIComponent(repo.name)}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-hub-accent hover:bg-hub-success text-white rounded-lg text-xs font-semibold transition-colors shadow-sm"
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-lg text-xs font-semibold transition-colors shadow-sm"
               >
                 <span>Create repository on GitHub</span>
                 <ExternalLink className="w-3.5 h-3.5" />

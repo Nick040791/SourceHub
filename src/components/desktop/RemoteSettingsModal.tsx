@@ -118,8 +118,8 @@ export const RemoteSettingsModal: React.FC<RemoteSettingsModalProps> = ({
         {/* Content */}
         <div className="p-5 overflow-y-auto space-y-5 text-xs">
           {error && (
-            <div className="p-3 bg-red-950/60 border border-red-800 text-red-300 rounded-md flex items-center space-x-2">
-              <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+            <div className="p-3 bg-hub-danger/15 border border-hub-danger/40 text-hub-danger-text rounded-md flex items-center space-x-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-hub-danger-text" />
               <span>{error}</span>
             </div>
           )}
@@ -136,13 +136,13 @@ export const RemoteSettingsModal: React.FC<RemoteSettingsModalProps> = ({
                 <span>Loading remotes...</span>
               </div>
             ) : remotes.length === 0 ? (
-              <div className="border border-hub-border border-dashed rounded-md p-6 text-center text-hub-muted space-y-1 bg-hub-bg/50">
+              <div className="border border-hub-border border-dashed rounded-xl p-6 text-center text-hub-muted space-y-1 bg-hub-bg/50">
                 <Globe className="w-6 h-6 text-hub-muted mx-auto mb-1 opacity-60" />
                 <p className="font-medium text-hub-text">No remote repositories configured</p>
                 <p className="text-[11px]">Add a remote below (e.g. GitHub or GitLab) to push and fetch commits.</p>
               </div>
             ) : (
-              <div className="divide-y divide-hub-border border border-hub-border rounded-md bg-hub-bg overflow-hidden">
+              <div className="divide-y divide-hub-border border border-hub-border rounded-xl bg-hub-bg overflow-hidden">
                 {remotes.map((remote) => (
                   <div key={remote.name} className="p-3.5 space-y-2">
                     <div className="flex items-center justify-between">
@@ -151,7 +151,7 @@ export const RemoteSettingsModal: React.FC<RemoteSettingsModalProps> = ({
                           {remote.name}
                         </span>
                         {remote.fetchUrl.includes('github.com') && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-purple-950/60 text-purple-300 border border-purple-800 font-mono">
+                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-hub-purple/15 text-hub-purple-text border border-hub-purple/35 font-mono">
                             GitHub
                           </span>
                         )}
@@ -172,7 +172,7 @@ export const RemoteSettingsModal: React.FC<RemoteSettingsModalProps> = ({
                             </button>
                             <button
                               onClick={() => handleDeleteRemote(remote.name)}
-                              className="p-1 hover:bg-red-950 text-hub-muted hover:text-red-400 rounded"
+                              className="p-1 hover:bg-hub-danger/15 text-hub-muted hover:text-hub-danger-text rounded"
                               title="Remove remote"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -200,7 +200,7 @@ export const RemoteSettingsModal: React.FC<RemoteSettingsModalProps> = ({
                         <button
                           onClick={() => handleUpdateRemote(remote.name)}
                           disabled={isSubmitting}
-                          className="px-3 py-1.5 bg-hub-accent hover:bg-blue-600 text-white rounded text-xs font-semibold"
+                          className="px-3 py-1.5 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-lg text-xs font-semibold"
                         >
                           Save
                         </button>
@@ -217,7 +217,7 @@ export const RemoteSettingsModal: React.FC<RemoteSettingsModalProps> = ({
           </div>
 
           {/* Add New Remote Form */}
-          <form onSubmit={handleAddRemote} className="border border-hub-border rounded-md p-4 bg-hub-surface space-y-3">
+          <form onSubmit={handleAddRemote} className="border border-hub-border rounded-xl p-4 bg-hub-surface space-y-3">
             <span className="font-bold text-hub-text uppercase tracking-wider text-[11px] block flex items-center space-x-1.5">
               <Plus className="w-3.5 h-3.5 text-hub-accent" />
               <span>Add New Remote</span>
@@ -259,7 +259,7 @@ export const RemoteSettingsModal: React.FC<RemoteSettingsModalProps> = ({
               <button
                 type="submit"
                 disabled={isSubmitting || !newRemoteName.trim() || !newRemoteUrl.trim()}
-                className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-hub-accent hover:bg-blue-600 text-white rounded text-xs font-semibold disabled:opacity-50 transition-colors shadow-sm"
+                className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-lg text-xs font-semibold disabled:opacity-50 transition-colors shadow-sm"
               >
                 {isSubmitting ? (
                   <>

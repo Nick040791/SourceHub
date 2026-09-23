@@ -30,30 +30,18 @@ interface AppHeaderProps {
   onOpenProfileModal?: () => void;
 }
 
-/** Quiet forge hex — Style D brand mark (flare, not a busy tile). */
+/** Compact lime mark — Style D brand (v2 S-in-hex). */
 const SourceHubMark: React.FC<{ className?: string }> = ({ className = 'w-7 h-7' }) => (
   <svg viewBox="0 0 32 32" fill="none" className={className} aria-hidden>
     <path
-      d="M16 1.8L29.2 9.4V22.6L16 30.2L2.8 22.6V9.4L16 1.8Z"
+      d="M16 2.5L28 9.5V22.5L16 29.5L4 22.5V9.5L16 2.5Z"
       fill="currentColor"
-      fillOpacity="0.12"
+      fillOpacity="0.18"
       stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinejoin="round"
+      strokeWidth="1.6"
     />
-    {/* Inner facet */}
     <path
-      d="M16 6.2L24.4 11V21L16 25.8L7.6 21V11L16 6.2Z"
-      fill="currentColor"
-      fillOpacity="0.08"
-      stroke="currentColor"
-      strokeWidth="1"
-      strokeOpacity="0.55"
-      strokeLinejoin="round"
-    />
-    {/* Forge spark / flare */}
-    <path
-      d="M16 10.2L17.15 14.05L21.1 14.2L18 16.7L19 20.5L16 18.35L13 20.5L14 16.7L10.9 14.2L14.85 14.05L16 10.2Z"
+      d="M11.2 20.2C11.2 17.1 13.4 15.6 17.1 14.7L20.5 13.9C22.3 13.45 23.1 12.7 23.1 11.45C23.1 9.85 21.7 8.85 19.4 8.85C16.9 8.85 15.35 9.95 14.85 11.85L11.55 11.15C12.4 8.05 15.15 6.35 19.45 6.35C24.35 6.35 27.05 8.75 27.05 12.15C27.05 14.95 25.35 16.55 21.55 17.45L18.15 18.25C16.15 18.75 15.25 19.55 15.25 20.95C15.25 22.55 16.75 23.45 19.25 23.45C21.95 23.45 23.55 22.25 24.15 20.15L27.4 20.85C26.45 24.35 23.55 26.15 19.2 26.15C14.05 26.15 11.2 23.55 11.2 20.2Z"
       fill="currentColor"
     />
   </svg>

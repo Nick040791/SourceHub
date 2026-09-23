@@ -494,7 +494,7 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
                 : 'text-hub-muted hover:text-hub-text hover:bg-hub-surface/50'
             }`}
           >
-            <History className="w-3.5 h-3.5 text-purple-400" />
+            <History className="w-3.5 h-3.5 text-hub-purple-text" />
             <span>History</span>
           </button>
 
@@ -516,7 +516,7 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
               onClick={() => setIsStashDrawerOpen(!isStashDrawerOpen)}
               className={`flex items-center space-x-1 px-2.5 py-1 rounded border transition-colors ${
                 (status?.stashes || []).length > 0
-                  ? 'bg-purple-950/60 text-purple-300 border-purple-800'
+                  ? 'bg-hub-purple/15 text-hub-purple-text border-hub-purple/35'
                   : 'bg-hub-bg text-hub-muted hover:text-hub-text border-hub-border'
               }`}
               title="Manage Stashes"
@@ -529,7 +529,7 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
               <button
                 type="button"
                 onClick={handleDiscardSelected}
-                className="flex items-center space-x-1 px-2 py-1 bg-hub-bg hover:bg-red-950/40 text-hub-muted hover:text-red-400 border border-hub-border hover:border-red-800 rounded transition-colors"
+                className="flex items-center space-x-1 px-2 py-1 bg-hub-bg hover:bg-hub-danger/10 text-hub-muted hover:text-hub-danger-text border border-hub-border hover:border-hub-danger/40 rounded transition-colors"
                 title={`Discard changes in ${selectedPaths.size} selected file(s)`}
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -540,7 +540,7 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
             {changedFiles.length > 0 && (
               <button
                 onClick={handleDiscardAll}
-                className="flex items-center space-x-1 px-2.5 py-1 bg-hub-bg hover:bg-red-950/40 text-hub-muted hover:text-red-400 border border-hub-border hover:border-red-800 rounded transition-colors"
+                className="flex items-center space-x-1 px-2.5 py-1 bg-hub-bg hover:bg-hub-danger/10 text-hub-muted hover:text-hub-danger-text border border-hub-border hover:border-hub-danger/40 rounded transition-colors"
                 title="Discard all working copy changes"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -569,7 +569,7 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
               <div className="p-3 bg-hub-bg border-b border-hub-border space-y-2 text-xs animate-in slide-in-from-top-2 duration-150">
                 <div className="flex items-center justify-between font-bold text-hub-text">
                   <span className="flex items-center space-x-1">
-                    <Archive className="w-3.5 h-3.5 text-purple-400" />
+                    <Archive className="w-3.5 h-3.5 text-hub-purple-text" />
                     <span>Git Stash</span>
                   </span>
                   <button
@@ -591,7 +591,7 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
                   <button
                     type="submit"
                     disabled={isStashing || changedFiles.length === 0}
-                    className="w-full py-1 bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white rounded text-xs font-semibold transition-colors"
+                    className="w-full py-1 bg-hub-purple hover:brightness-110 disabled:opacity-50 text-white rounded text-xs font-semibold transition-colors"
                   >
                     {isStashing ? 'Stashing...' : 'Stash All Changes'}
                   </button>
@@ -603,20 +603,20 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
                     {(status?.stashes || []).map((s) => (
                       <div key={s.index} className="p-1.5 bg-hub-surface rounded border border-hub-border flex items-center justify-between text-[11px]">
                         <div className="truncate pr-2">
-                          <span className="font-mono text-purple-300 mr-1">stash@{`{${s.index}}`}</span>
+                          <span className="font-mono text-hub-purple-text mr-1">stash@{`{${s.index}}`}</span>
                           <span className="text-hub-text">{s.message}</span>
                         </div>
                         <div className="flex items-center space-x-1 shrink-0">
                           <button
                             onClick={() => handlePopStash(s.index)}
-                            className="px-1.5 py-0.5 bg-hub-accent/20 text-hub-accent hover:bg-hub-accent hover:text-white rounded"
+                            className="px-1.5 py-0.5 bg-hub-accent/20 text-hub-accent hover:bg-hub-accent hover:text-zinc-950 rounded"
                             title="Apply and remove stash"
                           >
                             Pop
                           </button>
                           <button
                             onClick={() => handleDropStash(s.index)}
-                            className="p-1 text-hub-muted hover:text-red-400"
+                            className="p-1 text-hub-muted hover:text-hub-danger-text"
                             title="Delete stash"
                           >
                             <Trash2 className="w-3 h-3" />
@@ -683,18 +683,18 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
 
                   // Status badge pill
                   let badge = 'M';
-                  let badgeColor = 'bg-yellow-950/80 text-yellow-300 border-yellow-800';
+                  let badgeColor = 'bg-hub-warning/15 text-hub-warning-text border-hub-warning/40';
                   if (file.status === 'added' || file.status === 'untracked') {
                     badge = file.status === 'untracked' ? 'U' : 'A';
                     badgeColor = file.status === 'untracked' 
-                      ? 'bg-blue-950/80 text-blue-300 border-blue-800' 
-                      : 'bg-green-950/80 text-green-300 border-green-800';
+                      ? 'bg-hub-accent/15 text-hub-accent border-hub-accent/40' 
+                      : 'bg-hub-success/15 text-hub-success-text border-hub-success/40';
                   } else if (file.status === 'deleted') {
                     badge = 'D';
-                    badgeColor = 'bg-red-950/80 text-red-300 border-red-800';
+                    badgeColor = 'bg-hub-danger/15 text-hub-danger-text border-hub-danger/40';
                   } else if (file.status === 'renamed') {
                     badge = 'R';
-                    badgeColor = 'bg-purple-950/80 text-purple-300 border-purple-800';
+                    badgeColor = 'bg-hub-purple/15 text-hub-purple-text border-hub-purple/35';
                   }
 
                   const filename = file.path.split('/').pop() || file.path;
@@ -740,7 +740,7 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
 
                       <button
                         onClick={(e) => handleDiscardFile(e, file)}
-                        className="opacity-0 group-hover:opacity-100 p-1 text-hub-muted hover:text-red-400 hover:bg-hub-surface rounded transition-all shrink-0"
+                        className="opacity-0 group-hover:opacity-100 p-1 text-hub-muted hover:text-hub-danger-text hover:bg-hub-surface rounded transition-all shrink-0"
                         title="Discard changes in this file"
                       >
                         <Trash2 className="w-3 h-3" />
@@ -759,10 +759,10 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
                   type="button"
                   onClick={handleAutoFillCommit}
                   disabled={changedFiles.length === 0}
-                  className="flex items-center space-x-1 px-2 py-0.5 rounded bg-purple-950/60 hover:bg-purple-900 border border-purple-700 text-purple-300 text-[11px] font-semibold transition-colors disabled:opacity-50"
+                  className="flex items-center space-x-1 px-2 py-0.5 rounded bg-hub-purple/15 hover:bg-hub-purple/25 border border-hub-purple/35 text-hub-purple-text text-[11px] font-semibold transition-colors disabled:opacity-50"
                   title="Automatically generate commit summary and description from changed files"
                 >
-                  <Sparkles className="w-3 h-3 text-purple-400" />
+                  <Sparkles className="w-3 h-3 text-hub-purple-text" />
                   <span>Auto-fill Commit</span>
                 </button>
               </div>
@@ -790,7 +790,7 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
                   <div className={`w-4 h-4 rounded-full bg-gradient-to-br ${
                     profile?.avatarColor && AVATAR_COLOR_GRADIENTS[profile.avatarColor]
                       ? AVATAR_COLOR_GRADIENTS[profile.avatarColor].class
-                      : 'from-indigo-500 to-purple-600'
+                      : 'from-hub-purple to-hub-accent'
                   } text-white font-bold text-[9px] flex items-center justify-center shrink-0`}>
                     {profile?.initials || 'NB'}
                   </div>
@@ -813,7 +813,7 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
                 <button
                   type="submit"
                   disabled={isCommitting || isPushing || !summary.trim() || selectedPaths.size === 0}
-                  className="flex items-center justify-center space-x-1.5 py-2 bg-hub-accent hover:bg-blue-600 disabled:opacity-50 text-white rounded-md text-xs font-semibold shadow-sm transition-colors"
+                  className="flex items-center justify-center space-x-1.5 py-2 bg-hub-accent hover:brightness-110 disabled:opacity-50 text-zinc-950 rounded-lg text-xs font-semibold shadow-sm transition-colors"
                 >
                   {isCommitting && !isPushing ? (
                     <>
@@ -832,7 +832,7 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
                   type="button"
                   onClick={handleCommitAndPush}
                   disabled={isCommitting || isPushing || !summary.trim() || selectedPaths.size === 0}
-                  className="flex items-center justify-center space-x-1.5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-md text-xs font-semibold shadow-sm transition-colors"
+                  className="flex items-center justify-center space-x-1.5 py-2 bg-hub-purple hover:brightness-110 disabled:opacity-50 text-white rounded-md text-xs font-semibold shadow-sm transition-colors"
                   title={`Commit selected changes and push directly to origin/${currentBranch}`}
                 >
                   {isPushing ? (
@@ -871,12 +871,12 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
                     {fileDiff && (
                       <div className="flex items-center space-x-2">
                         <span className="text-hub-success-text font-bold">+{fileDiff.additions}</span>
-                        <span className="text-red-400 font-bold">-{fileDiff.deletions}</span>
+                        <span className="text-hub-danger-text font-bold">-{fileDiff.deletions}</span>
                       </div>
                     )}
                     <button
                       onClick={(e) => handleDiscardFile(e, selectedFile)}
-                      className="px-2 py-1 text-hub-muted hover:text-red-400 hover:bg-hub-subtle rounded text-xs transition-colors flex items-center space-x-1"
+                      className="px-2 py-1 text-hub-muted hover:text-hub-danger-text hover:bg-hub-subtle rounded text-xs transition-colors flex items-center space-x-1"
                       title="Discard this file's changes"
                     >
                       <Trash2 className="w-3 h-3" />
@@ -899,9 +899,9 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
                   ) : fileDiff.hunks && fileDiff.hunks.length > 0 ? (
                     <div className="space-y-4 p-3">
                       {fileDiff.hunks.map((hunk, hIdx) => (
-                        <div key={hIdx} className="border border-gray-800 rounded-md overflow-hidden bg-[#0d1117]">
+                        <div key={hIdx} className="border border-hub-border rounded-xl overflow-hidden bg-[#0d1117]">
                           {/* Hunk Header Bar */}
-                          <div className="bg-[#161b22] px-3 py-1.5 flex items-center justify-between border-b border-gray-800 select-none">
+                          <div className="bg-[#161b22] px-3 py-1.5 flex items-center justify-between border-b border-hub-border select-none">
                             <span className="text-[11px] font-mono text-hub-muted font-semibold">
                               {hunk.header}
                             </span>
@@ -910,7 +910,7 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
                                 <button
                                   onClick={() => handleUnstageHunk(hunk, hIdx)}
                                   disabled={hunkActionIndex === hIdx}
-                                  className="px-2 py-0.5 rounded text-[11px] bg-hub-bg hover:bg-hub-subtle border border-hub-border text-yellow-300 font-sans font-medium transition-colors flex items-center space-x-1 disabled:opacity-50"
+                                  className="px-2 py-0.5 rounded text-[11px] bg-hub-bg hover:bg-hub-subtle border border-hub-border text-hub-warning-text font-sans font-medium transition-colors flex items-center space-x-1 disabled:opacity-50"
                                   title="Unstage only this hunk"
                                 >
                                   {hunkActionIndex === hIdx ? (
@@ -925,7 +925,7 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
                                   <button
                                     onClick={() => handleStageHunk(hunk, hIdx)}
                                     disabled={hunkActionIndex === hIdx}
-                                    className="px-2 py-0.5 rounded text-[11px] bg-green-950/70 hover:bg-green-900 border border-green-800 text-green-300 font-sans font-medium transition-colors flex items-center space-x-1 disabled:opacity-50"
+                                    className="px-2 py-0.5 rounded text-[11px] bg-hub-success/15 hover:bg-hub-success/25 border border-hub-success/40 text-hub-success-text font-sans font-medium transition-colors flex items-center space-x-1 disabled:opacity-50"
                                     title="Stage only this hunk"
                                   >
                                     {hunkActionIndex === hIdx ? (
@@ -938,7 +938,7 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
                                   <button
                                     onClick={() => handleDiscardHunk(hunk, hIdx)}
                                     disabled={hunkActionIndex === hIdx}
-                                    className="px-2 py-0.5 rounded text-[11px] bg-hub-bg hover:bg-red-950/60 border border-hub-border hover:border-red-800 text-hub-muted hover:text-red-300 font-sans transition-colors flex items-center space-x-1 disabled:opacity-50"
+                                    className="px-2 py-0.5 rounded text-[11px] bg-hub-bg hover:bg-hub-danger/15 border border-hub-border hover:border-hub-danger/40 text-hub-muted hover:text-hub-danger-text font-sans transition-colors flex items-center space-x-1 disabled:opacity-50"
                                     title="Discard only this hunk"
                                   >
                                     <Trash2 className="w-3 h-3" />
@@ -956,16 +956,16 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
                                 key={lIdx}
                                 className={`flex items-start leading-5 transition-colors ${
                                   line.type === 'add'
-                                    ? 'bg-green-950/40 text-green-300'
+                                    ? 'bg-hub-success/10 text-hub-success-text'
                                     : line.type === 'delete'
-                                    ? 'bg-red-950/40 text-red-300'
+                                    ? 'bg-hub-danger/10 text-hub-danger-text'
                                     : 'text-gray-300 hover:bg-gray-800/30'
                                 }`}
                               >
-                                <div className="w-10 px-2 py-0.5 text-right select-none text-gray-600 text-[11px] shrink-0 border-r border-gray-800">
+                                <div className="w-10 px-2 py-0.5 text-right select-none text-gray-600 text-[11px] shrink-0 border-r border-hub-border">
                                   {line.oldLineNumber || ''}
                                 </div>
-                                <div className="w-10 px-2 py-0.5 text-right select-none text-gray-600 text-[11px] shrink-0 border-r border-gray-800">
+                                <div className="w-10 px-2 py-0.5 text-right select-none text-gray-600 text-[11px] shrink-0 border-r border-hub-border">
                                   {line.newLineNumber || ''}
                                 </div>
                                 <div className="w-5 text-center select-none shrink-0 font-bold">
@@ -987,17 +987,17 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
                           key={idx}
                           className={`flex items-start leading-5 transition-colors ${
                             line.type === 'add'
-                              ? 'bg-green-950/40 text-green-300'
+                              ? 'bg-hub-success/10 text-hub-success-text'
                               : line.type === 'delete'
-                              ? 'bg-red-950/40 text-red-300'
+                              ? 'bg-hub-danger/10 text-hub-danger-text'
                               : 'text-gray-300 hover:bg-gray-800/30'
                           }`}
                         >
                           {/* Line numbers */}
-                          <div className="w-10 px-2 py-0.5 text-right select-none text-gray-600 text-[11px] shrink-0 border-r border-gray-800">
+                          <div className="w-10 px-2 py-0.5 text-right select-none text-gray-600 text-[11px] shrink-0 border-r border-hub-border">
                             {line.oldLineNumber || ''}
                           </div>
-                          <div className="w-10 px-2 py-0.5 text-right select-none text-gray-600 text-[11px] shrink-0 border-r border-gray-800">
+                          <div className="w-10 px-2 py-0.5 text-right select-none text-gray-600 text-[11px] shrink-0 border-r border-hub-border">
                             {line.newLineNumber || ''}
                           </div>
                           {/* Sign */}
@@ -1019,13 +1019,13 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
                 <CheckCircle2 className="w-12 h-12 text-hub-success-text opacity-70" />
                 <h3 className="font-bold text-hub-text text-sm">Working directory is clean</h3>
                 <p className="text-xs text-hub-muted max-w-sm">
-                  There are no uncommitted changes on branch <code className="text-purple-300">{currentBranch}</code>.
+                  There are no uncommitted changes on branch <code className="text-hub-purple-text">{currentBranch}</code>.
                 </p>
                 <button
                   onClick={() => setActiveSubTab('history')}
-                  className="mt-2 flex items-center space-x-1.5 px-3 py-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border rounded-md text-xs font-semibold text-hub-text transition-colors"
+                  className="mt-2 flex items-center space-x-1.5 px-3 py-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border rounded-xl text-xs font-semibold text-hub-text transition-colors"
                 >
-                  <History className="w-3.5 h-3.5 text-purple-400" />
+                  <History className="w-3.5 h-3.5 text-hub-purple-text" />
                   <span>View Branch History</span>
                 </button>
               </div>
@@ -1091,9 +1091,9 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
                       <div className="flex items-center justify-between text-[11px] text-hub-muted pt-0.5">
                         <div className="flex items-center space-x-1.5 truncate">
                           {isAgent ? (
-                            <Bot className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                            <Bot className="w-3.5 h-3.5 text-hub-purple-text shrink-0" />
                           ) : (
-                            <div className="w-3.5 h-3.5 rounded-full bg-indigo-600 text-white font-bold text-[8px] flex items-center justify-center shrink-0">
+                            <div className="w-3.5 h-3.5 rounded-full bg-hub-accent text-zinc-950 font-bold text-[8px] flex items-center justify-center shrink-0">
                               {commit.author.substring(0, 2).toUpperCase()}
                             </div>
                           )}
@@ -1101,7 +1101,7 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
                         </div>
 
                         {isAgent && (
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-purple-950 text-purple-300 border border-purple-800">
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-hub-purple/15 text-hub-purple-text border border-hub-purple/35">
                             Helper
                           </span>
                         )}
@@ -1118,7 +1118,7 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
             {selectedCommit ? (
               <div className="p-5 space-y-4">
                 {/* Commit Header Card */}
-                <div className="bg-hub-surface border border-hub-border rounded-md p-4 space-y-3">
+                <div className="bg-hub-surface border border-hub-border rounded-xl p-4 space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-hub-border pb-3">
                     <h3 className="font-bold text-sm sm:text-base text-hub-text">
                       {selectedCommit.message}
@@ -1152,7 +1152,7 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
                     {selectedCommit.trailer && (
                       <>
                         <div>•</div>
-                        <div className="font-mono text-purple-300">
+                        <div className="font-mono text-hub-purple-text">
                           {selectedCommit.trailer}
                         </div>
                       </>
@@ -1172,20 +1172,20 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
                       <span>Loading commit diffs...</span>
                     </div>
                   ) : commitDiffs.length === 0 ? (
-                    <div className="p-6 text-center text-hub-muted text-xs border border-hub-border rounded-md bg-hub-surface">
+                    <div className="p-6 text-center text-hub-muted text-xs border border-hub-border rounded-xl bg-hub-surface">
                       No file diffs recorded for this commit.
                     </div>
                   ) : (
                     <div className="space-y-4">
                       {commitDiffs.map((diff) => (
-                        <div key={diff.filename} className="border border-hub-border rounded-md overflow-hidden bg-[#0d1117]">
+                        <div key={diff.filename} className="border border-hub-border rounded-xl overflow-hidden bg-[#0d1117]">
                           <div className="px-4 py-2 bg-hub-surface border-b border-hub-border flex items-center justify-between text-xs">
                             <span className="font-mono font-bold text-hub-text">
                               {diff.filename}
                             </span>
                             <div className="flex items-center space-x-2 font-mono text-[11px]">
                               <span className="text-hub-success-text">+{diff.additions}</span>
-                              <span className="text-red-400">-{diff.deletions}</span>
+                              <span className="text-hub-danger-text">-{diff.deletions}</span>
                             </div>
                           </div>
 
@@ -1195,16 +1195,16 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
                                 key={idx}
                                 className={`flex items-start leading-5 ${
                                   line.type === 'add'
-                                    ? 'bg-green-950/40 text-green-300'
+                                    ? 'bg-hub-success/10 text-hub-success-text'
                                     : line.type === 'delete'
-                                    ? 'bg-red-950/40 text-red-300'
+                                    ? 'bg-hub-danger/10 text-hub-danger-text'
                                     : 'text-gray-300'
                                 }`}
                               >
-                                <div className="w-10 px-2 py-0.5 text-right select-none text-gray-600 text-[11px] shrink-0 border-r border-gray-800">
+                                <div className="w-10 px-2 py-0.5 text-right select-none text-gray-600 text-[11px] shrink-0 border-r border-hub-border">
                                   {line.oldLineNumber || ''}
                                 </div>
-                                <div className="w-10 px-2 py-0.5 text-right select-none text-gray-600 text-[11px] shrink-0 border-r border-gray-800">
+                                <div className="w-10 px-2 py-0.5 text-right select-none text-gray-600 text-[11px] shrink-0 border-r border-hub-border">
                                   {line.newLineNumber || ''}
                                 </div>
                                 <div className="w-5 text-center select-none shrink-0 font-bold">
@@ -1280,7 +1280,7 @@ export const DesktopView: React.FC<DesktopViewProps> = ({
                 <button
                   type="submit"
                   disabled={isCreatingBranch || !newBranchInput.trim()}
-                  className="flex items-center space-x-1.5 px-4 py-1.5 rounded bg-hub-accent text-white text-xs font-semibold hover:bg-blue-600 disabled:opacity-50"
+                  className="flex items-center space-x-1.5 px-4 py-1.5 rounded bg-hub-accent text-zinc-950 text-xs font-bold hover:brightness-110 disabled:opacity-50"
                 >
                   {isCreatingBranch ? (
                     <>

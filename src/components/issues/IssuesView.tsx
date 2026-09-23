@@ -87,7 +87,7 @@ export const IssuesView: React.FC<IssuesViewProps> = ({ repoName, onAssignToAgen
         <div className="flex items-center space-x-2">
           <button
             onClick={() => setFilter('open')}
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
               filter === 'open' ? 'bg-hub-subtle text-hub-text border-hub-border font-bold' : 'text-hub-muted border-transparent hover:text-white'
             }`}
           >
@@ -97,18 +97,18 @@ export const IssuesView: React.FC<IssuesViewProps> = ({ repoName, onAssignToAgen
 
           <button
             onClick={() => setFilter('closed')}
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
               filter === 'closed' ? 'bg-hub-subtle text-hub-text border-hub-border font-bold' : 'text-hub-muted border-transparent hover:text-white'
             }`}
           >
-            <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />
+            <CheckCircle2 className="w-3.5 h-3.5 text-hub-purple-text" />
             <span>{closedIssues.length} Closed</span>
           </button>
         </div>
 
         <button
           onClick={() => setShowNewIssue(!showNewIssue)}
-          className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-success hover:bg-green-700 text-white rounded text-xs font-semibold transition-colors"
+          className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-lg text-xs font-bold transition-all"
         >
           <Plus className="w-3.5 h-3.5" />
           <span>New Issue</span>
@@ -116,7 +116,7 @@ export const IssuesView: React.FC<IssuesViewProps> = ({ repoName, onAssignToAgen
       </div>
 
       {showNewIssue && (
-        <form onSubmit={handleCreateIssue} className="border border-hub-border rounded-md p-4 bg-hub-surface space-y-3 text-xs">
+        <form onSubmit={handleCreateIssue} className="border border-hub-border rounded-xl p-5 bg-hub-surface space-y-3 text-xs">
           <span className="font-bold text-hub-text block">Create Issue in {repoName}</span>
           <input
             type="text"
@@ -124,14 +124,14 @@ export const IssuesView: React.FC<IssuesViewProps> = ({ repoName, onAssignToAgen
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             autoFocus
-            className="w-full bg-hub-bg border border-hub-border rounded px-3 py-1.5 text-hub-text focus:outline-none focus:border-hub-link"
+            className="w-full bg-hub-bg border border-hub-border rounded-lg px-3 py-1.5 text-hub-text focus:outline-none focus:border-hub-link"
           />
           <textarea
             placeholder="Leave a description for the operator or Helper..."
             rows={3}
             value={newBody}
             onChange={(e) => setNewBody(e.target.value)}
-            className="w-full bg-hub-bg border border-hub-border rounded p-2 text-hub-text focus:outline-none focus:border-hub-link"
+            className="w-full bg-hub-bg border border-hub-border rounded-lg p-2 text-hub-text focus:outline-none focus:border-hub-link"
           />
           <div className="flex justify-end space-x-2">
             <button
@@ -144,7 +144,7 @@ export const IssuesView: React.FC<IssuesViewProps> = ({ repoName, onAssignToAgen
             <button
               type="submit"
               disabled={!newTitle.trim()}
-              className="px-3 py-1 bg-hub-success disabled:opacity-50 text-white rounded font-semibold"
+              className="px-3 py-1 bg-hub-accent hover:brightness-110 disabled:opacity-50 text-zinc-950 rounded-lg font-bold"
             >
               Submit Issue
             </button>
@@ -164,7 +164,7 @@ export const IssuesView: React.FC<IssuesViewProps> = ({ repoName, onAssignToAgen
           <p>No {filter} issues in {repoName}.</p>
         </div>
       ) : (
-        <div className="border border-hub-border rounded-md bg-hub-surface divide-y divide-hub-border overflow-hidden">
+        <div className="border border-hub-border rounded-xl bg-hub-surface divide-y divide-hub-border overflow-hidden">
           {filteredIssues.map((issue) => (
             <div key={issue.id} className="p-3.5 hover:bg-hub-subtle/50 transition-colors flex items-start justify-between text-xs gap-3">
               <div className="flex items-start space-x-2.5">
@@ -174,9 +174,9 @@ export const IssuesView: React.FC<IssuesViewProps> = ({ repoName, onAssignToAgen
                   className="mt-0.5"
                 >
                   {issue.status === 'open' ? (
-                    <CircleDot className="w-4 h-4 text-hub-success-text hover:text-green-300" />
+                    <CircleDot className="w-4 h-4 text-hub-success-text hover:text-hub-success-text" />
                   ) : (
-                    <CheckCircle2 className="w-4 h-4 text-purple-400 hover:text-purple-300" />
+                    <CheckCircle2 className="w-4 h-4 text-hub-purple-text hover:text-hub-purple-text" />
                   )}
                 </button>
                 <div className="space-y-1">
@@ -185,8 +185,8 @@ export const IssuesView: React.FC<IssuesViewProps> = ({ repoName, onAssignToAgen
                       {issue.title}
                     </span>
                     {issue.assignedToAgent && (
-                      <span className="inline-flex items-center space-x-1 px-2 py-0.2 rounded-full text-[10px] font-mono bg-purple-950 text-purple-300 border border-purple-800">
-                        <Bot className="w-3 h-3 text-purple-400" />
+                      <span className="inline-flex items-center space-x-1 px-2 py-0.2 rounded-full text-[10px] font-mono bg-hub-purple/15 text-hub-purple-text border border-hub-purple/35">
+                        <Bot className="w-3 h-3 text-hub-purple-text" />
                         <span>Assigned to Helper</span>
                       </span>
                     )}
@@ -207,7 +207,7 @@ export const IssuesView: React.FC<IssuesViewProps> = ({ repoName, onAssignToAgen
                 {!issue.assignedToAgent && issue.status === 'open' && (
                   <button
                     onClick={() => handleAssignAgent(issue)}
-                    className="flex items-center space-x-1 px-2.5 py-1 rounded bg-purple-950/60 hover:bg-purple-900 border border-purple-700 text-purple-300 text-[11px] font-medium transition-colors"
+                    className="flex items-center space-x-1 px-2.5 py-1 rounded bg-hub-purple/15 hover:bg-hub-purple/25 border border-hub-purple/35 text-hub-purple-text text-[11px] font-medium transition-colors"
                     title="Kick off Helper Agent task for this issue"
                   >
                     <Sparkles className="w-3 h-3" />

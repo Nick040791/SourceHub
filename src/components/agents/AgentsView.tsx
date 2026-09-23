@@ -189,21 +189,21 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Helper Hero & North Star UX (§4 & §9) */}
-      <div className="bg-gradient-to-r from-purple-950/40 via-hub-surface to-hub-surface border border-purple-900/40 rounded-lg p-5">
+      <div className="bg-hub-surface border border-hub-border rounded-xl p-5 sm:p-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center space-x-2">
-              <div className="p-1.5 rounded-md bg-purple-600/20 text-purple-400 border border-purple-500/30">
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-hub-purple/15 text-hub-purple-text border border-hub-purple/30">
                 <Bot className="w-5 h-5" />
               </div>
-              <h2 className="text-base font-bold text-hub-text">
+              <h2 className="text-base font-semibold text-hub-text tracking-tight">
                 SourceHub Helper — Async Repository Agent
               </h2>
-              <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-purple-900/60 text-purple-300 border border-purple-700">
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-mono uppercase bg-hub-purple/15 text-hub-purple-text border border-hub-purple/30">
                 {activeProviderName} Active
               </span>
               {activeThinkingEffort && activeThinkingEffort !== 'none' && (
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-purple-950 text-purple-400 border border-purple-800">
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-mono uppercase bg-hub-subtle text-hub-purple-text border border-hub-border">
                   Thinking: {activeThinkingEffort}
                 </span>
               )}
@@ -217,7 +217,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
             <button
               onClick={loadRuns}
               disabled={isLoadingRuns}
-              className="p-1.5 text-hub-muted hover:text-hub-text bg-hub-surface border border-hub-border rounded-md"
+              className="p-1.5 text-hub-muted hover:text-hub-text bg-hub-bg hover:bg-hub-subtle border border-hub-border rounded-lg transition-colors"
               title="Refresh agent runs"
             >
               <RotateCw className={`w-3.5 h-3.5 ${isLoadingRuns ? 'animate-spin' : ''}`} />
@@ -226,21 +226,21 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
         </div>
 
         {/* Prompt Input Form (§9.1) */}
-        <form onSubmit={handleLaunchTask} className="mt-4 pt-4 border-t border-hub-border/60 space-y-3">
+        <form onSubmit={handleLaunchTask} className="mt-5 pt-5 border-t border-hub-border/50 space-y-3.5">
           <div className="relative">
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="What should Helper analyze, build, or refactor? (e.g. 'Optimize repository branch diffing and add test coverage')"
               rows={2}
-              className="w-full bg-hub-bg border border-hub-border rounded-lg p-3 text-xs text-hub-text placeholder-hub-muted focus:outline-none focus:border-purple-500 transition-colors shadow-inner"
+              className="w-full bg-hub-bg border border-hub-border rounded-xl p-3.5 text-xs text-hub-text placeholder-hub-muted focus:outline-none focus:border-hub-accent/50 transition-colors"
             />
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
             <div className="flex flex-wrap items-center gap-3">
               {/* Target base branch */}
-              <div className="flex items-center space-x-1.5 bg-hub-bg border border-hub-border rounded px-2.5 py-1">
+              <div className="flex items-center space-x-1.5 bg-hub-bg border border-hub-border rounded-lg px-2.5 py-1.5">
                 <GitBranch className="w-3.5 h-3.5 text-hub-muted" />
                 <span className="text-hub-muted">Base:</span>
                 <select
@@ -255,14 +255,14 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
               </div>
 
               {/* Mode toggle: Branch only vs Open PR (§3 A4 & §9.1) */}
-              <div className="flex items-center space-x-1 bg-hub-bg border border-hub-border rounded p-0.5">
+              <div className="flex items-center space-x-0.5 bg-hub-bg border border-hub-border rounded-lg p-0.5">
                 <button
                   type="button"
                   onClick={() => setMode('open_pr')}
-                  className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors ${
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
                     mode === 'open_pr'
-                      ? 'bg-hub-subtle text-purple-300 font-semibold'
-                      : 'text-hub-muted hover:text-white'
+                      ? 'bg-hub-subtle text-hub-text font-semibold'
+                      : 'text-hub-muted hover:text-hub-text'
                   }`}
                 >
                   Open PR (Default)
@@ -270,10 +270,10 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setMode('branch_only')}
-                  className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors ${
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
                     mode === 'branch_only'
-                      ? 'bg-hub-subtle text-purple-300 font-semibold'
-                      : 'text-hub-muted hover:text-white'
+                      ? 'bg-hub-subtle text-hub-text font-semibold'
+                      : 'text-hub-muted hover:text-hub-text'
                   }`}
                 >
                   Branch only
@@ -281,8 +281,8 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
               </div>
 
               {/* Model / Runtime Selector populated from Ollama endpoint */}
-              <div className="flex items-center space-x-1.5 bg-hub-bg border border-hub-border rounded px-2.5 py-1 font-mono text-[11px]">
-                <Cpu className="w-3.5 h-3.5 text-purple-400" />
+              <div className="flex items-center space-x-1.5 bg-hub-bg border border-hub-border rounded-lg px-2.5 py-1.5 font-mono text-[11px]">
+                <Cpu className="w-3.5 h-3.5 text-hub-purple-text" />
                 <span className="text-hub-muted">Model:</span>
                 <select
                   value={model}
@@ -301,7 +301,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
             <button
               type="submit"
               disabled={isLaunching || !prompt.trim()}
-              className="flex items-center space-x-1.5 px-4 py-1.5 bg-hub-success hover:bg-green-700 text-white rounded-md text-xs font-semibold shadow-sm transition-colors disabled:opacity-50"
+              className="flex items-center space-x-1.5 px-4 py-2 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-lg text-xs font-bold shadow-sm transition-all disabled:opacity-50"
             >
               {isLaunching ? (
                 <>
@@ -321,11 +321,11 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
 
       {/* Main Agent Runs Grid: List on Left, Active Run Inspection on Right */}
       {runs.length === 0 ? (
-        <div className="border border-hub-border border-dashed rounded-md p-10 text-center space-y-3 bg-hub-surface/40">
-          <Bot className="w-8 h-8 text-purple-400 mx-auto" />
-          <h3 className="font-bold text-hub-text text-sm">No Helper agent tasks yet</h3>
-          <p className="text-xs text-hub-muted max-w-md mx-auto">
-            Helper runs locally or against cloud Ollama models (<code className="text-purple-300">glm-5.3-flash:cloud</code>). Enter a task prompt above to launch your first session.
+        <div className="border border-hub-border border-dashed rounded-xl p-12 text-center space-y-3 bg-hub-bg/40">
+          <Bot className="w-8 h-8 text-hub-purple-text mx-auto opacity-80" />
+          <h3 className="font-semibold text-hub-text text-sm">No Helper agent tasks yet</h3>
+          <p className="text-xs text-hub-muted max-w-md mx-auto leading-relaxed">
+            Helper runs locally or against cloud Ollama models (<code className="text-hub-purple-text font-mono">glm-5.3-flash:cloud</code>). Enter a task prompt above to launch your first session.
           </p>
         </div>
       ) : (
@@ -339,7 +339,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
               <span className="text-[11px] text-hub-muted font-mono">{runs.length} sessions</span>
             </div>
 
-            <div className="border border-hub-border rounded-md bg-hub-surface divide-y divide-hub-border overflow-hidden">
+            <div className="border border-hub-border rounded-xl bg-hub-surface divide-y divide-hub-border/60 overflow-hidden">
               {runs.map((run) => {
                 const isSelected = selectedRun?.id === run.id;
                 const isRunning = run.state !== 'ready_for_review' && run.state !== 'failed';
@@ -348,21 +348,21 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
                   <div
                     key={run.id}
                     onClick={() => setSelectedRunId(run.id)}
-                    className={`p-3 cursor-pointer transition-colors text-xs space-y-2 ${
-                      isSelected ? 'bg-hub-subtle border-l-2 border-l-purple-500' : 'hover:bg-hub-subtle/50'
+                    className={`p-3.5 cursor-pointer transition-colors text-xs space-y-2 ${
+                      isSelected ? 'bg-hub-subtle/80 border-l-2 border-l-hub-purple' : 'hover:bg-hub-subtle/40'
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-hub-text flex items-center space-x-1.5">
-                        <Bot className={`w-3.5 h-3.5 ${isRunning ? 'text-hub-accent animate-pulse' : 'text-purple-400'}`} />
+                        <Bot className={`w-3.5 h-3.5 ${isRunning ? 'text-hub-accent animate-pulse' : 'text-hub-purple-text'}`} />
                         <span>{run.id}</span>
                       </span>
 
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono uppercase font-semibold ${
+                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono uppercase font-semibold ${
                         run.state === 'ready_for_review'
-                          ? 'bg-purple-950 text-purple-300 border border-purple-800'
+                          ? 'bg-hub-purple/15 text-hub-purple-text border border-hub-purple/35'
                           : run.state === 'in_progress' || run.state === 'pushing' || run.state === 'checks_pending'
-                          ? 'bg-blue-950 text-blue-300 border border-blue-800'
+                          ? 'bg-hub-accent/15 text-hub-accent border border-hub-accent/35'
                           : 'bg-hub-bg text-hub-muted border border-hub-border'
                       }`}>
                         {run.state.replace('_', ' ')}
@@ -389,15 +389,15 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
           {/* Selected Run Inspection */}
           {selectedRun && (
             <div className="lg:col-span-8 space-y-4">
-              <div className="border border-hub-border rounded-md bg-hub-surface p-5 space-y-4">
+              <div className="border border-hub-border rounded-xl bg-hub-surface p-5 sm:p-6 space-y-5">
                 {/* Header info */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-hub-border pb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-hub-border/60 pb-4">
                   <div className="space-y-1">
-                    <div className="flex items-center space-x-2">
-                      <h3 className="font-bold text-base text-hub-text">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold text-base text-hub-text tracking-tight">
                         {selectedRun.slug}
                       </h3>
-                      <span className="px-2 py-0.5 rounded text-[11px] font-mono bg-purple-950/80 text-purple-300 border border-purple-800">
+                      <span className="px-2 py-0.5 rounded-md text-[11px] font-mono bg-hub-purple/15 text-hub-purple-text border border-hub-purple/30">
                         {selectedRun.model}
                       </span>
                     </div>
@@ -410,7 +410,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
                     {selectedRun.prId && (
                       <button
                         onClick={() => onNavigateToPR(selectedRun.prId!)}
-                        className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-subtle hover:bg-hub-border border border-hub-border rounded-md text-xs font-semibold text-hub-link transition-colors"
+                        className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border rounded-lg text-xs font-semibold text-hub-link transition-colors"
                       >
                         <GitPullRequest className="w-3.5 h-3.5 text-hub-success-text" />
                         <span>View PR #{selectedRun.prId}</span>
@@ -420,7 +420,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
                 </div>
 
                 {/* Prompt Card */}
-                <div className="bg-hub-bg border border-hub-border rounded-md p-3.5 text-xs text-hub-text space-y-1">
+                <div className="bg-hub-bg border border-hub-border rounded-xl p-4 text-xs text-hub-text space-y-1.5">
                   <span className="text-[11px] font-bold text-hub-muted uppercase tracking-wider block">
                     User Instruction
                   </span>
@@ -433,10 +433,10 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs font-semibold text-hub-text">
                     <span className="flex items-center space-x-1.5">
-                      <Layers className="w-4 h-4 text-purple-400" />
+                      <Layers className="w-4 h-4 text-hub-purple-text" />
                       <span>State Machine Pipeline (§9.2)</span>
                     </span>
-                    <span className="font-mono text-purple-300 text-[11px]">
+                    <span className="font-mono text-hub-purple-text text-[11px]">
                       State: {selectedRun.state}
                     </span>
                   </div>
@@ -447,17 +447,17 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
                       return (
                         <div
                           key={step.key}
-                          className={`p-2 rounded border text-center text-[11px] font-medium transition-all ${
+                          className={`p-2.5 rounded-lg border text-center text-[11px] font-medium transition-all ${
                             status === 'completed'
-                              ? 'bg-purple-950/40 border-purple-800 text-purple-300'
+                              ? 'bg-hub-purple/10 border-hub-purple/35 text-hub-purple-text'
                               : status === 'current'
-                              ? 'bg-hub-accent/20 border-hub-accent text-white shadow-sm shadow-blue-500/20 animate-pulse'
-                              : 'bg-hub-bg border-hub-border text-hub-muted opacity-60'
+                              ? 'bg-hub-accent/15 border-hub-accent text-hub-accent animate-pulse'
+                              : 'bg-hub-bg border-hub-border text-hub-muted opacity-55'
                           }`}
                         >
                           <div className="flex justify-center mb-1">
                             {status === 'completed' ? (
-                              <Check className="w-3.5 h-3.5 text-purple-400" />
+                              <Check className="w-3.5 h-3.5 text-hub-purple-text" />
                             ) : status === 'current' ? (
                               <Loader2 className="w-3.5 h-3.5 text-hub-accent animate-spin" />
                             ) : (
@@ -473,14 +473,14 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
 
                 {/* Files Modified / Touched */}
                 {selectedRun.filesTouched && selectedRun.filesTouched.length > 0 && (
-                  <div className="bg-hub-bg border border-hub-border rounded-md p-3 text-xs space-y-2">
+                  <div className="bg-hub-bg border border-hub-border rounded-xl p-3.5 text-xs space-y-2">
                     <span className="text-[11px] font-bold text-hub-muted uppercase tracking-wider flex items-center space-x-1.5">
-                      <FileCode className="w-3.5 h-3.5 text-purple-400" />
+                      <FileCode className="w-3.5 h-3.5 text-hub-purple-text" />
                       <span>Modified Files ({selectedRun.filesTouched.length})</span>
                     </span>
                     <div className="flex flex-wrap gap-1.5">
                       {selectedRun.filesTouched.map((f) => (
-                        <span key={f} className="px-2 py-0.5 rounded bg-hub-surface border border-hub-border font-mono text-[11px] text-hub-text">
+                        <span key={f} className="px-2 py-0.5 rounded-md bg-hub-surface border border-hub-border/70 font-mono text-[11px] text-hub-text">
                           {f}
                         </span>
                       ))}
@@ -494,12 +494,12 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
                     Run Timeline Events ({selectedRun.timeline.length})
                   </span>
 
-                  <div className="space-y-2 pl-4 border-l-2 border-purple-900/80 ml-2">
+                  <div className="space-y-2.5 pl-4 border-l-2 border-hub-purple/35 ml-2">
                     {selectedRun.timeline.map((event) => (
-                      <div key={event.id} className="bg-hub-bg border border-hub-border rounded-md p-3 text-xs space-y-1">
+                      <div key={event.id} className="bg-hub-bg border border-hub-border rounded-xl p-3.5 text-xs space-y-1.5">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-1.5 font-bold text-hub-text">
-                            <span className="w-2 h-2 rounded-full bg-purple-400" />
+                          <div className="flex items-center space-x-1.5 font-semibold text-hub-text">
+                            <span className="w-2 h-2 rounded-full bg-hub-purple" />
                             <span>{event.title}</span>
                           </div>
                           <span className="text-[11px] text-hub-muted font-mono">{event.timestamp}</span>

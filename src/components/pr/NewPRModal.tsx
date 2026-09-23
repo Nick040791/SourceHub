@@ -134,7 +134,7 @@ export const NewPRModal: React.FC<NewPRModalProps> = ({
         {/* Form & Comparison Bar */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 space-y-4">
           {error && (
-            <div className="p-2.5 bg-red-950/50 border border-red-800 text-red-300 rounded text-xs">
+            <div className="p-2.5 bg-hub-danger/15 border border-hub-danger/40 text-hub-danger-text rounded text-xs">
               {error}
             </div>
           )}
@@ -184,7 +184,7 @@ export const NewPRModal: React.FC<NewPRModalProps> = ({
                   <span>Comparing branches...</span>
                 </div>
               ) : baseBranch === headBranch ? (
-                <span className="text-yellow-400">Choose two different branches to compare.</span>
+                <span className="text-hub-warning-text">Choose two different branches to compare.</span>
               ) : (
                 <>
                   <div className="flex items-center space-x-1.5 text-hub-success-text font-bold">
@@ -225,7 +225,7 @@ export const NewPRModal: React.FC<NewPRModalProps> = ({
                 type="button"
                 onClick={handleGenerateDescription}
                 disabled={isGeneratingDescription || baseBranch === headBranch}
-                className="text-xs text-purple-400 hover:text-purple-300 flex items-center space-x-1.5 disabled:opacity-50 transition-colors font-medium px-2 py-0.5 rounded bg-purple-950/40 border border-purple-800/50 hover:bg-purple-900/40"
+                className="text-xs text-hub-purple-text hover:text-hub-purple-text flex items-center space-x-1.5 disabled:opacity-50 transition-colors font-medium px-2 py-0.5 rounded bg-hub-purple/10 border border-hub-purple/30 hover:bg-hub-purple/15"
                 title="Use Helper to analyze commits and diffs to generate a description"
               >
                 {isGeneratingDescription ? (
@@ -235,7 +235,7 @@ export const NewPRModal: React.FC<NewPRModalProps> = ({
                   </>
                 ) : (
                   <>
-                    <Sparkles className="w-3 h-3 text-purple-400" />
+                    <Sparkles className="w-3 h-3 text-hub-purple-text" />
                     <span>Generate description with Helper</span>
                   </>
                 )}
@@ -261,7 +261,7 @@ export const NewPRModal: React.FC<NewPRModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting || !title.trim() || baseBranch === headBranch}
-              className="px-3.5 py-1.5 bg-hub-success hover:bg-green-700 disabled:opacity-50 text-white rounded font-semibold transition-colors flex items-center space-x-1.5"
+              className="px-3.5 py-1.5 bg-hub-accent hover:brightness-110 disabled:opacity-50 text-zinc-950 rounded-lg font-semibold transition-colors flex items-center space-x-1.5"
             >
               <GitPullRequest className="w-3.5 h-3.5" />
               <span>{isSubmitting ? 'Creating...' : 'Create pull request'}</span>
