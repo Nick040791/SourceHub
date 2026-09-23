@@ -223,7 +223,7 @@ queued
 
 **Timeline events (examples):**
 
-- `agent.started` — “SourceHub Helper started on your behalf”  
+- `agent.started` — “Helper started on your behalf”  
 - `agent.branch_created` — branch name  
 - `agent.commits_pushed` — SHAs  
 - `agent.pr_opened` / `agent.pr_updated`  

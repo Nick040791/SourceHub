@@ -185,7 +185,7 @@ export class AgentService {
 
     addEvent(
       'agent.started',
-      'SourceHub Helper started on your behalf',
+      'Helper started on your behalf',
       `Initialized agent run using Ollama model ${model}. Target: ${targetBranch}`
     );
 
@@ -257,7 +257,7 @@ export class AgentService {
         .map((c: any) => `- ${c.shortSha}: ${c.message} (${c.author})`)
         .join('\n');
 
-      const systemPrompt = `You are SourceHub Helper, an expert software engineering AI agent working on repository "${repoName}".
+      const systemPrompt = `You are Helper, an expert software engineering AI agent working on repository "${repoName}".
 Operator ${operator} has requested a task.
 You have FULL DIRECT ACCESS to the repository files, file tree, git history, and source code loaded below in this session context.
 Provide direct, accurate, line-by-line code reviews, architectural advice, and concrete implementation changes based directly on the actual files loaded in this session.
@@ -372,7 +372,7 @@ ${prompt}
       db.prepare("UPDATE agent_runs SET state = 'checks_pending' WHERE id = ?").run(runId);
 
       const prTitle = `agent: ${prompt.length > 60 ? prompt.substring(0, 57) + '...' : prompt}`;
-      const prBody = `🤖 **SourceHub Helper automated PR**\n\n**Operator:** ${operator}\n**Model:** \`${model}\`\n**Audit Trailer:** \`SourceHub-Agent-Run: ${runId}\`\n\n### Task Prompt\n> ${prompt}\n\n### Agent Implementation Summary\n${ollamaResponse}`;
+      const prBody = `**Helper automated PR**\n\n**Operator:** ${operator}\n**Model:** \`${model}\`\n**Audit Trailer:** \`SourceHub-Agent-Run: ${runId}\`\n\n### Task Prompt\n> ${prompt}\n\n### Agent Implementation Summary\n${ollamaResponse}`;
 
       const resDb = db.prepare(`
         INSERT INTO pull_requests (repo_name, title, body, state, author, is_agent, agent_run_id, source_branch, target_branch, created_at, updated_at)
@@ -398,7 +398,7 @@ ${prompt}
         id: prId,
         title: prTitle,
         repoName,
-        author: 'SourceHub Helper',
+        author: 'Helper',
         sourceBranch: targetBranch,
         targetBranch: baseBranch,
         isAgent: true,
@@ -505,7 +505,7 @@ ${prompt}
     const commitList = commits.map(c => `- ${c.shortSha || c.sha?.substring(0, 7)}: ${c.message}`).join('\n');
     const fileList = diffs.slice(0, 15).map(d => `- ${d.filename} (+${d.additions} / -${d.deletions})`).join('\n');
 
-    const prompt = `You are SourceHub Helper, an expert AI software engineer.
+    const prompt = `You are Helper, an expert AI software engineer.
 Generate a concise, professional GitHub-style Pull Request title and description in Markdown for these changes:
 Repository: ${repoName}
 Base branch: ${baseBranch}
@@ -589,7 +589,7 @@ TITLE: <concise conventional title>
       const commitList = commits.map((c: any) => `- ${c.shortSha || c.sha?.substring(0, 7)}: ${c.message} (${c.author})`).join('\n');
       const fileList = snapshot.files.map(f => `=== FILE: ${f.path} ===\n${f.content}\n`).join('\n');
 
-      const prompt = `You are SourceHub Helper, an expert staff software engineer performing a comprehensive line-by-line and architectural Pull Request code review.
+      const prompt = `You are Helper, an expert staff software engineer performing a comprehensive line-by-line and architectural Pull Request code review.
 
 Pull Request #${pr.id}: ${pr.title}
 Author: ${pr.author}
@@ -609,7 +609,7 @@ ${fileList}
 
 Provide a rigorous, constructive GitHub-style code review formatted in Markdown.
 Structure your review with:
-## 🤖 Helper Code Review
+## Helper Code Review
 
 ### 1. Overall Assessment
 State your verdict clearly: **LGTM (Approved)**, **LGTM with Suggestions**, or **Changes Requested**, with a 2-3 sentence executive summary.
@@ -635,7 +635,7 @@ Checklist of recommended tests to run before merging.
       }
 
       if (!review) {
-        review = `## 🤖 Helper Code Review\n\n**Overall Assessment:** Review analysis completed with model \`${model}\`.\n\n- Examined diff between \`${pr.source_branch}\` and \`${pr.target_branch}\`.\n- Verified branch diff (${(diff || '').split('\n').length} lines).`;
+        review = `## Helper Code Review\n\n**Overall Assessment:** Review analysis completed with model \`${model}\`.\n\n- Examined diff between \`${pr.source_branch}\` and \`${pr.target_branch}\`.\n- Verified branch diff (${(diff || '').split('\n').length} lines).`;
       }
 
       // Save review as a PR comment
@@ -676,7 +676,7 @@ Checklist of recommended tests to run before merging.
         .map(c => `[${c.author} at ${c.created_at}]:\n${c.content}`)
         .join('\n\n---\n\n');
 
-      const prompt = `You are SourceHub Helper, an expert software engineer addressing review feedback on Pull Request #${pr.id}: "${pr.title}".
+      const prompt = `You are Helper, an expert software engineer addressing review feedback on Pull Request #${pr.id}: "${pr.title}".
 
 PR Details:
 - Branch: ${pr.source_branch} -> ${pr.target_branch}
@@ -708,7 +708,7 @@ Analyze all feedback above and provide:
       }
 
       if (!response) {
-        response = `🤖 **Helper Resolution:** Processed review comments for \`${pr.source_branch}\`. All items reviewed against current diff.`;
+        response = `**Helper Resolution:** Processed review comments for \`${pr.source_branch}\`. All items reviewed against current diff.`;
       }
 
       db.prepare(`

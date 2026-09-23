@@ -4,7 +4,6 @@ import {
   GitCommit, 
   Folder, 
   FileText, 
-  Bot, 
   Clock, 
   Check, 
   Copy, 
@@ -19,6 +18,7 @@ import {
   Loader2,
   FolderGit2
 } from 'lucide-react';
+import { HelperAvatar } from '../agents/HelperAvatar';
 import { Repository, FileItem, Commit, BlameLine } from '../../types';
 import { api } from '../../services/api';
 import { MarkdownDocView } from '../common/MarkdownDocView';
@@ -167,7 +167,7 @@ export const CodeBrowser: React.FC<CodeBrowserProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center space-x-2 flex-wrap gap-y-2">
           {/* Branch dropdown */}
-          <div className="relative inline-flex items-center bg-hub-surface border border-hub-border rounded-md px-3 py-1.5 text-xs font-medium text-hub-text hover:bg-hub-subtle cursor-pointer">
+          <div className="relative inline-flex items-center bg-hub-surface border border-hub-border rounded-lg px-3 py-1.5 text-xs font-medium text-hub-text hover:bg-hub-subtle cursor-pointer">
             <GitBranch className="w-3.5 h-3.5 mr-1.5 text-hub-muted" />
             <select
               value={selectedBranch}
@@ -188,7 +188,7 @@ export const CodeBrowser: React.FC<CodeBrowserProps> = ({
           {/* New branch button */}
           <button
             onClick={() => setShowNewBranchModal(true)}
-            className="flex items-center space-x-1 px-2.5 py-1.5 bg-hub-surface hover:bg-hub-subtle border border-hub-border rounded-md text-xs text-hub-text transition-colors"
+            className="flex items-center gap-1 px-2.5 py-1.5 bg-hub-surface hover:bg-hub-subtle border border-hub-border rounded-lg text-xs text-hub-muted hover:text-hub-text transition-colors"
             title="Create new branch"
           >
             <Plus className="w-3 h-3 text-hub-muted" />
@@ -206,7 +206,7 @@ export const CodeBrowser: React.FC<CodeBrowserProps> = ({
         <div className="flex items-center space-x-2 text-xs">
           <button
             onClick={() => setShowHistoryModal(true)}
-            className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-surface hover:bg-hub-subtle border border-hub-border rounded-md text-hub-text transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-hub-surface hover:bg-hub-subtle border border-hub-border rounded-lg text-hub-text transition-colors"
           >
             <History className="w-3.5 h-3.5 text-hub-muted" />
             <span>{commits.length} Commits</span>
@@ -247,34 +247,34 @@ export const CodeBrowser: React.FC<CodeBrowserProps> = ({
         </div>
       )}
 
-      {/* Latest commit banner */}
+      {/* Latest commit + file table as one rounded chrome unit */}
       {latestCommit && (
-        <div className="bg-hub-surface border border-hub-border rounded-t-md px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-2 text-xs">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-5 h-5 rounded-full bg-indigo-600 text-white font-bold text-[10px] flex items-center justify-center">
+        <div className="bg-hub-surface border border-hub-border rounded-t-xl px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-5 h-5 rounded-full bg-violet-600 text-white font-bold text-[10px] flex items-center justify-center shrink-0">
               {latestCommit.author ? latestCommit.author.substring(0, 2).toUpperCase() : 'NB'}
             </div>
-            <span className="font-semibold text-hub-text">{latestCommit.author}</span>
+            <span className="font-semibold text-hub-text shrink-0">{latestCommit.author}</span>
             <span className="text-hub-muted truncate max-w-md">{latestCommit.message}</span>
 
             {/* Agent trailer badge if present */}
             {latestCommit.trailer && (
               <span 
                 onClick={() => onNavigateToAgentRun && latestCommit.agentRunId && onNavigateToAgentRun(latestCommit.agentRunId)}
-                className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-purple-950/60 border border-purple-700/60 text-purple-300 cursor-pointer hover:bg-purple-900/80 transition-colors"
-                title="Authored via SourceHub Helper"
+                className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-hub-accent/10 border border-hub-accent/30 text-hub-accent cursor-pointer hover:bg-hub-accent/15 transition-colors"
+                title="Authored via Helper"
               >
-                <Bot className="w-3 h-3 text-purple-400" />
+                <HelperAvatar size="sm" className="w-3 h-3 text-hub-accent" />
                 <span>{latestCommit.trailer.replace('SourceHub-Agent-Run: ', '')}</span>
               </span>
             )}
           </div>
 
-          <div className="flex items-center space-x-3 text-hub-muted font-mono text-[11px]">
-            <span className="text-hub-link hover:underline cursor-pointer">
+          <div className="flex items-center gap-3 text-hub-muted font-mono text-[11px] shrink-0">
+            <span className="text-hub-warning-text hover:underline cursor-pointer font-medium">
               {latestCommit.shortSha}
             </span>
-            <span className="flex items-center space-x-1">
+            <span className="flex items-center gap-1">
               <Clock className="w-3 h-3" />
               <span>{latestCommit.date}</span>
             </span>
@@ -283,7 +283,7 @@ export const CodeBrowser: React.FC<CodeBrowserProps> = ({
       )}
 
       {/* File Explorer Table */}
-      <div className="border border-hub-border border-t-0 rounded-b-md overflow-hidden bg-hub-bg">
+      <div className={`border border-hub-border overflow-hidden bg-hub-bg/40 ${latestCommit ? 'border-t-0 rounded-b-xl' : 'rounded-xl'}`}>
         {isLoadingTree ? (
           <div className="p-8 flex items-center justify-center text-xs text-hub-muted space-x-2">
             <Loader2 className="w-4 h-4 animate-spin text-hub-accent" />
@@ -299,7 +299,7 @@ export const CodeBrowser: React.FC<CodeBrowserProps> = ({
               {currentPath && (
                 <tr
                   onClick={() => navigateToBreadcrumb(pathParts.length - 2)}
-                  className="border-b border-hub-border/60 hover:bg-hub-surface/60 transition-colors cursor-pointer"
+                  className="border-b border-hub-border/40 hover:bg-hub-surface/50 transition-colors cursor-pointer"
                 >
                   <td colSpan={3} className="py-2 px-4 text-hub-link font-medium flex items-center space-x-2">
                     <ArrowLeft className="w-3.5 h-3.5" />
@@ -313,24 +313,26 @@ export const CodeBrowser: React.FC<CodeBrowserProps> = ({
                   <tr
                     key={file.path}
                     onClick={() => handleItemClick(file)}
-                    className={`border-b border-hub-border/60 hover:bg-hub-surface/60 transition-colors cursor-pointer ${
-                      isSelected ? 'bg-hub-surface/80' : ''
+                    className={`border-b border-hub-border/40 hover:bg-hub-surface/50 transition-colors cursor-pointer ${
+                      isSelected ? 'bg-hub-surface/70' : ''
                     }`}
                   >
-                    <td className="py-2.5 px-4 w-72 text-hub-text font-medium flex items-center space-x-2">
+                    <td className="py-3 px-4 w-72 text-hub-text font-medium">
+                      <div className="flex items-center gap-2.5">
                       {file.type === 'dir' ? (
-                        <Folder className="w-4 h-4 text-hub-link fill-hub-link/20 shrink-0" />
+                        <Folder className="w-4 h-4 text-hub-warning-text fill-hub-warning/25 shrink-0" />
                       ) : (
-                        <FileCode className="w-4 h-4 text-hub-muted shrink-0" />
+                        <FileCode className="w-4 h-4 text-hub-muted/80 shrink-0" />
                       )}
-                      <span className="hover:text-hub-link hover:underline truncate">
+                      <span className="hover:text-hub-accent hover:underline truncate">
                         {file.name}
                       </span>
+                      </div>
                     </td>
-                    <td className="py-2.5 px-4 text-hub-muted truncate max-w-md">
+                    <td className="py-3 px-4 text-hub-muted/85 truncate max-w-md">
                       {file.lastCommitMessage}
                     </td>
-                    <td className="py-2.5 px-4 text-right text-hub-muted whitespace-nowrap font-mono text-[11px]">
+                    <td className="py-3 px-4 text-right text-hub-muted whitespace-nowrap font-mono text-[11px]">
                       {file.size ? <span className="mr-3 text-hub-muted/70">{file.size}</span> : null}
                       {file.lastCommitDate}
                     </td>
@@ -428,7 +430,7 @@ export const CodeBrowser: React.FC<CodeBrowserProps> = ({
                   authorEmail: '',
                 }))).map((b, i) => (
                   <div key={i} className="flex items-center space-x-4 hover:bg-hub-surface py-0.5" title={b.summary || undefined}>
-                    <span className="w-16 text-hub-link font-mono">{b.shortSha}</span>
+                    <span className="w-16 text-hub-warning-text font-mono">{b.shortSha}</span>
                     <span className="w-28 truncate text-hub-muted text-[11px]">{b.author}</span>
                     <span className="w-10 select-none text-hub-muted/50 text-right pr-2 text-[11px]">{b.lineNumber}</span>
                     <span className="text-hub-text whitespace-pre flex-1">{b.content || ' '}</span>
@@ -518,13 +520,13 @@ export const CodeBrowser: React.FC<CodeBrowserProps> = ({
                       {c.author} committed {c.date}
                     </div>
                     {c.trailer && (
-                      <span className="inline-flex items-center space-x-1 px-1.5 py-0.2 rounded font-mono text-[10px] bg-purple-950 text-purple-300 border border-purple-800">
-                        <Bot className="w-3 h-3 text-purple-400" />
+                      <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded font-mono text-[10px] bg-hub-accent/10 text-hub-accent border border-hub-accent/30">
+                        <HelperAvatar size="sm" className="w-3 h-3 text-hub-accent" />
                         <span>{c.trailer}</span>
                       </span>
                     )}
                   </div>
-                  <span className="font-mono text-hub-link text-[11px] shrink-0">
+                  <span className="font-mono text-hub-warning-text text-[11px] shrink-0">
                     {c.shortSha}
                   </span>
                 </div>

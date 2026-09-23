@@ -4,7 +4,6 @@ import {
   CheckCircle2, 
   Clock, 
   MessageSquare, 
-  Bot, 
   GitCommit, 
   Check, 
   FileCode, 
@@ -18,6 +17,7 @@ import {
   XCircle,
   Trash2
 } from 'lucide-react';
+import { HelperAvatar } from '../agents/HelperAvatar';
 import { PullRequest, PRReviewComment, PRMergeability } from '../../types';
 import { api } from '../../services/api';
 import { NewPRModal } from './NewPRModal';
@@ -254,14 +254,14 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                 : 'text-hub-muted border-transparent hover:text-white'
             }`}
           >
-            <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />
+            <CheckCircle2 className="w-3.5 h-3.5 text-hub-purple-text" />
             <span>{closedPRs.length} Closed / Merged</span>
           </button>
         </div>
 
         <button 
           onClick={() => setShowNewPRModal(true)}
-          className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-success hover:bg-green-700 text-white rounded-md text-xs font-semibold shadow-sm transition-colors"
+          className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-lg text-xs font-semibold shadow-sm transition-colors"
         >
           <Plus className="w-3.5 h-3.5" />
           <span>New Pull Request</span>
@@ -282,7 +282,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
           </p>
           <button
             onClick={() => setShowNewPRModal(true)}
-            className="px-3.5 py-1.5 bg-hub-success hover:bg-green-700 text-white rounded text-xs font-semibold"
+            className="px-3.5 py-1.5 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-lg text-xs font-semibold"
           >
             Open First Pull Request
           </button>
@@ -294,7 +294,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
             <span className="text-[10px] font-bold text-hub-muted uppercase tracking-wider block px-1">
               Pull Requests ({filteredList.length})
             </span>
-            <div className="border border-hub-border rounded-md bg-hub-surface divide-y divide-hub-border overflow-hidden">
+            <div className="border border-hub-border rounded-xl bg-hub-surface divide-y divide-hub-border overflow-hidden">
               {filteredList.map((pr) => {
                 const isSelected = selectedPR?.id === pr.id;
                 return (
@@ -308,9 +308,9 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-hub-text flex items-center space-x-1.5 truncate pr-2">
                         {pr.state === 'merged' ? (
-                          <GitMerge className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                          <GitMerge className="w-3.5 h-3.5 text-hub-purple-text shrink-0" />
                         ) : pr.state === 'closed' ? (
-                          <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                          <XCircle className="w-3.5 h-3.5 text-hub-danger-text shrink-0" />
                         ) : (
                           <GitPullRequest className="w-3.5 h-3.5 text-hub-success-text shrink-0" />
                         )}
@@ -319,13 +319,13 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
 
                       <div className="shrink-0 flex items-center">
                         {pr.checksStatus === 'passed' && (
-                          <span title="CI checks passed"><CheckCircle2 className="w-3.5 h-3.5 text-green-400" /></span>
+                          <span title="CI checks passed"><CheckCircle2 className="w-3.5 h-3.5 text-hub-success-text" /></span>
                         )}
                         {pr.checksStatus === 'failed' && (
-                          <span title="CI checks failed"><XCircle className="w-3.5 h-3.5 text-red-400" /></span>
+                          <span title="CI checks failed"><XCircle className="w-3.5 h-3.5 text-hub-danger-text" /></span>
                         )}
                         {pr.checksStatus === 'running' && (
-                          <span title="CI checks running..."><Loader2 className="w-3.5 h-3.5 text-amber-400 animate-spin" /></span>
+                          <span title="CI checks running..."><Loader2 className="w-3.5 h-3.5 text-hub-warning-text animate-spin" /></span>
                         )}
                       </div>
                     </div>
@@ -361,7 +361,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                         <button
                           onClick={handleReviewWithHelper}
                           disabled={isAIOperationBusy}
-                          className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-purple-950/60 hover:bg-purple-900 border border-purple-700 text-purple-300 text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-hub-purple/15 hover:bg-hub-purple/25 border border-hub-purple/35 text-hub-purple-text text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           title={
                             isReviewing
                               ? 'Helper code review in progress...'
@@ -379,7 +379,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                             </>
                           ) : (
                             <>
-                              <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                              <Sparkles className="w-3.5 h-3.5 text-hub-purple-text" />
                               <span>Review with Helper</span>
                             </>
                           )}
@@ -389,7 +389,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                         <button
                           onClick={handleClosePR}
                           disabled={isClosing}
-                          className="px-2.5 py-1.5 bg-hub-subtle hover:bg-red-950/60 text-red-400 hover:text-red-300 border border-hub-border hover:border-red-800 rounded text-xs font-medium flex items-center space-x-1 transition-colors disabled:opacity-50"
+                          className="px-2.5 py-1.5 bg-hub-subtle hover:bg-hub-danger/15 text-hub-danger-text hover:text-hub-danger-text border border-hub-border hover:border-hub-danger/40 rounded text-xs font-medium flex items-center space-x-1 transition-colors disabled:opacity-50"
                         >
                           <XCircle className="w-3.5 h-3.5" />
                           <span>Close</span>
@@ -398,7 +398,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                         <button
                           onClick={handleReopenPR}
                           disabled={isReopening}
-                          className="px-2.5 py-1.5 bg-hub-subtle hover:bg-green-950/60 text-hub-success-text border border-hub-border hover:border-green-800 rounded text-xs font-medium flex items-center space-x-1 transition-colors disabled:opacity-50"
+                          className="px-2.5 py-1.5 bg-hub-subtle hover:bg-hub-success/15 text-hub-success-text border border-hub-border hover:border-hub-success/40 rounded text-xs font-medium flex items-center space-x-1 transition-colors disabled:opacity-50"
                         >
                           <GitPullRequest className="w-3.5 h-3.5" />
                           <span>Reopen</span>
@@ -410,10 +410,10 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                   <div className="flex items-center space-x-3 text-xs flex-wrap gap-y-2">
                     <span className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
                       selectedPR.state === 'merged'
-                        ? 'bg-purple-900/60 text-purple-300 border border-purple-700'
+                        ? 'bg-hub-purple/15 text-hub-purple-text border border-hub-purple/35'
                         : selectedPR.state === 'closed'
-                        ? 'bg-red-900/60 text-red-300 border border-red-700'
-                        : 'bg-green-900/60 text-hub-success-text border border-green-700'
+                        ? 'bg-hub-danger/15 text-hub-danger-text border border-hub-danger/40'
+                        : 'bg-hub-success/15 text-hub-success-text border border-hub-success/40'
                     }`}>
                       {selectedPR.state === 'merged' ? (
                         <>
@@ -435,24 +435,24 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
 
                     <span className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
                       selectedPR.checksStatus === 'passed'
-                        ? 'bg-green-950/60 text-green-300 border border-green-800'
+                        ? 'bg-hub-success/15 text-hub-success-text border border-hub-success/40'
                         : selectedPR.checksStatus === 'failed'
-                        ? 'bg-red-950/60 text-red-300 border border-red-800'
-                        : 'bg-amber-950/60 text-amber-300 border border-amber-800'
+                        ? 'bg-hub-danger/15 text-hub-danger-text border border-hub-danger/40'
+                        : 'bg-hub-warning/15 text-hub-warning-text border border-hub-warning/40'
                     }`}>
                       {selectedPR.checksStatus === 'passed' ? (
                         <>
-                          <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
+                          <CheckCircle2 className="w-3.5 h-3.5 text-hub-success-text" />
                           <span>Checks: passed</span>
                         </>
                       ) : selectedPR.checksStatus === 'failed' ? (
                         <>
-                          <XCircle className="w-3.5 h-3.5 text-red-400" />
+                          <XCircle className="w-3.5 h-3.5 text-hub-danger-text" />
                           <span>Checks: failed</span>
                         </>
                       ) : (
                         <>
-                          <Loader2 className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+                          <Loader2 className="w-3.5 h-3.5 text-hub-warning-text animate-spin" />
                           <span>Checks: running</span>
                         </>
                       )}
@@ -512,14 +512,14 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                     }`}
                   >
                     <CheckCircle2 className={`w-3.5 h-3.5 ${
-                      selectedPR.checksStatus === 'passed' ? 'text-green-400' :
-                      selectedPR.checksStatus === 'failed' ? 'text-red-400' : 'text-amber-400'
+                      selectedPR.checksStatus === 'passed' ? 'text-hub-success-text' :
+                      selectedPR.checksStatus === 'failed' ? 'text-hub-danger-text' : 'text-hub-warning-text'
                     }`} />
                     <span>Checks</span>
                     <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-semibold ${
-                      selectedPR.checksStatus === 'passed' ? 'bg-green-950 text-green-300 border border-green-800' :
-                      selectedPR.checksStatus === 'failed' ? 'bg-red-950 text-red-300 border border-red-800' :
-                      'bg-amber-950 text-amber-300 border border-amber-800'
+                      selectedPR.checksStatus === 'passed' ? 'bg-hub-success/15 text-hub-success-text border border-hub-success/40' :
+                      selectedPR.checksStatus === 'failed' ? 'bg-hub-danger/15 text-hub-danger-text border border-hub-danger/40' :
+                      'bg-hub-warning/15 text-hub-warning-text border border-hub-warning/40'
                     }`}>
                       {selectedPR.checksStatus || 'passed'}
                     </span>
@@ -550,7 +550,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                 ) : activeSubTab === 'conversation' ? (
                   <div className="space-y-4">
                     {/* Main PR Description Card */}
-                    <div className="border border-hub-border rounded-md overflow-hidden bg-hub-surface">
+                    <div className="border border-hub-border rounded-xl overflow-hidden bg-hub-surface">
                       <div className="bg-hub-subtle px-4 py-2 border-b border-hub-border flex items-center justify-between text-xs">
                         <div className="flex items-center space-x-2">
                           <span className="font-semibold text-hub-text">{selectedPR.author}</span>
@@ -566,13 +566,13 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                     {/* Timeline Comments */}
                     <div className="space-y-3 pl-4 border-l-2 border-hub-border ml-3">
                       {(selectedPR.comments || []).map((comment) => (
-                        <div key={comment.id} className="border border-hub-border rounded-md overflow-hidden bg-hub-surface">
+                        <div key={comment.id} className="border border-hub-border rounded-xl overflow-hidden bg-hub-surface">
                           <div className="bg-hub-subtle px-3 py-1.5 border-b border-hub-border flex items-center justify-between text-xs">
                             <div className="flex items-center space-x-2">
                               {comment.isAgent ? (
-                                <Bot className="w-4 h-4 text-hub-accent" />
+                                <HelperAvatar size="sm" className="w-4 h-4 text-hub-accent" />
                               ) : (
-                                <div className="w-4 h-4 rounded-full bg-indigo-600 text-white font-bold text-[9px] flex items-center justify-center">
+                                <div className="w-4 h-4 rounded-full bg-hub-accent text-zinc-950 font-bold text-[9px] flex items-center justify-center">
                                   NB
                                 </div>
                               )}
@@ -593,16 +593,16 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                         isCheckingMergeability
                           ? 'bg-hub-subtle border-hub-border text-hub-muted'
                           : mergeability?.canMerge
-                          ? 'bg-green-950/40 border-green-800/60 text-green-200'
-                          : 'bg-red-950/40 border-red-800/60 text-red-200'
+                          ? 'bg-hub-success/10 border-hub-success/35 text-hub-success-text'
+                          : 'bg-hub-danger/10 border-hub-danger/35 text-hub-danger-text'
                       }`}>
                         <div className="flex items-center space-x-2">
                           {isCheckingMergeability ? (
                             <Loader2 className="w-4 h-4 animate-spin text-hub-accent" />
                           ) : mergeability?.canMerge ? (
-                            <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
+                            <CheckCircle2 className="w-4 h-4 text-hub-success-text shrink-0" />
                           ) : (
-                            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                            <AlertCircle className="w-4 h-4 text-hub-danger-text shrink-0" />
                           )}
                           <div>
                             <span className="font-semibold">
@@ -613,7 +613,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                                 : `Cannot merge automatically — conflict in: ${mergeability?.conflictedFiles.join(', ')}`}
                             </span>
                             {!isCheckingMergeability && !mergeability?.canMerge && (
-                              <p className="text-[11px] text-red-300/80 mt-0.5">
+                              <p className="text-[11px] text-hub-danger-text/80 mt-0.5">
                                 Rebase or resolve conflicting files locally before merging this pull request.
                               </p>
                             )}
@@ -634,14 +634,14 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
 
                     {/* Post-Merge Branch Deletion Banner */}
                     {selectedPR.state === 'merged' && (
-                      <div className="border border-purple-900/60 rounded-md p-3.5 bg-purple-950/30 flex items-center justify-between text-xs">
+                      <div className="border border-hub-purple/35 rounded-md p-3.5 bg-hub-purple/10 flex items-center justify-between text-xs">
                         <div className="space-y-0.5">
                           <div className="flex items-center space-x-2">
-                            <GitMerge className="w-4 h-4 text-purple-400" />
-                            <span className="font-semibold text-purple-200">Pull request successfully merged</span>
+                            <GitMerge className="w-4 h-4 text-hub-purple-text" />
+                            <span className="font-semibold text-hub-purple-text">Pull request successfully merged</span>
                           </div>
-                          <p className="text-[11px] text-purple-300/70">
-                            You can safely delete the head branch <code className="bg-purple-950 px-1 py-0.5 rounded text-purple-200 border border-purple-800">{selectedPR.sourceBranch}</code>.
+                          <p className="text-[11px] text-hub-purple-text/70">
+                            You can safely delete the head branch <code className="bg-hub-purple/15 px-1 py-0.5 rounded text-hub-purple-text border border-hub-purple/35">{selectedPR.sourceBranch}</code>.
                           </p>
                         </div>
 
@@ -653,7 +653,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                           <button
                             onClick={handleDeleteBranch}
                             disabled={isDeletingBranch}
-                            className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-red-950/60 hover:bg-red-900 border border-red-800 text-red-300 text-xs font-medium transition-colors disabled:opacity-50"
+                            className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-hub-danger/15 hover:bg-hub-danger/25 border border-hub-danger/40 text-hub-danger-text text-xs font-medium transition-colors disabled:opacity-50"
                           >
                             {isDeletingBranch ? (
                               <>
@@ -672,7 +672,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                     )}
 
                     {/* Merge Box (§6.2) */}
-                    <div className="border border-hub-border rounded-md p-4 bg-hub-subtle space-y-3">
+                    <div className="border border-hub-border rounded-xl p-4 bg-hub-subtle space-y-3">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex items-center space-x-2">
                           <GitMerge className="w-5 h-5 text-hub-text" />
@@ -686,7 +686,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
 
                         <div className="flex items-center space-x-2">
                           {selectedPR.state === 'closed' ? (
-                            <span className="text-xs text-red-400 font-medium px-2.5 py-1 bg-red-950/40 border border-red-800/50 rounded">
+                            <span className="text-xs text-hub-danger-text font-medium px-2.5 py-1 bg-hub-danger/10 border border-hub-danger/30 rounded">
                               Pull request is closed. Reopen to enable merging.
                             </span>
                           ) : (
@@ -709,8 +709,8 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                                   selectedPR.state === 'merged'
                                     ? 'bg-hub-border text-hub-muted cursor-not-allowed'
                                     : mergeability !== null && !mergeability.canMerge
-                                    ? 'bg-red-950/60 text-red-300 border border-red-800 cursor-not-allowed'
-                                    : 'bg-hub-success hover:bg-green-700'
+                                    ? 'bg-hub-danger/15 text-hub-danger-text border border-hub-danger/40 cursor-not-allowed'
+                                    : 'bg-hub-success hover:brightness-110'
                                 }`}
                               >
                                 {isMerging ? (
@@ -734,8 +734,8 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                       {/* Helper Actions */}
                       <div className="pt-2 border-t border-hub-border/60 space-y-2">
                         {isAIOperationBusy && (
-                          <div className="flex items-center space-x-2 px-3 py-2 rounded bg-purple-950/40 border border-purple-800 text-purple-300 text-xs animate-pulse">
-                            <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400 shrink-0" />
+                          <div className="flex items-center space-x-2 px-3 py-2 rounded bg-hub-purple/10 border border-hub-purple/35 text-hub-purple-text text-xs animate-pulse">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-hub-purple-text shrink-0" />
                             <span>
                               {isReviewing
                                 ? 'Helper is analyzing the pull request diff and generating a comprehensive code review...'
@@ -748,7 +748,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
 
                         <div className="flex items-center justify-between flex-wrap gap-2">
                           <div className="flex items-center space-x-2 text-xs text-hub-muted">
-                            <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                            <Sparkles className="w-3.5 h-3.5 text-hub-purple-text" />
                             <span>Helper automated review & resolution</span>
                           </div>
                           <div className="flex items-center space-x-2">
@@ -756,7 +756,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                               <button
                                 onClick={handleReviewWithHelper}
                                 disabled={isAIOperationBusy}
-                                className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-purple-950/60 hover:bg-purple-900 border border-purple-700 text-purple-300 text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-hub-purple/15 hover:bg-hub-purple/25 border border-hub-purple/35 text-hub-purple-text text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 title={
                                   isReviewing
                                     ? 'Helper code review in progress...'
@@ -774,7 +774,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                                   </>
                                 ) : (
                                   <>
-                                    <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                                    <Sparkles className="w-3.5 h-3.5 text-hub-purple-text" />
                                     <span>Review PR with Helper</span>
                                   </>
                                 )}
@@ -783,7 +783,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                             <button
                               onClick={handleAskAgentToAddress}
                               disabled={isAIOperationBusy || selectedPR.state !== 'open'}
-                              className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-purple-950/60 hover:bg-purple-900 border border-purple-700 text-purple-300 text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-hub-purple/15 hover:bg-hub-purple/25 border border-hub-purple/35 text-hub-purple-text text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               title={
                                 isAddressingComments
                                   ? 'Addressing review comments...'
@@ -803,7 +803,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                                 </>
                               ) : (
                                 <>
-                                  <Bot className="w-3.5 h-3.5" />
+                                  <HelperAvatar size="sm" className="w-3.5 h-3.5 text-hub-accent" />
                                   <span>Address review comments</span>
                                 </>
                               )}
@@ -814,13 +814,13 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                     </div>
 
                     {/* Add Comment Box */}
-                    <div className="border border-hub-border rounded-md p-3 bg-hub-surface space-y-2">
+                    <div className="border border-hub-border rounded-xl p-3 bg-hub-surface space-y-2">
                       <textarea
                         value={commentInput}
                         onChange={(e) => setCommentInput(e.target.value)}
                         placeholder="Leave a comment on this pull request..."
                         rows={3}
-                        className="w-full bg-hub-bg border border-hub-border rounded-md p-2.5 text-xs text-hub-text focus:outline-none focus:border-hub-link"
+                        className="w-full bg-hub-bg border border-hub-border rounded-xl p-2.5 text-xs text-hub-text focus:outline-none focus:border-hub-link"
                       />
                       <div className="flex items-center justify-end space-x-2">
                         {selectedPR.state === 'open' ? (
@@ -828,7 +828,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                             type="button"
                             onClick={handleClosePR}
                             disabled={isClosing}
-                            className="px-3 py-1 bg-hub-subtle hover:bg-red-950/60 text-red-400 hover:text-red-300 border border-hub-border hover:border-red-800 rounded text-xs font-semibold flex items-center space-x-1.5 transition-colors disabled:opacity-50"
+                            className="px-3 py-1 bg-hub-subtle hover:bg-hub-danger/15 text-hub-danger-text hover:text-hub-danger-text border border-hub-border hover:border-hub-danger/40 rounded text-xs font-semibold flex items-center space-x-1.5 transition-colors disabled:opacity-50"
                           >
                             <XCircle className="w-3.5 h-3.5" />
                             <span>{isClosing ? 'Closing...' : commentInput.trim() ? 'Close with comment' : 'Close pull request'}</span>
@@ -838,7 +838,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                             type="button"
                             onClick={handleReopenPR}
                             disabled={isReopening}
-                            className="px-3 py-1 bg-hub-subtle hover:bg-green-950/60 text-hub-success-text border border-hub-border hover:border-green-800 rounded text-xs font-semibold flex items-center space-x-1.5 transition-colors disabled:opacity-50"
+                            className="px-3 py-1 bg-hub-subtle hover:bg-hub-success/15 text-hub-success-text border border-hub-border hover:border-hub-success/40 rounded text-xs font-semibold flex items-center space-x-1.5 transition-colors disabled:opacity-50"
                           >
                             <GitPullRequest className="w-3.5 h-3.5" />
                             <span>{isReopening ? 'Reopening...' : 'Reopen pull request'}</span>
@@ -847,7 +847,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                         <button
                           onClick={handleAddComment}
                           disabled={!commentInput.trim()}
-                          className="px-3 py-1 bg-hub-success hover:bg-green-700 disabled:opacity-50 text-white rounded text-xs font-semibold"
+                          className="px-3 py-1 bg-hub-accent hover:brightness-110 disabled:opacity-50 text-zinc-950 rounded-lg text-xs font-semibold"
                         >
                           Comment
                         </button>
@@ -855,7 +855,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                     </div>
                   </div>
                 ) : activeSubTab === 'commits' ? (
-                  <div className="border border-hub-border rounded-md bg-hub-surface divide-y divide-hub-border">
+                  <div className="border border-hub-border rounded-xl bg-hub-surface divide-y divide-hub-border">
                     {((selectedPR as any).commits || []).map((c: any) => (
                       <div key={c.sha} className="p-3 text-xs flex items-center justify-between">
                         <div className="space-y-0.5">
@@ -873,15 +873,15 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                   </div>
                 ) : activeSubTab === 'checks' ? (
                   <div className="space-y-4">
-                    <div className="border border-hub-border rounded-md bg-hub-surface p-4 space-y-4">
+                    <div className="border border-hub-border rounded-xl bg-hub-surface p-4 space-y-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
                           {selectedPR.checksStatus === 'passed' ? (
-                            <CheckCircle2 className="w-6 h-6 text-green-400" />
+                            <CheckCircle2 className="w-6 h-6 text-hub-success-text" />
                           ) : selectedPR.checksStatus === 'failed' ? (
-                            <XCircle className="w-6 h-6 text-red-400" />
+                            <XCircle className="w-6 h-6 text-hub-danger-text" />
                           ) : (
-                            <Loader2 className="w-6 h-6 text-amber-400 animate-spin" />
+                            <Loader2 className="w-6 h-6 text-hub-warning-text animate-spin" />
                           )}
                           <div>
                             <h3 className="text-sm font-bold text-hub-text">Continuous Integration (CI) Checks</h3>
@@ -912,9 +912,9 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                         <div className="flex items-center justify-between">
                           <span>Run Status:</span>
                           <span className={`font-semibold capitalize px-2 py-0.5 rounded ${
-                            selectedPR.checksStatus === 'passed' ? 'bg-green-950/80 text-green-300 border border-green-800' :
-                            selectedPR.checksStatus === 'failed' ? 'bg-red-950/80 text-red-300 border border-red-800' :
-                            'bg-amber-950/80 text-amber-300 border border-amber-800'
+                            selectedPR.checksStatus === 'passed' ? 'bg-hub-success/15 text-hub-success-text border border-hub-success/40' :
+                            selectedPR.checksStatus === 'failed' ? 'bg-hub-danger/15 text-hub-danger-text border border-hub-danger/40' :
+                            'bg-hub-warning/15 text-hub-warning-text border border-hub-warning/40'
                           }`}>
                             {selectedPR.checksStatus}
                           </span>
@@ -926,7 +926,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                   <div className="space-y-4">
                     {selectedPR.diffs && selectedPR.diffs.length > 0 ? (
                       selectedPR.diffs.map((diff) => (
-                        <div key={diff.filename} className="border border-hub-border rounded-md overflow-hidden bg-hub-surface">
+                        <div key={diff.filename} className="border border-hub-border rounded-xl overflow-hidden bg-hub-surface">
                           <div className="bg-hub-subtle px-4 py-2 border-b border-hub-border flex items-center justify-between text-xs">
                             <span className="font-mono font-semibold text-hub-text">{diff.filename}</span>
                             <div className="flex items-center space-x-2 font-mono text-[11px]">
@@ -941,9 +941,9 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                                 key={idx}
                                 className={`flex py-0.5 px-2 ${
                                   line.type === 'add'
-                                    ? 'bg-green-950/40 text-green-200'
+                                    ? 'bg-hub-success/10 text-hub-success-text'
                                     : line.type === 'delete'
-                                    ? 'bg-red-950/40 text-red-200'
+                                    ? 'bg-hub-danger/10 text-hub-danger-text'
                                     : 'text-hub-muted'
                                 }`}
                               >

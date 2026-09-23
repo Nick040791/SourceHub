@@ -4,23 +4,24 @@
 
 :root,
 .theme-matrix {
-  --hub-bg: 0, 0, 0;
-  --hub-surface: 10, 16, 12;
-  --hub-subtle: 18, 28, 22;
-  --hub-border: 34, 84, 43;
-  --hub-border-strong: 0, 255, 102;
-  --hub-muted: 165, 215, 180;
-  --hub-text: 240, 255, 242;
-  --hub-link: 0, 255, 102;
-  --hub-success: 0, 204, 82;
-  --hub-success-text: 57, 255, 136;
-  --hub-warning: 218, 165, 32;
-  --hub-warning-text: 255, 215, 0;
-  --hub-danger: 255, 51, 102;
-  --hub-danger-text: 255, 110, 140;
-  --hub-purple: 180, 77, 255;
-  --hub-purple-text: 210, 130, 255;
-  --hub-accent: 0, 255, 102;
+  /* Style D (default): charcoal / near-black with vibrant lime CTAs — mock-faithful */
+  --hub-bg: 9, 9, 11;
+  --hub-surface: 16, 16, 18;
+  --hub-subtle: 26, 26, 30;
+  --hub-border: 40, 40, 46;
+  --hub-border-strong: 58, 58, 66;
+  --hub-muted: 148, 155, 168;
+  --hub-text: 244, 244, 245;
+  --hub-link: 163, 230, 53;
+  --hub-success: 132, 204, 22;
+  --hub-success-text: 190, 242, 100;
+  --hub-warning: 234, 179, 8;
+  --hub-warning-text: 250, 204, 21;
+  --hub-danger: 239, 68, 68;
+  --hub-danger-text: 248, 113, 113;
+  --hub-purple: 168, 85, 247;
+  --hub-purple-text: 196, 181, 253;
+  --hub-accent: 163, 230, 53;
 }
 
 .theme-cyber-amber {

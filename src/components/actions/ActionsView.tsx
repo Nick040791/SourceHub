@@ -92,7 +92,7 @@ export const ActionsView: React.FC<ActionsViewProps> = ({ repoName }) => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 border-b border-hub-border gap-3">
         <div className="flex items-center space-x-2 flex-wrap gap-y-2">
           {workflows.length > 0 ? (
-            <div className="flex items-center space-x-1.5 bg-hub-surface border border-hub-border rounded-md px-2.5 py-1 text-xs text-hub-text font-mono">
+            <div className="flex items-center space-x-1.5 bg-hub-surface border border-hub-border rounded-xl px-2.5 py-1 text-xs text-hub-text font-mono">
               <PlayCircle className="w-4 h-4 text-hub-accent" />
               <select
                 value={selectedWorkflow?.id}
@@ -108,7 +108,7 @@ export const ActionsView: React.FC<ActionsViewProps> = ({ repoName }) => {
               </select>
             </div>
           ) : (
-            <div className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-surface border border-hub-border rounded-md text-xs font-semibold text-hub-text">
+            <div className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-surface border border-hub-border rounded-xl text-xs font-semibold text-hub-text">
               <PlayCircle className="w-4 h-4 text-hub-accent" />
               <span>CI Pipeline (.sourcehub/workflows/ci.yml)</span>
             </div>
@@ -120,7 +120,7 @@ export const ActionsView: React.FC<ActionsViewProps> = ({ repoName }) => {
           <button
             onClick={loadRuns}
             disabled={isLoadingRuns}
-            className="p-1.5 text-hub-muted hover:text-hub-text bg-hub-surface border border-hub-border rounded-md"
+            className="p-1.5 text-hub-muted hover:text-hub-text bg-hub-surface border border-hub-border rounded-xl"
             title="Refresh runs"
           >
             <RotateCw className={`w-3.5 h-3.5 ${isLoadingRuns ? 'animate-spin' : ''}`} />
@@ -128,7 +128,7 @@ export const ActionsView: React.FC<ActionsViewProps> = ({ repoName }) => {
           <button
             onClick={handleDispatch}
             disabled={isDispatching}
-            className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-accent hover:bg-blue-600 text-white rounded-md text-xs font-semibold transition-colors disabled:opacity-50"
+            className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
           >
             {isDispatching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
             <span>{isDispatching ? 'Running Workflow...' : 'Run workflow'}</span>
@@ -138,7 +138,7 @@ export const ActionsView: React.FC<ActionsViewProps> = ({ repoName }) => {
 
       {/* Real Workflow File Preview Card if available */}
       {selectedWorkflow && (
-        <div className="border border-hub-border rounded-md bg-hub-surface p-3 space-y-2 text-xs">
+        <div className="border border-hub-border rounded-xl bg-hub-surface p-3 space-y-2 text-xs">
           <div className="flex items-center justify-between">
             <span className="font-mono font-bold text-hub-text flex items-center space-x-1.5">
               <FileCode className="w-3.5 h-3.5 text-hub-muted" />
@@ -156,7 +156,7 @@ export const ActionsView: React.FC<ActionsViewProps> = ({ repoName }) => {
       )}
 
       {runs.length === 0 ? (
-        <div className="border border-hub-border border-dashed rounded-md p-10 text-center space-y-3 bg-hub-surface/40">
+        <div className="border border-hub-border border-dashed rounded-lg p-10 text-center space-y-3 bg-hub-surface/40">
           <PlayCircle className="w-8 h-8 text-hub-muted mx-auto" />
           <h3 className="font-bold text-hub-text text-sm">No workflow runs yet</h3>
           <p className="text-xs text-hub-muted max-w-md mx-auto">
@@ -165,7 +165,7 @@ export const ActionsView: React.FC<ActionsViewProps> = ({ repoName }) => {
           <button
             onClick={handleDispatch}
             disabled={isDispatching}
-            className="px-4 py-2 bg-hub-accent hover:bg-blue-600 text-white rounded font-semibold text-xs inline-flex items-center space-x-1.5"
+            className="px-4 py-2 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-lg font-bold text-xs inline-flex items-center space-x-1.5 transition-all"
           >
             {isDispatching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
             <span>Execute Workflow Now</span>
@@ -178,7 +178,7 @@ export const ActionsView: React.FC<ActionsViewProps> = ({ repoName }) => {
             <div className="text-xs font-bold text-hub-muted uppercase tracking-wider px-1">
               Workflow Runs ({runs.length})
             </div>
-            <div className="border border-hub-border rounded-md bg-hub-surface divide-y divide-hub-border overflow-hidden">
+            <div className="border border-hub-border rounded-xl bg-hub-surface divide-y divide-hub-border overflow-hidden">
               {runs.map((run) => {
                 const isSelected = selectedRun?.id === run.id;
                 return (
@@ -194,9 +194,9 @@ export const ActionsView: React.FC<ActionsViewProps> = ({ repoName }) => {
                         {run.status === 'success' ? (
                           <CheckCircle2 className="w-3.5 h-3.5 text-hub-success-text" />
                         ) : run.status === 'failed' ? (
-                          <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                          <AlertTriangle className="w-3.5 h-3.5 text-hub-danger-text" />
                         ) : (
-                          <Loader2 className="w-3.5 h-3.5 text-yellow-400 animate-spin" />
+                          <Loader2 className="w-3.5 h-3.5 text-hub-warning-text animate-spin" />
                         )}
                         <span>{run.id}</span>
                       </span>
@@ -225,7 +225,7 @@ export const ActionsView: React.FC<ActionsViewProps> = ({ repoName }) => {
           {/* Right: Selected Run Detail & Steps/Logs */}
           {selectedRun && (
             <div className="lg:col-span-8 space-y-4">
-              <div className="border border-hub-border rounded-md bg-hub-surface p-4 space-y-3">
+              <div className="border border-hub-border rounded-xl bg-hub-surface p-4 space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-hub-border pb-3">
                   <div>
                     <div className="flex items-center space-x-2">
@@ -234,10 +234,10 @@ export const ActionsView: React.FC<ActionsViewProps> = ({ repoName }) => {
                       </span>
                       <span className={`px-2 py-0.5 rounded text-[11px] font-mono border ${
                         selectedRun.status === 'success'
-                          ? 'bg-green-950 text-hub-success-text border-green-800'
+                          ? 'bg-hub-success/15 text-hub-success-text border-hub-success/40'
                           : selectedRun.status === 'failed'
-                          ? 'bg-red-950 text-red-300 border-red-800'
-                          : 'bg-yellow-950 text-yellow-300 border-yellow-800'
+                          ? 'bg-hub-danger/15 text-hub-danger-text border-hub-danger/40'
+                          : 'bg-hub-warning/15 text-hub-warning-text border-hub-warning/40'
                       }`}>
                         {selectedRun.status === 'success' ? 'Passed' : selectedRun.status === 'failed' ? 'Failed' : 'Running'}
                       </span>
@@ -257,7 +257,7 @@ export const ActionsView: React.FC<ActionsViewProps> = ({ repoName }) => {
                 </div>
 
                 {/* Runner Environment Pill */}
-                <div className="flex items-center justify-between text-xs bg-hub-bg border border-hub-border rounded-md px-3 py-2">
+                <div className="flex items-center justify-between text-xs bg-hub-bg border border-hub-border rounded-xl px-3 py-2">
                   <span className="flex items-center space-x-2 text-hub-muted">
                     <ShieldCheck className="w-4 h-4 text-hub-success-text" />
                     <span>Workflow executed on host runner • Isolated environment execution</span>
@@ -272,7 +272,7 @@ export const ActionsView: React.FC<ActionsViewProps> = ({ repoName }) => {
                   {selectedRun.steps.map((step, idx) => {
                     const isExpanded = !!expandedSteps[idx];
                     return (
-                      <div key={idx} className="border border-hub-border rounded-md overflow-hidden bg-hub-bg">
+                      <div key={idx} className="border border-hub-border rounded-xl overflow-hidden bg-hub-bg">
                         <button
                           onClick={() => toggleStep(idx)}
                           className="w-full px-3 py-2 bg-hub-subtle hover:bg-hub-border flex items-center justify-between text-xs font-medium text-hub-text transition-colors"
@@ -286,7 +286,7 @@ export const ActionsView: React.FC<ActionsViewProps> = ({ repoName }) => {
                             {step.status === 'success' ? (
                               <CheckCircle2 className="w-3.5 h-3.5 text-hub-success-text" />
                             ) : (
-                              <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                              <AlertTriangle className="w-3.5 h-3.5 text-hub-danger-text" />
                             )}
                             <span>{step.name}</span>
                           </div>
@@ -294,7 +294,7 @@ export const ActionsView: React.FC<ActionsViewProps> = ({ repoName }) => {
                         </button>
 
                         {isExpanded && (
-                          <div className="p-3 bg-black/95 font-mono text-xs text-emerald-400 space-y-1 overflow-x-auto leading-relaxed border-t border-hub-border max-h-80">
+                          <div className="p-3 bg-hub-bg font-mono text-xs text-hub-success-text space-y-1 overflow-x-auto leading-relaxed border-t border-hub-border max-h-80">
                             {step.logs.map((log, logIdx) => (
                               <div key={logIdx} className="whitespace-pre">
                                 {log}
