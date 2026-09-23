@@ -4,13 +4,13 @@
 
 :root,
 .theme-matrix {
-  /* Style D (default): charcoal / near-black with vibrant lime CTAs */
-  --hub-bg: 10, 10, 12;
-  --hub-surface: 18, 18, 20;
-  --hub-subtle: 28, 28, 32;
-  --hub-border: 42, 42, 48;
-  --hub-border-strong: 60, 60, 68;
-  --hub-muted: 156, 163, 175;
+  /* Style D (default): charcoal / near-black with vibrant lime CTAs — mock-faithful */
+  --hub-bg: 9, 9, 11;
+  --hub-surface: 16, 16, 18;
+  --hub-subtle: 26, 26, 30;
+  --hub-border: 40, 40, 46;
+  --hub-border-strong: 58, 58, 66;
+  --hub-muted: 148, 155, 168;
   --hub-text: 244, 244, 245;
   --hub-link: 163, 230, 53;
   --hub-success: 132, 204, 22;

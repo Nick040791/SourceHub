@@ -187,7 +187,7 @@ export const App: React.FC = () => {
       />
 
       {/* 4. Main Tab Content Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 transition-all">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-5 sm:px-6 py-7 transition-all">
         <React.Suspense fallback={
           <div className="py-16 flex items-center justify-center space-x-2 text-hub-muted text-xs">
             <span className="inline-block w-2 h-2 rounded-full bg-hub-accent animate-pulse"></span>

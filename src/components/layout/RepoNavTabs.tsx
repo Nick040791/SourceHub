@@ -6,7 +6,6 @@ import {
   PlayCircle, 
   Bot, 
   Settings,
-  Sparkles,
   Laptop
 } from 'lucide-react';
 import { TabType } from '../../types';
@@ -61,8 +60,8 @@ export const RepoNavTabs: React.FC<RepoNavTabsProps> = ({
   ];
 
   return (
-    <div className="bg-hub-surface border-b border-hub-border px-4 sm:px-6">
-      <div className="max-w-7xl mx-auto flex items-center space-x-1 sm:space-x-2 overflow-x-auto no-scrollbar">
+    <div className="bg-hub-surface border-b border-hub-border px-5 sm:px-6">
+      <div className="max-w-7xl mx-auto flex items-center gap-0.5 overflow-x-auto no-scrollbar">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -71,39 +70,39 @@ export const RepoNavTabs: React.FC<RepoNavTabsProps> = ({
             <button
               key={tab.id}
               onClick={() => onSelectTab(tab.id as TabType)}
-              className={`flex items-center space-x-2 px-3 py-2.5 text-xs sm:text-sm font-medium border-b-2 transition-all whitespace-nowrap ${
+              className={`flex items-center gap-1.5 px-3 py-2.5 text-xs sm:text-[13px] font-medium border-b-2 transition-all whitespace-nowrap ${
                 isActive
                   ? 'border-hub-accent text-hub-text font-semibold'
-                  : 'border-transparent text-hub-muted hover:text-hub-text hover:border-hub-border/60'
+                  : 'border-transparent text-hub-muted hover:text-hub-text/90 hover:border-hub-border/50'
               }`}
             >
               <Icon
                 className={`w-4 h-4 ${
-                  isActive 
-                    ? tab.highlight ? 'text-hub-purple-text' : 'text-hub-text' 
-                    : tab.highlight ? 'text-hub-purple-text' : 'text-hub-muted'
+                  isActive
+                    ? 'text-hub-accent'
+                    : tab.highlight
+                      ? 'text-hub-purple-text'
+                      : 'text-hub-muted'
                 }`}
               />
               <span>{tab.label}</span>
 
-              {/* Count badge for PRs */}
               {tab.count !== undefined && tab.count > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full text-[11px] font-mono bg-hub-subtle text-hub-text border border-hub-border">
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-hub-subtle text-hub-muted border border-hub-border/70">
                   {tab.count}
                 </span>
               )}
 
-              {/* Special Badge for Helper / MVP-lite */}
               {tab.badge && (
                 <span
-                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase inline-flex items-center space-x-1 ${
+                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase inline-flex items-center gap-1 ${
                     tab.highlight
                       ? 'bg-hub-purple/20 text-hub-purple-text border border-hub-purple/40'
-                      : 'bg-hub-bg text-hub-muted border border-hub-border'
+                      : 'bg-hub-bg/80 text-hub-muted/80 border border-hub-border/60'
                   }`}
                 >
                   {tab.pulse && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-hub-success-text mr-1 animate-pulse" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-hub-success-text animate-pulse" />
                   )}
                   {tab.badge}
                 </span>

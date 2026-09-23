@@ -140,11 +140,11 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
 
   return (
     <>
-      <div className="bg-hub-surface/60 border-b border-hub-border px-4 py-2 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div className="bg-hub-surface/40 border-b border-hub-border px-5 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
         {/* Left: Desktop Core Controls (Repo & Branch) */}
         <div className="flex items-center space-x-2">
           {/* Current Repository indicator */}
-          <div className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-hub-bg border border-hub-border text-hub-text font-medium">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-hub-bg/80 border border-hub-border/80 text-hub-text font-medium">
             <FolderGit2 className="w-3.5 h-3.5 text-hub-link" />
             <span className="text-hub-muted text-[11px]">Repository:</span>
             <span className="font-bold font-mono">{repo.name}</span>
@@ -157,7 +157,7 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
           <div className="relative">
             <button
               onClick={() => setIsBranchMenuOpen(!isBranchMenuOpen)}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-hub-bg hover:bg-hub-subtle border border-hub-border text-hub-text font-medium transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-hub-bg/80 hover:bg-hub-subtle border border-hub-border/80 text-hub-text font-medium transition-colors"
             >
               <GitBranch className="w-3.5 h-3.5 text-hub-muted" />
               <span className="text-hub-muted text-[11px]">Current Branch:</span>
@@ -251,12 +251,12 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
           </div>
         )}
 
-        {/* Right: GitHub Desktop Sync Button & Remote Config */}
-        <div className="flex items-center space-x-2">
+        {/* Right: sync chrome (secondary — Code/New Task own lime) */}
+        <div className="flex items-center gap-1.5">
           {!hasRemotes ? (
             <button
               onClick={() => setIsRemoteModalOpen(true)}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border text-hub-text rounded-lg font-semibold transition-colors shadow-sm"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border text-hub-text rounded-lg font-medium transition-colors"
               title="Add remote to push and fetch"
             >
               <Globe className="w-3.5 h-3.5 text-hub-muted" />
@@ -266,37 +266,37 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
             <button
               onClick={handlePush}
               disabled={isActionLoading}
-              className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-hub-accent hover:bg-hub-success text-white rounded-lg font-semibold transition-colors shadow-sm disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border text-hub-text rounded-lg font-medium transition-colors disabled:opacity-50"
               title="Publish this branch to remote origin"
             >
-              <ArrowUp className="w-3.5 h-3.5" />
+              <ArrowUp className="w-3.5 h-3.5 text-hub-accent" />
               <span>{ahead > 0 ? `Publish branch (${ahead})` : 'Publish branch'}</span>
             </button>
           ) : behind > 0 ? (
             <button
               onClick={handlePull}
               disabled={isActionLoading}
-              className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-hub-accent hover:bg-hub-success text-white rounded-lg font-semibold transition-colors shadow-sm disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border text-hub-text rounded-lg font-medium transition-colors disabled:opacity-50"
               title="Pull changes from remote"
             >
-              <ArrowDown className="w-3.5 h-3.5" />
+              <ArrowDown className="w-3.5 h-3.5 text-hub-accent" />
               <span>Pull origin ({behind})</span>
             </button>
           ) : ahead > 0 ? (
             <button
               onClick={handlePush}
               disabled={isActionLoading}
-              className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-hub-accent hover:bg-hub-success text-white rounded-lg font-semibold transition-colors shadow-sm disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border text-hub-text rounded-lg font-medium transition-colors disabled:opacity-50"
               title="Push local commits to remote"
             >
-              <ArrowUp className="w-3.5 h-3.5" />
+              <ArrowUp className="w-3.5 h-3.5 text-hub-accent" />
               <span>Push origin ({ahead})</span>
             </button>
           ) : (
             <button
               onClick={handleFetch}
               disabled={isActionLoading}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border text-hub-text rounded-lg font-semibold transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border text-hub-text rounded-lg font-medium transition-colors disabled:opacity-50"
               title={status?.lastFetched ? `Last fetched ${status.lastFetched}` : 'Fetch latest remote refs'}
             >
               <RefreshCw className={`w-3.5 h-3.5 text-hub-muted ${isActionLoading ? 'animate-spin' : ''}`} />
@@ -310,7 +310,7 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
           {/* Remote Settings Modal Trigger */}
           <button
             onClick={() => setIsRemoteModalOpen(true)}
-            className="p-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border text-hub-muted hover:text-hub-text rounded-lg transition-colors"
+            className="p-1.5 bg-hub-bg/80 hover:bg-hub-subtle border border-hub-border/80 text-hub-muted hover:text-hub-text rounded-lg transition-colors"
             title="Manage Git Remotes"
           >
             <Globe className="w-3.5 h-3.5" />
@@ -319,7 +319,7 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
           {/* Refresh Status */}
           <button
             onClick={onRefresh}
-            className="p-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border text-hub-muted hover:text-hub-text rounded-lg transition-colors"
+            className="p-1.5 bg-hub-bg/80 hover:bg-hub-subtle border border-hub-border/80 text-hub-muted hover:text-hub-text rounded-lg transition-colors"
             title="Refresh working copy status"
           >
             <RotateCw className="w-3.5 h-3.5" />
