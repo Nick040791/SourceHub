@@ -5,6 +5,8 @@ import { WorkflowService } from './workflowService';
 import { webhookService } from './webhookService';
 import { db } from './db';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import os from 'node:os';
+import { execSync } from 'node:child_process';
 
 function parseUrl(urlStr: string) {
   const url = new URL(urlStr, 'http://localhost');
@@ -188,6 +190,42 @@ export async function handleApiAndGit(
             agentService.saveAISettings(body);
             return sendJson(res, 200, { success: true, settings: agentService.getAISettings() });
           }
+        }
+
+        // ==========================================
+        // 2c. SYSTEM & NETWORK INFORMATION
+        // ==========================================
+        if (pathname === '/api/v1/system/network' && req.method === 'GET') {
+          const interfaces = os.networkInterfaces();
+          const lanIps: string[] = [];
+          for (const name of Object.keys(interfaces)) {
+            for (const iface of interfaces[name] || []) {
+              if (iface.family === 'IPv4' && !iface.internal) {
+                lanIps.push(iface.address);
+              }
+            }
+          }
+
+          let serviceStatus: 'active' | 'inactive' | 'not_installed' = 'not_installed';
+          try {
+            const out = execSync('systemctl --user is-active sourcehub.service', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+            serviceStatus = out === 'active' ? 'active' : 'inactive';
+          } catch (e: any) {
+            if (e?.stdout?.toString().trim() === 'inactive') {
+              serviceStatus = 'inactive';
+            } else {
+              serviceStatus = 'not_installed';
+            }
+          }
+
+          return sendJson(res, 200, {
+            hostname: os.hostname(),
+            platform: os.platform(),
+            lanIps,
+            primaryLanIp: lanIps[0] || '127.0.0.1',
+            uptime: Math.floor(os.uptime()),
+            serviceStatus,
+          });
         }
 
         // ==========================================

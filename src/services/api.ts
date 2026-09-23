@@ -1,4 +1,4 @@
-import { Repository, FileItem, Commit, PullRequest, Secret, PersonalAccessToken, SSHKey, DiffFile, WorkflowRun, AgentRun, Webhook, WorkingCopyStatus, GitRemote, GitStashEntry, PRMergeability } from '../types';
+import { Repository, FileItem, Commit, PullRequest, Secret, PersonalAccessToken, SSHKey, DiffFile, WorkflowRun, AgentRun, Webhook, WorkingCopyStatus, GitRemote, GitStashEntry, PRMergeability, NetworkInfo } from '../types';
 
 export const api = {
   // --- Repositories ---
@@ -644,4 +644,12 @@ export const api = {
     });
     if (!res.ok) throw new Error('Failed to create branch');
   },
+
+  // --- System & Network ---
+  async fetchNetworkInfo(): Promise<NetworkInfo> {
+    const res = await fetch('/api/v1/system/network');
+    if (!res.ok) throw new Error('Failed to fetch system network info');
+    return await res.json();
+  },
 };
+

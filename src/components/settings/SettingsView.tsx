@@ -25,13 +25,21 @@ import { api } from '../../services/api';
 interface SettingsViewProps {
   repoName: string;
   webhooks?: Webhook[];
+  initialSection?: 'secrets' | 'keys' | 'tokens' | 'webhooks' | 'providers';
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
   repoName,
   webhooks: initialWebhooks = [],
+  initialSection = 'secrets',
 }) => {
-  const [activeSection, setActiveSection] = useState<'secrets' | 'keys' | 'tokens' | 'webhooks' | 'providers'>('secrets');
+  const [activeSection, setActiveSection] = useState<'secrets' | 'keys' | 'tokens' | 'webhooks' | 'providers'>(initialSection);
+
+  useEffect(() => {
+    if (initialSection) {
+      setActiveSection(initialSection);
+    }
+  }, [initialSection]);
 
   // Secrets state
   const [secretsList, setSecretsList] = useState<Secret[]>([]);

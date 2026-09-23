@@ -13,7 +13,8 @@ import {
   Contrast,
   Check,
   FolderGit2,
-  BookOpen
+  BookOpen,
+  Menu,
 } from 'lucide-react';
 import { Repository } from '../../types';
 
@@ -22,8 +23,8 @@ export type AppTheme = 'high-contrast-dark' | 'dark' | 'high-contrast-light';
 interface AppHeaderProps {
   activeTab: string;
   onSelectTab: (tab: any) => void;
-  onToggleBrainstorm: () => void;
-  isBrainstormOpen: boolean;
+  onToggleHamburger: () => void;
+  isHamburgerOpen: boolean;
   activeAgentRunsCount: number;
   theme: AppTheme;
   onChangeTheme: (theme: AppTheme) => void;
@@ -35,8 +36,8 @@ interface AppHeaderProps {
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
   onSelectTab,
-  onToggleBrainstorm,
-  isBrainstormOpen,
+  onToggleHamburger,
+  isHamburgerOpen,
   activeAgentRunsCount,
   theme,
   onChangeTheme,
@@ -190,18 +191,19 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           </span>
         </button>
 
-        {/* Brainstorm & Spec Inspector Toggle */}
+        {/* Hamburger Menu & System Configurations */}
         <button
-          onClick={onToggleBrainstorm}
-          className={`flex items-center space-x-1.5 px-3 py-1 rounded-md text-xs font-semibold border transition-all ${
-            isBrainstormOpen
-              ? 'bg-purple-600/20 border-purple-500 text-purple-300 shadow-sm shadow-purple-900/30'
+          onClick={onToggleHamburger}
+          className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border transition-all ${
+            isHamburgerOpen
+              ? 'bg-hub-accent/20 border-hub-accent text-hub-accent shadow-sm'
               : 'bg-hub-subtle hover:bg-hub-border border-hub-border text-hub-text hover:text-white'
           }`}
-          title="Open SourceHub Plan Spec & Brainstorming Guide"
+          title="Open Settings & Configurations Menu"
+          aria-label="Settings and configurations menu"
         >
-          <Sparkles className="w-3.5 h-3.5 text-purple-400 animate-pulse" />
-          <span>Brainstorm Spec</span>
+          <Menu className="w-4 h-4 text-hub-accent" />
+          <span className="hidden sm:inline">Menu</span>
         </button>
 
         {/* Theme Contrast Switcher */}

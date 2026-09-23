@@ -273,3 +273,13 @@ export interface Webhook {
   active: boolean;
   deliveries: WebhookDelivery[];
 }
+
+export interface NetworkInfo {
+  hostname: string;
+  platform: string;
+  lanIps: string[];
+  primaryLanIp: string;
+  uptime: number;
+  serviceStatus: 'active' | 'inactive' | 'not_installed';
+}
+

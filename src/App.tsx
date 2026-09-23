@@ -8,7 +8,7 @@ import { ActionsView } from './components/actions/ActionsView';
 import { AgentsView } from './components/agents/AgentsView';
 import { SettingsView } from './components/settings/SettingsView';
 import { IssuesView } from './components/issues/IssuesView';
-import { BrainstormPanel } from './components/brainstorm/BrainstormPanel';
+import { HamburgerMenu } from './components/layout/HamburgerMenu';
 import { NewRepoModal } from './components/repo/NewRepoModal';
 import { DesktopActionBar } from './components/desktop/DesktopActionBar';
 import { DesktopView } from './components/desktop/DesktopView';
@@ -19,7 +19,8 @@ import { api } from './services/api';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('code');
-  const [isBrainstormOpen, setIsBrainstormOpen] = useState(false);
+  const [isHamburgerOpen, setIsHamburgerOpen] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<'secrets' | 'keys' | 'tokens' | 'webhooks' | 'providers'>('secrets');
   const [theme, setTheme] = useState<AppTheme>('high-contrast-dark');
 
   // Repositories state
@@ -126,8 +127,8 @@ export const App: React.FC = () => {
       <AppHeader
         activeTab={activeTab}
         onSelectTab={(tab) => setActiveTab(tab)}
-        onToggleBrainstorm={() => setIsBrainstormOpen(!isBrainstormOpen)}
-        isBrainstormOpen={isBrainstormOpen}
+        onToggleHamburger={() => setIsHamburgerOpen(!isHamburgerOpen)}
+        isHamburgerOpen={isHamburgerOpen}
         activeAgentRunsCount={activeAgentRunsCount}
         theme={theme}
         onChangeTheme={setTheme}
@@ -212,16 +213,26 @@ export const App: React.FC = () => {
         {activeTab === 'settings' && (
           <SettingsView
             repoName={selectedRepo.name}
+            initialSection={settingsSection}
           />
         )}
       </main>
 
-      {/* 5. Collapsible Brainstorm & Spec Panel (§1 - §16 reference) */}
-      <BrainstormPanel
-        isOpen={isBrainstormOpen}
-        onClose={() => setIsBrainstormOpen(false)}
-        onNavigateTab={(tab) => setActiveTab(tab)}
+      {/* 5. Slide-Out Hamburger Configuration & Settings Drawer */}
+      <HamburgerMenu
+        isOpen={isHamburgerOpen}
+        onClose={() => setIsHamburgerOpen(false)}
         activeTab={activeTab}
+        onNavigateTab={(tab) => setActiveTab(tab)}
+        onNavigateSettings={(section) => {
+          setSettingsSection(section);
+          setActiveTab('settings');
+        }}
+        theme={theme}
+        onChangeTheme={setTheme}
+        selectedRepo={selectedRepo}
+        desktopStatus={desktopStatus}
+        onOpenNewRepoModal={() => setIsNewRepoModalOpen(true)}
       />
 
       {/* 6. New Repository Modal */}
