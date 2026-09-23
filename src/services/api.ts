@@ -395,6 +395,17 @@ export const api = {
     if (!res.ok) throw new Error('Failed to delete webhook');
   },
 
+  async testWebhook(repoName: string, id: string): Promise<{ success: boolean; status?: number; statusText?: string; durationMs: number; error?: string }> {
+    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/webhooks/${encodeURIComponent(id)}/test`, {
+      method: 'POST',
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Webhook ping failed' }));
+      throw new Error(err.error || 'Webhook ping failed');
+    }
+    return await res.json();
+  },
+
   // ==========================================
   // --- Desktop / Local Git Source Control ---
   // ==========================================

@@ -1,6 +1,7 @@
 import { db } from './db';
 import { GitService } from './gitService';
 import { WorkflowService } from './workflowService';
+import { webhookService } from './webhookService';
 interface ParsedFile {
   path: string;
   content: string;
@@ -268,7 +269,7 @@ export class AgentService {
     try {
       // 1. Gather comprehensive repository context
       const [snapshot, recentCommits, diff] = await Promise.all([
-        this.gitService.getRepoSnapshot(repoName, baseBranch, 100000),
+        this.gitService.getRepoSnapshot(repoName, baseBranch, 100000, prompt),
         this.gitService.getCommits(repoName, baseBranch, 8).catch(() => []),
         this.gitService.getUnifiedDiff(repoName, baseBranch, targetBranch).catch(() => ''),
       ]);
@@ -434,6 +435,16 @@ ${prompt}
       prId = Number(resDb.lastInsertRowid);
       db.prepare('UPDATE agent_runs SET pr_id = ? WHERE id = ?').run(prId, runId);
 
+      webhookService.dispatch(repoName, 'pull_request.opened', {
+        id: prId,
+        title: prTitle,
+        repoName,
+        author: 'SourceHub Helper',
+        sourceBranch: targetBranch,
+        targetBranch: baseBranch,
+        isAgent: true,
+      }).catch(err => console.warn('[Webhook] agent PR opened dispatch failed:', err.message));
+
       addEvent(
         'agent.pr_opened',
         `Opened Pull Request #${prId}`,
@@ -509,6 +520,15 @@ ${prompt}
       SET state = 'ready_for_review', completed_at = 'Just now', files_touched = ?
       WHERE id = ?
     `).run(JSON.stringify(filesTouched), runId);
+
+    webhookService.dispatch(repoName, 'agent_run.completed', {
+      runId,
+      repoName,
+      prId,
+      filesTouched,
+      targetBranch,
+      state: 'ready_for_review',
+    }).catch(err => console.warn('[Webhook] agent_run.completed dispatch failed:', err.message));
   }
 
   // 6. Generate PR Description using Ollama Helper
@@ -604,7 +624,7 @@ TITLE: <concise conventional title>
     const [diff, commits, snapshot] = await Promise.all([
       this.gitService.getUnifiedDiff(repoName, pr.target_branch, pr.source_branch).catch(() => ''),
       this.gitService.getCommitsBetween(repoName, pr.target_branch, pr.source_branch).catch(() => []),
-      this.gitService.getRepoSnapshot(repoName, pr.source_branch, 80000).catch(() => ({ fileTree: [], files: [], totalTracked: 0 })),
+      this.gitService.getRepoSnapshot(repoName, pr.source_branch, 80000, `${pr.title} ${pr.body || ''}`).catch(() => ({ fileTree: [], files: [], totalTracked: 0 })),
     ]);
 
     const commitList = commits.map((c: any) => `- ${c.shortSha || c.sha?.substring(0, 7)}: ${c.message} (${c.author})`).join('\n');
@@ -690,7 +710,7 @@ Checklist of recommended tests to run before merging.
 
     const [diff, snapshot] = await Promise.all([
       this.gitService.getUnifiedDiff(repoName, pr.target_branch, pr.source_branch).catch(() => ''),
-      this.gitService.getRepoSnapshot(repoName, pr.source_branch, 80000).catch(() => ({ fileTree: [], files: [], totalTracked: 0 })),
+      this.gitService.getRepoSnapshot(repoName, pr.source_branch, 80000, `${pr.title} ${comments.map((c: any) => c.content).join(' ')}`).catch(() => ({ fileTree: [], files: [], totalTracked: 0 })),
     ]);
 
     const formattedComments = comments

@@ -2,6 +2,7 @@ import type { Plugin, ViteDevServer } from 'vite';
 import { GitService } from './gitService';
 import { AgentService } from './agentService';
 import { WorkflowService } from './workflowService';
+import { webhookService } from './webhookService';
 import { db } from './db';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
@@ -357,6 +358,13 @@ export function vitePluginGitApi(): Plugin {
               if (!body.summary) return sendError(res, 400, 'Commit summary is required');
               try {
                 const result = await gitService.commitWorkingCopy(repoName, body.summary, body.description, body.files);
+                webhookService.dispatch(repoName, 'push', {
+                  action: 'commit',
+                  sha: result.sha,
+                  summary: body.summary,
+                  description: body.description,
+                  files: body.files,
+                }).catch(e => console.warn('[Webhook] push dispatch failed:', e.message));
                 return sendJson(res, 200, { success: true, sha: result.sha });
               } catch (e: any) {
                 return sendError(res, 500, e.message);
@@ -405,6 +413,11 @@ export function vitePluginGitApi(): Plugin {
                   body.branch,
                   body.setUpstream !== false
                 );
+                webhookService.dispatch(repoName, 'push', {
+                  action: 'push',
+                  remote: body.remote || 'origin',
+                  branch: body.branch,
+                }).catch(e => console.warn('[Webhook] push dispatch failed:', e.message));
                 return sendJson(res, 200, result);
               } catch (e: any) {
                 return sendError(res, 500, e.message);
@@ -583,6 +596,15 @@ export function vitePluginGitApi(): Plugin {
               );
 
               const prId = Number(resDb.lastInsertRowid);
+              webhookService.dispatch(repoName, 'pull_request.opened', {
+                id: prId,
+                repoName,
+                title: body.title,
+                author: body.author || 'Nicholas Beighley',
+                sourceBranch,
+                targetBranch,
+                isAgent: Boolean(body.isAgent),
+              }).catch(e => console.warn('[Webhook] pull_request.opened dispatch failed:', e.message));
               return sendJson(res, 201, { id: prId, message: 'Pull request created' });
             }
 
@@ -689,6 +711,16 @@ export function vitePluginGitApi(): Plugin {
                   }
                 }
               }
+
+              webhookService.dispatch(repoName, 'pull_request.merged', {
+                id: prId,
+                repoName,
+                title: p.title,
+                sourceBranch: p.source_branch,
+                targetBranch: p.target_branch,
+                commitSha: mergeResult.commitSha,
+                closedIssues,
+              }).catch(e => console.warn('[Webhook] pull_request.merged dispatch failed:', e.message));
 
               return sendJson(res, 200, { ...mergeResult, closedIssues });
             }
@@ -915,7 +947,7 @@ export function vitePluginGitApi(): Plugin {
                 createdAt: h.created_at,
               })));
             }
-            if (req.method === 'POST') {
+            if (parts.length === 2 && req.method === 'POST') {
               const body = await readJsonBody(req);
               if (!body.url) return sendError(res, 400, 'Webhook URL is required');
               const id = `hook-${Date.now()}`;
@@ -931,6 +963,11 @@ export function vitePluginGitApi(): Plugin {
                 'Just now'
               );
               return sendJson(res, 201, { id, url: body.url });
+            }
+            if (parts.length === 4 && parts[3] === 'test' && req.method === 'POST') {
+              const id = parts[2];
+              const testResult = await webhookService.testPing(id);
+              return sendJson(res, 200, testResult);
             }
             if (parts.length === 3 && req.method === 'DELETE') {
               const id = parts[2];

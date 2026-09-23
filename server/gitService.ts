@@ -664,7 +664,8 @@ export class GitService {
   async getRepoSnapshot(
     name: string,
     ref: string = 'HEAD',
-    maxChars: number = 120000
+    maxChars: number = 120000,
+    prompt?: string
   ): Promise<{ fileTree: string[]; files: { path: string; content: string }[]; totalTracked: number }> {
     const allFiles = await this.getAllTrackedFiles(name, ref);
     const ignoredExtensions = new Set([
@@ -686,17 +687,66 @@ export class GitService {
       return true;
     });
 
+    // Score files for prompt relevance and architectural priority
+    const keywords = prompt
+      ? prompt
+          .toLowerCase()
+          .split(/[^a-z0-9_-]+/)
+          .filter(k => k.length >= 3 && !['the', 'and', 'for', 'with', 'this', 'that', 'from', 'into'].includes(k))
+      : [];
+
+    const scoredFiles = readableFiles.map(filePath => {
+      const lowerPath = filePath.toLowerCase();
+      const baseName = path.basename(lowerPath);
+      let score = 0;
+
+      // Tier 1: Core project configuration and manifests
+      if (baseName === 'package.json') score += 2000;
+      else if (baseName === 'tsconfig.json') score += 1500;
+      else if (baseName === 'readme.md') score += 1200;
+      else if (baseName === 'vite.config.ts' || baseName === 'next.config.js') score += 1000;
+
+      // Tier 2: Keyword matches from prompt against path / basename
+      for (const kw of keywords) {
+        if (baseName.includes(kw)) {
+          score += 400;
+        } else if (lowerPath.includes(kw)) {
+          score += 150;
+        }
+      }
+
+      // Tier 3: Core application code priority over configs/assets
+      if (lowerPath.startsWith('src/') || lowerPath.startsWith('server/')) {
+        score += 80;
+      } else if (lowerPath.startsWith('lib/') || lowerPath.startsWith('app/')) {
+        score += 50;
+      }
+
+      // Tier 4: Code files over non-code
+      const ext = path.extname(lowerPath);
+      if (['.ts', '.tsx', '.js', '.jsx', '.py', '.go', '.rs'].includes(ext)) {
+        score += 40;
+      } else if (['.json', '.css', '.html', '.md', '.yml', '.yaml'].includes(ext)) {
+        score += 20;
+      }
+
+      return { path: filePath, score };
+    });
+
+    // Sort descending by relevance score
+    scoredFiles.sort((a, b) => b.score - a.score);
+
     const loadedFiles: { path: string; content: string }[] = [];
     let currentChars = 0;
 
-    for (const filePath of readableFiles) {
+    for (const item of scoredFiles) {
       if (currentChars >= maxChars) break;
       try {
-        const content = await this.getBlob(name, ref, filePath);
+        const content = await this.getBlob(name, ref, item.path);
         if (content && typeof content === 'string') {
           // If a single file is monstrous, cap it
           const trimmed = content.length > 20000 ? content.substring(0, 20000) + '\n... [truncated]' : content;
-          loadedFiles.push({ path: filePath, content: trimmed });
+          loadedFiles.push({ path: item.path, content: trimmed });
           currentChars += trimmed.length;
         }
       } catch (err) {

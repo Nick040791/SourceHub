@@ -10,7 +10,8 @@ import {
   Terminal, 
   ShieldCheck,
   Loader2,
-  RotateCw
+  RotateCw,
+  Send
 } from 'lucide-react';
 import { 
   Secret, 
@@ -56,6 +57,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [showAddWebhook, setShowAddWebhook] = useState(false);
   const [newWebhookUrl, setNewWebhookUrl] = useState('');
   const [showWebhookPayload, setShowWebhookPayload] = useState(false);
+  const [pingStatus, setPingStatus] = useState<Record<string, { loading?: boolean; success?: boolean; message?: string }>>({});
 
   // Provider state
   const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434');
@@ -216,6 +218,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       loadData();
     } catch (err: any) {
       alert(`Error deleting webhook: ${err.message}`);
+    }
+  };
+
+  const handleTestWebhook = async (id: string) => {
+    setPingStatus(prev => ({ ...prev, [id]: { loading: true } }));
+    try {
+      const res = await api.testWebhook(repoName, id);
+      if (res.success) {
+        setPingStatus(prev => ({
+          ...prev,
+          [id]: { loading: false, success: true, message: `Ping OK (HTTP ${res.status || 200} in ${res.durationMs}ms)` },
+        }));
+      } else {
+        setPingStatus(prev => ({
+          ...prev,
+          [id]: { loading: false, success: false, message: `Ping failed: ${res.error || res.statusText || 'Delivery error'}` },
+        }));
+      }
+    } catch (err: any) {
+      setPingStatus(prev => ({
+        ...prev,
+        [id]: { loading: false, success: false, message: err.message },
+      }));
     }
   };
 
@@ -678,6 +703,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         <span className="font-mono font-bold text-hub-text">{wh.url}</span>
                       </div>
                       <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => handleTestWebhook(wh.id)}
+                          disabled={pingStatus[wh.id]?.loading}
+                          className="flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] bg-hub-bg hover:bg-hub-subtle border border-hub-border text-hub-text disabled:opacity-50 transition-colors"
+                          title="Send test ping payload"
+                        >
+                          {pingStatus[wh.id]?.loading ? (
+                            <Loader2 className="w-3 h-3 animate-spin text-hub-accent" />
+                          ) : (
+                            <Send className="w-3 h-3 text-hub-accent" />
+                          )}
+                          <span>Ping</span>
+                        </button>
                         <span className="px-2 py-0.5 rounded text-[10px] bg-green-950 text-hub-success-text border border-green-800 font-mono">
                           Active
                         </span>
@@ -699,6 +737,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         </span>
                       ))}
                     </div>
+
+                    {pingStatus[wh.id]?.message && (
+                      <div
+                        className={`text-[11px] font-mono px-2 py-1 rounded border ${
+                          pingStatus[wh.id]?.success
+                            ? 'bg-green-950/40 text-hub-success-text border-green-900'
+                            : 'bg-red-950/40 text-red-300 border-red-900'
+                        }`}
+                      >
+                        {pingStatus[wh.id]?.message}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
