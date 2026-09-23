@@ -184,7 +184,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
   };
 
   const handleReviewWithHelper = async () => {
-    if (!selectedPR) return;
+    if (!selectedPR || isReviewing || isAddressingComments || selectedPR.isAIBusy) return;
     setIsReviewing(true);
     try {
       await api.reviewPRWithHelper(repoName, selectedPR.id);
@@ -199,7 +199,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
   };
 
   const handleAskAgentToAddress = async () => {
-    if (!selectedPR) return;
+    if (!selectedPR || isReviewing || isAddressingComments || selectedPR.isAIBusy) return;
     setIsAddressingComments(true);
     try {
       await api.addressPRCommentsWithHelper(repoName, selectedPR.id);
@@ -227,6 +227,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
   const openPRs = pullRequests.filter(p => p.state === 'open');
   const closedPRs = pullRequests.filter(p => p.state !== 'open');
   const filteredList = filterState === 'open' ? openPRs : closedPRs;
+  const isAIOperationBusy = isReviewing || isAddressingComments || Boolean(selectedPR?.isAIBusy);
 
   return (
     <div className="space-y-4">
@@ -359,9 +360,17 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                       {selectedPR.state === 'open' && (
                         <button
                           onClick={handleReviewWithHelper}
-                          disabled={isReviewing}
-                          className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-purple-950/60 hover:bg-purple-900 border border-purple-700 text-purple-300 text-xs font-medium transition-colors disabled:opacity-50"
-                          title="Generate a full staff-engineer code review using Helper"
+                          disabled={isAIOperationBusy}
+                          className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-purple-950/60 hover:bg-purple-900 border border-purple-700 text-purple-300 text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          title={
+                            isReviewing
+                              ? 'Helper code review in progress...'
+                              : isAddressingComments
+                              ? 'Cannot review while comments are being addressed'
+                              : selectedPR.isAIBusy
+                              ? 'Helper is currently busy on this pull request'
+                              : 'Generate a full staff-engineer code review using Helper'
+                          }
                         >
                           {isReviewing ? (
                             <>
@@ -723,49 +732,83 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                       </div>
 
                       {/* Helper Actions */}
-                      <div className="pt-2 border-t border-hub-border/60 flex items-center justify-between flex-wrap gap-2">
-                        <div className="flex items-center space-x-2 text-xs text-hub-muted">
-                          <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-                          <span>Helper automated review & resolution</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          {selectedPR.state === 'open' && (
+                      <div className="pt-2 border-t border-hub-border/60 space-y-2">
+                        {isAIOperationBusy && (
+                          <div className="flex items-center space-x-2 px-3 py-2 rounded bg-purple-950/40 border border-purple-800 text-purple-300 text-xs animate-pulse">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400 shrink-0" />
+                            <span>
+                              {isReviewing
+                                ? 'Helper is analyzing the pull request diff and generating a comprehensive code review...'
+                                : isAddressingComments
+                                ? 'Helper is examining existing review comments and drafting responses/solutions...'
+                                : 'An AI Helper operation is actively running on this pull request...'}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div className="flex items-center space-x-2 text-xs text-hub-muted">
+                            <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                            <span>Helper automated review & resolution</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            {selectedPR.state === 'open' && (
+                              <button
+                                onClick={handleReviewWithHelper}
+                                disabled={isAIOperationBusy}
+                                className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-purple-950/60 hover:bg-purple-900 border border-purple-700 text-purple-300 text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                title={
+                                  isReviewing
+                                    ? 'Helper code review in progress...'
+                                    : isAddressingComments
+                                    ? 'Cannot review while comments are being addressed'
+                                    : selectedPR.isAIBusy
+                                    ? 'Helper is currently busy on this pull request'
+                                    : 'Helper will inspect PR diff and files to provide a code review'
+                                }
+                              >
+                                {isReviewing ? (
+                                  <>
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    <span>Reviewing with Helper...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                                    <span>Review PR with Helper</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
                             <button
-                              onClick={handleReviewWithHelper}
-                              disabled={isReviewing}
-                              className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-purple-950/60 hover:bg-purple-900 border border-purple-700 text-purple-300 text-xs font-medium transition-colors disabled:opacity-50"
-                              title="Helper will inspect PR diff and files to provide a code review"
+                              onClick={handleAskAgentToAddress}
+                              disabled={isAIOperationBusy || selectedPR.state !== 'open'}
+                              className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-purple-950/60 hover:bg-purple-900 border border-purple-700 text-purple-300 text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              title={
+                                isAddressingComments
+                                  ? 'Addressing review comments...'
+                                  : isReviewing
+                                  ? 'Cannot address comments while Helper review is in progress'
+                                  : selectedPR.isAIBusy
+                                  ? 'Helper is currently busy on this pull request'
+                                  : selectedPR.state !== 'open'
+                                  ? 'Pull request is not open'
+                                  : 'Helper will analyze review comments and propose fixes'
+                              }
                             >
-                              {isReviewing ? (
+                              {isAddressingComments ? (
                                 <>
                                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                  <span>Reviewing with Helper...</span>
+                                  <span>Addressing comments...</span>
                                 </>
                               ) : (
                                 <>
-                                  <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-                                  <span>Review PR with Helper</span>
+                                  <Bot className="w-3.5 h-3.5" />
+                                  <span>Address review comments</span>
                                 </>
                               )}
                             </button>
-                          )}
-                          <button
-                            onClick={handleAskAgentToAddress}
-                            disabled={isAddressingComments || selectedPR.state !== 'open'}
-                            className="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-purple-950/60 hover:bg-purple-900 border border-purple-700 text-purple-300 text-xs font-medium transition-colors disabled:opacity-50"
-                          >
-                            {isAddressingComments ? (
-                              <>
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                <span>Addressing comments...</span>
-                              </>
-                            ) : (
-                              <>
-                                <Bot className="w-3.5 h-3.5" />
-                                <span>Address review comments</span>
-                              </>
-                            )}
-                          </button>
+                          </div>
                         </div>
                       </div>
                     </div>

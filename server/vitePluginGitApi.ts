@@ -660,6 +660,7 @@ export async function handleApiAndGit(
                 checksStatus: p.checks_status || 'passed',
                 checksSummary: p.checks_summary || 'All checks passed',
                 workflowRunId: p.workflow_run_id || undefined,
+                isAIBusy: agentService.isPROperationActive(repoName, p.id),
                 comments: comments.map(c => ({
                   id: `c-${c.id}`,
                   author: c.author,
@@ -811,6 +812,10 @@ export async function handleApiAndGit(
               const p = db.prepare('SELECT * FROM pull_requests WHERE id = ? AND repo_name = ?').get(prId, repoName) as any;
               if (!p) return sendError(res, 404, 'Pull request not found');
 
+              if (agentService.isPROperationActive(repoName, prId)) {
+                return sendError(res, 409, `An AI Helper task is already in progress for Pull Request #${prId}. Cannot run review and address comments simultaneously.`);
+              }
+
               const result = await agentService.reviewPullRequest(repoName, prId);
               return sendJson(res, 200, result);
             }
@@ -819,6 +824,10 @@ export async function handleApiAndGit(
             if (parts.length === 4 && parts[3] === 'address-comments' && req.method === 'POST') {
               const p = db.prepare('SELECT * FROM pull_requests WHERE id = ? AND repo_name = ?').get(prId, repoName) as any;
               if (!p) return sendError(res, 404, 'Pull request not found');
+
+              if (agentService.isPROperationActive(repoName, prId)) {
+                return sendError(res, 409, `An AI Helper task is already in progress for Pull Request #${prId}. Cannot run review and address comments simultaneously.`);
+              }
 
               const result = await agentService.addressReviewComments(repoName, prId);
               return sendJson(res, 200, result);

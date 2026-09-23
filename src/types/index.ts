@@ -124,6 +124,7 @@ export interface PullRequest {
   checksStatus: 'passed' | 'running' | 'failed' | 'pending';
   checksSummary: string;
   workflowRunId?: string;
+  isAIBusy?: boolean;
   comments: PRReviewComment[];
   diffs: DiffFile[];
 }
