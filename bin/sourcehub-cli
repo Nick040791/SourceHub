@@ -1,0 +1,269 @@
+#!/usr/bin/env bash
+set -e
+
+# Load system configuration if present
+if [ -f /etc/sourcehub/sourcehub.conf ]; then
+  # shellcheck source=/dev/null
+  source /etc/sourcehub/sourcehub.conf
+fi
+
+# Load user configuration if present
+USER_CONFIG="${HOME}/.config/sourcehub/sourcehub.conf"
+if [ -f "${USER_CONFIG}" ]; then
+  # shellcheck source=/dev/null
+  source "${USER_CONFIG}"
+fi
+
+# Determine installation directory
+if [ -f /usr/lib/sourcehub/server.mjs ]; then
+  APP_DIR="/usr/lib/sourcehub"
+  SERVER_SCRIPT="${APP_DIR}/server.mjs"
+else
+  # Running from git repository clone
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  APP_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+  SERVER_SCRIPT="${APP_DIR}/dist-server/server.mjs"
+fi
+
+HOST="${HOST:-127.0.0.1}"
+PORT="${PORT:-5173}"
+DATA_DIR="${SOURCEHUB_DATA_DIR:-${HOME}/.sourcehub}"
+REPOS_DIR="${SOURCEHUB_REPOS_DIR:-${HOME}/Dev}"
+NODE_BIN="${NODE_BIN:-$(which node || echo /usr/bin/node)}"
+PID_FILE="${DATA_DIR}/sourcehub.pid"
+LOG_FILE="${DATA_DIR}/sourcehub.log"
+URL="http://${HOST}:${PORT}/"
+
+mkdir -p "${DATA_DIR}"
+
+check_running() {
+  if [ -f "${PID_FILE}" ]; then
+    PID="$(cat "${PID_FILE}" 2>/dev/null || true)"
+    if [ -n "${PID}" ] && kill -0 "${PID}" 2>/dev/null; then
+      return 0
+    fi
+  fi
+  if curl -s --connect-timeout 1 "${URL}" > /dev/null 2>&1; then
+    return 0
+  fi
+  return 1
+}
+
+start_server() {
+  local DAEMON_MODE="$1"
+
+  if check_running; then
+    echo "SourceHub is already running at ${URL}"
+    return 0
+  fi
+
+  if [ ! -f "${SERVER_SCRIPT}" ]; then
+    echo "Error: Server script not found at ${SERVER_SCRIPT}"
+    echo "If running in development, run 'npm run bundle:server' first."
+    exit 1
+  fi
+
+  export NODE_ENV=production
+  export HOST="${HOST}"
+  export PORT="${PORT}"
+  export SOURCEHUB_DATA_DIR="${DATA_DIR}"
+  export SOURCEHUB_REPOS_DIR="${REPOS_DIR}"
+
+  if [ "${DAEMON_MODE}" = "--daemon" ]; then
+    echo "Starting SourceHub daemon on ${URL}..."
+    nohup "${NODE_BIN}" "${SERVER_SCRIPT}" > "${LOG_FILE}" 2>&1 &
+    local NEW_PID=$!
+    echo "${NEW_PID}" > "${PID_FILE}"
+    echo "SourceHub started (PID: ${NEW_PID}). Logs: ${LOG_FILE}"
+  else
+    echo "Starting SourceHub on ${URL} (Press Ctrl+C to stop)..."
+    echo "$$" > "${PID_FILE}"
+    trap 'rm -f "${PID_FILE}"; exit 0' INT TERM EXIT
+    exec "${NODE_BIN}" "${SERVER_SCRIPT}"
+  fi
+}
+
+stop_server() {
+  local STOPPED=0
+  if [ -f "${PID_FILE}" ]; then
+    PID="$(cat "${PID_FILE}" 2>/dev/null || true)"
+    if [ -n "${PID}" ] && kill -0 "${PID}" 2>/dev/null; then
+      echo "Stopping SourceHub (PID: ${PID})..."
+      kill "${PID}" 2>/dev/null || true
+      rm -f "${PID_FILE}"
+      STOPPED=1
+    fi
+  fi
+
+  # Check if still listening or started through another PID
+  if pkill -f "node.*${SERVER_SCRIPT}" 2>/dev/null; then
+    STOPPED=1
+  fi
+
+  if [ "${STOPPED}" -eq 1 ]; then
+    echo "SourceHub stopped."
+  else
+    echo "SourceHub was not running."
+  fi
+}
+
+status_server() {
+  if check_running; then
+    local PID_INFO=""
+    if [ -f "${PID_FILE}" ]; then
+      PID_INFO=" (PID: $(cat "${PID_FILE}"))"
+    fi
+    echo "SourceHub is running${PID_INFO} at ${URL}"
+    echo "Data directory: ${DATA_DIR}"
+    echo "Repos directory: ${REPOS_DIR}"
+  else
+    echo "SourceHub is stopped."
+  fi
+}
+
+launch_app() {
+  if ! check_running; then
+    start_server "--daemon"
+    # Wait for server to be responsive
+    for _ in {1..20}; do
+      if curl -s --connect-timeout 1 "${URL}" > /dev/null 2>&1; then
+        break
+      fi
+      sleep 0.4
+    done
+  fi
+
+  echo "Opening SourceHub in default browser (${URL})..."
+  if command -v xdg-open > /dev/null 2>&1; then
+    xdg-open "${URL}" > /dev/null 2>&1 &
+  elif command -v open > /dev/null 2>&1; then
+    open "${URL}" > /dev/null 2>&1 &
+  elif command -v sensible-browser > /dev/null 2>&1; then
+    sensible-browser "${URL}" > /dev/null 2>&1 &
+  else
+    echo "Could not detect browser launcher. Please navigate to ${URL}"
+  fi
+}
+
+manage_service() {
+  local ACTION="$1"
+  case "${ACTION}" in
+    install)
+      mkdir -p "${HOME}/.config/systemd/user"
+      if [ -f /usr/lib/systemd/user/sourcehub.service ]; then
+        cp /usr/lib/systemd/user/sourcehub.service "${HOME}/.config/systemd/user/"
+      fi
+      systemctl --user daemon-reload
+      systemctl --user enable sourcehub.service
+      echo "SourceHub user service installed and enabled."
+      ;;
+    start)
+      systemctl --user start sourcehub.service
+      ;;
+    stop)
+      systemctl --user stop sourcehub.service
+      ;;
+    restart)
+      systemctl --user restart sourcehub.service
+      ;;
+    status)
+      systemctl --user status sourcehub.service
+      ;;
+    uninstall)
+      systemctl --user stop sourcehub.service 2>/dev/null || true
+      systemctl --user disable sourcehub.service 2>/dev/null || true
+      rm -f "${HOME}/.config/systemd/user/sourcehub.service"
+      systemctl --user daemon-reload
+      echo "SourceHub user service uninstalled."
+      ;;
+    *)
+      echo "Usage: sourcehub service {install|start|stop|restart|status|uninstall}"
+      exit 1
+      ;;
+  esac
+}
+
+show_help() {
+  cat <<EOF
+SourceHub CLI — Self-Hosted Git Forge & Source Control Workbench
+
+Usage:
+  sourcehub [command] [options]
+
+Commands:
+  launch              Start SourceHub if not running, and open in browser (default)
+  start [--daemon]    Start the SourceHub HTTP daemon (foreground or --daemon)
+  stop                Stop the running SourceHub daemon
+  status              Check running status of SourceHub
+  service <action>    Manage systemd user service (install|start|stop|status|uninstall)
+  version             Display version information
+  help                Display this help message
+
+Options:
+  --port <port>       Port to bind (default: 5173 or \$PORT)
+  --host <host>       Interface to bind (default: 127.0.0.1 or \$HOST)
+
+Configuration Files:
+  System: /etc/sourcehub/sourcehub.conf
+  User:   ~/.config/sourcehub/sourcehub.conf
+
+Data Directory:
+  Database & state: ~/.sourcehub/
+  Repositories:     ~/Dev/
+EOF
+}
+
+# Parse options
+COMMAND="${1:-launch}"
+shift || true
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --port)
+      PORT="$2"
+      URL="http://${HOST}:${PORT}/"
+      shift 2
+      ;;
+    --host)
+      HOST="$2"
+      URL="http://${HOST}:${PORT}/"
+      shift 2
+      ;;
+    --daemon)
+      DAEMON_FLAG="--daemon"
+      shift
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+case "${COMMAND}" in
+  launch)
+    launch_app
+    ;;
+  start)
+    start_server "${DAEMON_FLAG:-}"
+    ;;
+  stop)
+    stop_server
+    ;;
+  status)
+    status_server
+    ;;
+  service)
+    manage_service "$1"
+    ;;
+  version|-v|--version)
+    echo "SourceHub v0.1.0"
+    ;;
+  help|-h|--help)
+    show_help
+    ;;
+  *)
+    echo "Unknown command: ${COMMAND}"
+    echo "Run 'sourcehub help' for available commands."
+    exit 1
+    ;;
+esac

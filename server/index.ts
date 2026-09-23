@@ -8,7 +8,10 @@ import { handleApiAndGit } from './vitePluginGitApi';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const distDir = path.resolve(__dirname, '../dist');
+const distDir = process.env.SOURCEHUB_DIST_DIR ||
+  (fs.existsSync(path.resolve(__dirname, './dist'))
+    ? path.resolve(__dirname, './dist')
+    : path.resolve(__dirname, '../dist'));
 
 const PORT = parseInt(process.env.PORT || '5173', 10);
 const HOST = process.env.HOST || '127.0.0.1';

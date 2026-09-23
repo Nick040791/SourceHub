@@ -8,6 +8,8 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "serve": "tsx server/index.ts",
+    "bundle:server": "esbuild server/index.ts --bundle --platform=node --target=node22 --format=esm --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" --outfile=dist-server/server.mjs --external:node:*",
+    "build:deb": "bash scripts/build-deb.sh",
     "test": "tsx --test test/**/*.test.ts"
   },
   "dependencies": {

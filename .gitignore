@@ -5,6 +5,8 @@ node_modules/
 
 # Production build
 dist/
+dist-deb/
+dist-server/
 build/
 
 # Logs

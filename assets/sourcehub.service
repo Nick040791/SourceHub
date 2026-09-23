@@ -1,0 +1,15 @@
+[Unit]
+Description=SourceHub Git Forge & Development Daemon
+Documentation=https://github.com/mrnicholas/SourceHub
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/sourcehub start
+Restart=always
+RestartSec=3
+KillMode=process
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=default.target

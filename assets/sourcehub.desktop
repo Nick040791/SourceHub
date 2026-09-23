@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=SourceHub
+GenericName=Git Forge & Source Control
+Comment=Self-hosted git forge, local CI runner, and AI coding agent
+Exec=sourcehub launch
+Icon=sourcehub
+Terminal=false
+Categories=Development;RevisionControl;IDE;
+Keywords=git;github;forge;ci;ai;version control;
+StartupNotify=true
