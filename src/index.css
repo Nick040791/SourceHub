@@ -90,3 +90,140 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(var(--hub-border-strong), 1);
 }
+
+/* Word-Doc Style Markdown Preview Styling */
+.doc-content h1 {
+  font-size: 2rem;
+  font-weight: 800;
+  margin-top: 0.5rem;
+  margin-bottom: 1.25rem;
+  line-height: 1.25;
+  border-bottom: 2px solid rgba(128, 128, 128, 0.25);
+  padding-bottom: 0.5rem;
+}
+
+.doc-content h2 {
+  font-size: 1.45rem;
+  font-weight: 700;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+  line-height: 1.35;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+  padding-bottom: 0.35rem;
+}
+
+.doc-content h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.doc-content p {
+  margin-bottom: 1.25rem;
+  line-height: 1.8;
+}
+
+.doc-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  font-size: 0.9em;
+}
+
+.doc-content th {
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  padding: 0.6rem 0.85rem;
+  font-weight: 700;
+  text-align: left;
+  background: rgba(128, 128, 128, 0.1);
+}
+
+.doc-content td {
+  border: 1px solid rgba(128, 128, 128, 0.25);
+  padding: 0.5rem 0.85rem;
+}
+
+.doc-content tr:nth-child(even) {
+  background: rgba(128, 128, 128, 0.04);
+}
+
+.doc-content blockquote {
+  border-left: 4px solid #3b82f6;
+  padding: 0.6rem 1rem;
+  margin: 1.25rem 0;
+  font-style: italic;
+  background: rgba(59, 130, 246, 0.06);
+  border-radius: 0 4px 4px 0;
+}
+
+.doc-content pre {
+  padding: 1rem 1.25rem;
+  border-radius: 6px;
+  border: 1px solid rgba(128, 128, 128, 0.3);
+  overflow-x: auto;
+  margin: 1.25rem 0;
+  background: #0d1117;
+  color: #e6edf3;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.doc-content code {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.88em;
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  background: rgba(128, 128, 128, 0.15);
+}
+
+.doc-content pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.doc-content hr {
+  margin: 2rem 0;
+  border: 0;
+  border-top: 1px solid rgba(128, 128, 128, 0.25);
+}
+
+.doc-content ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.doc-content ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.doc-content li {
+  margin-bottom: 0.35rem;
+}
+
+/* Compact Document Content for PRs & Comments */
+.doc-content-compact h1,
+.doc-content-compact h2,
+.doc-content-compact h3 {
+  font-weight: 700;
+  margin-top: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+.doc-content-compact h1 { font-size: 1.15rem; }
+.doc-content-compact h2 { font-size: 1.05rem; }
+.doc-content-compact h3 { font-size: 0.95rem; }
+.doc-content-compact p { margin-bottom: 0.75rem; }
+.doc-content-compact table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.85em; }
+.doc-content-compact th, .doc-content-compact td { border: 1px solid rgba(128, 128, 128, 0.3); padding: 0.35rem 0.6rem; }
+.doc-content-compact th { background: rgba(128, 128, 128, 0.1); font-weight: 700; }
+.doc-content-compact blockquote { border-left: 3px solid #a855f7; padding: 0.35rem 0.75rem; margin: 0.75rem 0; background: rgba(168, 85, 247, 0.08); font-style: italic; }
+.doc-content-compact ul { list-style-type: disc; padding-left: 1.25rem; margin-bottom: 0.75rem; }
+.doc-content-compact ol { list-style-type: decimal; padding-left: 1.25rem; margin-bottom: 0.75rem; }
+.doc-content-compact pre { padding: 0.75rem; border-radius: 4px; background: #0d1117; color: #e6edf3; overflow-x: auto; margin: 0.75rem 0; border: 1px solid rgba(128, 128, 128, 0.3); }
+.doc-content-compact code { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.88em; padding: 0.1rem 0.3rem; border-radius: 3px; background: rgba(128, 128, 128, 0.15); }
+.doc-content-compact pre code { background: transparent; padding: 0; }
+

@@ -375,26 +375,40 @@ export class GitService {
     commitMessage?: string
   ): Promise<{ success: boolean; commitSha?: string; message: string }> {
     const repoPath = this.getRepoPath(name);
+    const worktreePath = path.join('/tmp', `sh-wt-merge-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`);
     try {
-      // 1. Checkout target branch if not already on it
-      const currentBranch = await this.getCurrentBranch(name);
-      if (currentBranch !== targetBranch) {
-        await runGit(repoPath, ['checkout', targetBranch]);
-      }
+      // 1. Create isolated detached worktree at targetBranch
+      await runGit(repoPath, ['worktree', 'add', '--detach', worktreePath, targetBranch]);
 
-      // 2. Perform merge based on strategy
+      // 2. Perform merge in isolated worktree based on strategy
       if (strategy === 'squash') {
-        await runGit(repoPath, ['merge', '--squash', sourceBranch]);
+        await runGit(worktreePath, ['merge', '--squash', sourceBranch]);
         const msg = commitMessage || `Merge PR: ${sourceBranch} into ${targetBranch}`;
-        await runGit(repoPath, ['commit', '-m', msg]);
+        await runGit(worktreePath, ['commit', '-m', msg, '--author=Nicholas Beighley <nicholas@sourcehub.local>']);
       } else if (strategy === 'rebase') {
-        await runGit(repoPath, ['rebase', sourceBranch]);
+        await runGit(worktreePath, ['rebase', sourceBranch]);
       } else {
         const msg = commitMessage || `Merge branch '${sourceBranch}' into ${targetBranch}`;
-        await runGit(repoPath, ['merge', '--no-ff', sourceBranch, '-m', msg]);
+        await runGit(worktreePath, ['merge', '--no-ff', sourceBranch, '-m', msg]);
       }
 
-      const sha = await runGit(repoPath, ['rev-parse', 'HEAD']);
+      // 3. Get new commit SHA
+      const sha = (await runGit(worktreePath, ['rev-parse', 'HEAD'])).trim();
+
+      // 4. Update the branch ref in the repository
+      await runGit(repoPath, ['update-ref', `refs/heads/${targetBranch}`, sha]);
+
+      // 5. If main worktree is on targetBranch and is clean, advance it
+      try {
+        const currentBranch = await this.getCurrentBranch(name);
+        if (currentBranch === targetBranch) {
+          const isDirty = (await runGit(repoPath, ['status', '--porcelain'])).trim().length > 0;
+          if (!isDirty) {
+            await runGit(repoPath, ['reset', '--hard', sha]);
+          }
+        }
+      } catch {}
+
       return {
         success: true,
         commitSha: sha,
@@ -402,9 +416,16 @@ export class GitService {
       };
     } catch (err: any) {
       try {
-        await runGit(repoPath, ['merge', '--abort']);
+        await runGit(worktreePath, ['merge', '--abort']);
       } catch {}
       throw new Error(`Merge failed: ${err.message}`);
+    } finally {
+      try {
+        await runGit(repoPath, ['worktree', 'remove', '--force', worktreePath]);
+      } catch {}
+      try {
+        await runGit(repoPath, ['worktree', 'prune']);
+      } catch {}
     }
   }
 
@@ -637,6 +658,74 @@ export class GitService {
     const repo = await this.getRepository(cleanName);
     if (!repo) throw new Error('Failed to create repository');
     return repo;
+  }
+
+  // --- Real Branch Modification via Git Worktrees ---
+
+  async commitFilesToBranch(
+    name: string,
+    branch: string,
+    files: { path: string; content: string }[],
+    message: string,
+    author: string = 'SourceHub Helper',
+    trailer?: string
+  ): Promise<{ commitSha: string; filesCommitted: string[] }> {
+    const repoPath = this.getRepoPath(name);
+    const worktreeId = `sh-wt-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const worktreePath = path.join('/tmp', worktreeId);
+
+    try {
+      // 1. Add temporary worktree for the target branch
+      await runGit(repoPath, ['worktree', 'add', worktreePath, branch]);
+
+      // 2. Write all requested files into the worktree
+      const committedPaths: string[] = [];
+      for (const file of files) {
+        const normalized = path.normalize(file.path).replace(/^(\.\.(\/|\\|$))+/, '');
+        const fullPath = path.join(worktreePath, normalized);
+        await fs.mkdir(path.dirname(fullPath), { recursive: true });
+        await fs.writeFile(fullPath, file.content, 'utf8');
+        committedPaths.push(normalized);
+      }
+
+      // 3. Stage changes
+      await runGit(worktreePath, ['add', '-A']);
+
+      // 4. Check if there are staged changes
+      const status = await runGit(worktreePath, ['status', '--porcelain']);
+      if (!status.trim()) {
+        const currentSha = await runGit(worktreePath, ['rev-parse', 'HEAD']);
+        return { commitSha: currentSha, filesCommitted: [] };
+      }
+
+      // 5. Build commit message with optional trailer
+      let fullMessage = message.trim();
+      if (trailer) {
+        fullMessage += `\n\n${trailer.trim()}`;
+      }
+
+      // 6. Commit inside the worktree
+      await runGit(worktreePath, [
+        '-c', `user.name=${author}`,
+        '-c', 'user.email=helper@sourcehub.local',
+        'commit',
+        '-m', fullMessage
+      ]);
+
+      const sha = await runGit(worktreePath, ['rev-parse', 'HEAD']);
+      return { commitSha: sha, filesCommitted: committedPaths };
+    } finally {
+      // 7. Clean up the temporary worktree
+      try {
+        await runGit(repoPath, ['worktree', 'remove', worktreePath, '--force']);
+      } catch (err) {
+        console.warn(`Could not cleanly remove worktree at ${worktreePath}:`, err);
+        try {
+          await fs.rm(worktreePath, { recursive: true, force: true });
+          await runGit(repoPath, ['worktree', 'prune']);
+        } catch {}
+      }
+    }
   }
 
   // --- Smart HTTP Git Clone Handlers ---

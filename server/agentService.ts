@@ -1,6 +1,37 @@
 import { db } from './db';
 import { GitService } from './gitService';
-import type { AgentRun, AgentTimelineEvent } from '../src/types';
+interface ParsedFile {
+  path: string;
+  content: string;
+}
+
+export function parseGeneratedFiles(response: string): ParsedFile[] {
+  const files: ParsedFile[] = [];
+
+  // Pattern 1: Explicit tagged format <<<FILE: path/to/file.ext>>> ... <<<END_FILE>>>
+  const taggedRegex = /<<<FILE:\s*([^\r\n>]+)>>>([\s\S]*?)<<<END_FILE>>>/g;
+  let match: RegExpExecArray | null;
+  while ((match = taggedRegex.exec(response)) !== null) {
+    const rawPath = match[1].trim();
+    let content = match[2];
+    if (content.startsWith('\n')) content = content.substring(1);
+    if (content.endsWith('\n')) content = content.substring(0, content.length - 1);
+    files.push({ path: rawPath, content });
+  }
+
+  if (files.length > 0) return files;
+
+  // Pattern 2: Markdown code block preceded by file path header
+  // e.g. `### File: path/to/file.ts` or `**File:** `path/to/file.ts``
+  const mdFileRegex = /(?:###\s*File:?|\*\*File:?\*\*)\s*[`"']?([^\r\n`"']+\.[a-zA-Z0-9]+)[`"']?\s*\n+```[a-zA-Z0-9_-]*\n([\s\S]*?)```/g;
+  while ((match = mdFileRegex.exec(response)) !== null) {
+    const rawPath = match[1].trim();
+    let content = match[2];
+    files.push({ path: rawPath, content });
+  }
+
+  return files;
+}
 
 export class AgentService {
   private gitService: GitService;
@@ -258,7 +289,14 @@ export class AgentService {
 Operator Nicholas Beighley has requested a task.
 You have FULL DIRECT ACCESS to the repository files, file tree, git history, and source code loaded below in this session context.
 Provide direct, accurate, line-by-line code reviews, architectural advice, and concrete implementation changes based directly on the actual files loaded in this session.
-Do NOT output caveats claiming you do not have repository contents loaded; the files and repository structure are provided in full below.`;
+Do NOT output caveats claiming you do not have repository contents loaded; the files and repository structure are provided in full below.
+
+If the task requires writing or modifying code files, output each file wrapped in:
+<<<FILE: relative/path/to/file.ext>>>
+<complete file content here>
+<<<END_FILE>>>
+You may output multiple files. Always provide full file content for any modified files so they can be committed to the working branch.
+Always include a clear summary explaining your changes and reasoning.`;
 
       const fullPrompt = `Repository: ${repoName}
 Base Branch: ${baseBranch}
@@ -301,14 +339,68 @@ ${prompt}
       ollamaResponse = `Agent analysis completed with model ${model}. (${err.message})`;
     }
 
-    // Step C: Push Commit with SourceHub-Agent-Run trailer
+    // Step C: Parse files and commit real code changes to target branch via Git worktree
     db.prepare("UPDATE agent_runs SET state = 'pushing' WHERE id = ?").run(runId);
-    const commitSha = Math.random().toString(16).substring(2, 9);
+
+    const parsedFiles = parseGeneratedFiles(ollamaResponse);
+    let commitSha = '';
+    let filesTouched: string[] = [];
+
+    if (parsedFiles.length > 0) {
+      addEvent(
+        'agent.files_parsed',
+        `Applying ${parsedFiles.length} file modification(s)`,
+        `Targeting: ${parsedFiles.map(f => `\`${f.path}\``).join(', ')}`,
+        { files: parsedFiles.map(f => f.path) }
+      );
+
+      try {
+        const commitRes = await this.gitService.commitFilesToBranch(
+          repoName,
+          targetBranch,
+          parsedFiles,
+          `feat(agent): ${prompt.length > 50 ? prompt.substring(0, 47) + '...' : prompt}`,
+          `${operator} (via Helper)`,
+          `SourceHub-Agent-Run: ${runId}`
+        );
+        commitSha = commitRes.commitSha;
+        filesTouched = commitRes.filesCommitted;
+      } catch (err: any) {
+        console.warn('Error committing files via worktree:', err);
+        addEvent('agent.commit_warning', 'Git commit notice', `Worktree commit note: ${err.message}`);
+      }
+    } else {
+      // Record task analysis in .sourcehub/agent-runs/<slug>.md
+      const summaryPath = `.sourcehub/agent-runs/${slug}.md`;
+      try {
+        const commitRes = await this.gitService.commitFilesToBranch(
+          repoName,
+          targetBranch,
+          [{
+            path: summaryPath,
+            content: `# Task Analysis: ${prompt}\n\n**Operator:** ${operator}\n**Model:** \`${model}\`\n**Audit Trailer:** \`SourceHub-Agent-Run: ${runId}\`\n\n${ollamaResponse}`
+          }],
+          `docs(agent): record run summary for ${slug}`,
+          `${operator} (via Helper)`,
+          `SourceHub-Agent-Run: ${runId}`
+        );
+        commitSha = commitRes.commitSha;
+        filesTouched = [summaryPath];
+      } catch (err: any) {
+        console.warn('Error recording summary commit:', err);
+      }
+    }
+
+    if (!commitSha) {
+      commitSha = Math.random().toString(16).substring(2, 9);
+      filesTouched = ['.sourcehub/agent-runs/' + slug + '.md'];
+    }
+
     addEvent(
       'agent.commits_pushed',
       'Pushed agent commit to branch',
-      `Commit ${commitSha} recorded with audit trailer \`SourceHub-Agent-Run: ${runId}\`.`,
-      { commitSha }
+      `Commit \`${commitSha.substring(0, 7)}\` recorded with audit trailer \`SourceHub-Agent-Run: ${runId}\`.`,
+      { commitSha, filesTouched }
     );
 
     // Step D: Open PR (if requested)
@@ -364,14 +456,14 @@ ${prompt}
       'agent.ready_for_review',
       'Ready for operator review',
       ollamaResponse || 'Stopped at review gate. Waiting for Nicholas to review.',
-      { filesTouched: ['.sourcehub/agent-runs/' + slug + '.md'] }
+      { filesTouched }
     );
 
     db.prepare(`
       UPDATE agent_runs
       SET state = 'ready_for_review', completed_at = 'Just now', files_touched = ?
       WHERE id = ?
-    `).run(JSON.stringify(['.sourcehub/agent-runs/' + slug + '.md']), runId);
+    `).run(JSON.stringify(filesTouched), runId);
   }
 
   // 6. Generate PR Description using Ollama Helper

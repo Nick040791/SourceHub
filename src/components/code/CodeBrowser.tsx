@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Repository, FileItem, Commit } from '../../types';
 import { api } from '../../services/api';
+import { MarkdownDocView } from '../common/MarkdownDocView';
 
 interface CodeBrowserProps {
   repo: Repository;
@@ -371,42 +372,44 @@ export const CodeBrowser: React.FC<CodeBrowserProps> = ({
             </div>
           </div>
 
-          <div className="p-4 bg-hub-bg overflow-x-auto font-mono text-xs leading-relaxed text-hub-text">
-            {isLoadingFile ? (
-              <div className="p-6 flex items-center justify-center space-x-2 text-hub-muted">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Reading Git blob...</span>
-              </div>
-            ) : viewMode === 'raw' ? (
+          {isLoadingFile ? (
+            <div className="p-12 flex items-center justify-center space-x-2 text-hub-muted">
+              <Loader2 className="w-5 h-5 animate-spin text-hub-accent" />
+              <span>Reading Git blob...</span>
+            </div>
+          ) : viewMode === 'raw' ? (
+            <div className="p-4 bg-hub-bg overflow-x-auto font-mono text-xs leading-relaxed text-hub-text">
               <pre className="text-hub-text">{activeFile.content}</pre>
-            ) : viewMode === 'blame' ? (
-              <div className="space-y-1 text-hub-muted">
-                <div className="flex items-center space-x-4 border-b border-hub-border pb-1 mb-2 text-[11px] text-hub-text font-bold">
-                  <span className="w-16">Commit</span>
-                  <span className="w-24">Author</span>
-                  <span>Code</span>
+            </div>
+          ) : viewMode === 'blame' ? (
+            <div className="p-4 bg-hub-bg overflow-x-auto font-mono text-xs leading-relaxed text-hub-text space-y-1">
+              <div className="flex items-center space-x-4 border-b border-hub-border pb-1 mb-2 text-[11px] text-hub-text font-bold">
+                <span className="w-16">Commit</span>
+                <span className="w-24">Author</span>
+                <span>Code</span>
+              </div>
+              {activeFile.content.split('\n').map((line, i) => (
+                <div key={i} className="flex items-center space-x-4 hover:bg-hub-surface py-0.5">
+                  <span className="w-16 text-hub-link">{latestCommit ? latestCommit.shortSha : 'git'}</span>
+                  <span className="w-24 truncate text-hub-muted">{latestCommit ? latestCommit.author : 'Nick'}</span>
+                  <span className="text-hub-text">{line}</span>
                 </div>
-                {activeFile.content.split('\n').map((line, i) => (
-                  <div key={i} className="flex items-center space-x-4 hover:bg-hub-surface py-0.5">
-                    <span className="w-16 text-hub-link">{latestCommit ? latestCommit.shortSha : 'git'}</span>
-                    <span className="w-24 truncate text-hub-muted">{latestCommit ? latestCommit.author : 'Nick'}</span>
-                    <span className="text-hub-text">{line}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="space-y-0.5">
-                {activeFile.content.split('\n').map((line, i) => (
-                  <div key={i} className="flex hover:bg-hub-surface/40">
-                    <span className="w-10 select-none text-hub-muted/40 text-right pr-4 text-[11px]">
-                      {i + 1}
-                    </span>
-                    <span className="text-hub-text whitespace-pre flex-1">{line || ' '}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+              ))}
+            </div>
+          ) : (activeFile.name.endsWith('.md') || activeFile.name.endsWith('.markdown')) ? (
+            <MarkdownDocView content={activeFile.content} filename={activeFile.name} />
+          ) : (
+            <div className="p-4 bg-hub-bg overflow-x-auto font-mono text-xs leading-relaxed text-hub-text space-y-0.5">
+              {activeFile.content.split('\n').map((line, i) => (
+                <div key={i} className="flex hover:bg-hub-surface/40">
+                  <span className="w-10 select-none text-hub-muted/40 text-right pr-4 text-[11px]">
+                    {i + 1}
+                  </span>
+                  <span className="text-hub-text whitespace-pre flex-1">{line || ' '}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

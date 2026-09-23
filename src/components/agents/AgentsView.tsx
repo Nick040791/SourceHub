@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { AgentRun, AgentRunState, AgentTimelineEvent } from '../../types';
 import { api } from '../../services/api';
+import { MarkdownContent } from '../common/MarkdownDocView';
 
 interface AgentsViewProps {
   repoName: string;
@@ -444,6 +445,23 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
                   </div>
                 </div>
 
+                {/* Files Modified / Touched */}
+                {selectedRun.filesTouched && selectedRun.filesTouched.length > 0 && (
+                  <div className="bg-hub-bg border border-hub-border rounded-md p-3 text-xs space-y-2">
+                    <span className="text-[11px] font-bold text-hub-muted uppercase tracking-wider flex items-center space-x-1.5">
+                      <FileCode className="w-3.5 h-3.5 text-purple-400" />
+                      <span>Modified Files ({selectedRun.filesTouched.length})</span>
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedRun.filesTouched.map((f) => (
+                        <span key={f} className="px-2 py-0.5 rounded bg-hub-surface border border-hub-border font-mono text-[11px] text-hub-text">
+                          {f}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Run Timeline Events (§9.2) */}
                 <div className="space-y-3 pt-2">
                   <span className="text-xs font-bold text-hub-text block">
@@ -461,9 +479,9 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
                           <span className="text-[11px] text-hub-muted font-mono">{event.timestamp}</span>
                         </div>
 
-                        <p className="text-hub-muted text-[11px] leading-relaxed">
-                          {event.description}
-                        </p>
+                        <div className="text-hub-muted text-[11px] leading-relaxed">
+                          <MarkdownContent content={event.description} />
+                        </div>
 
                         {event.metadata?.commitSha && (
                           <div className="pt-1 text-[11px] font-mono text-hub-link">

@@ -20,6 +20,7 @@ import {
 import { PullRequest, PRReviewComment } from '../../types';
 import { api } from '../../services/api';
 import { NewPRModal } from './NewPRModal';
+import { MarkdownContent } from '../common/MarkdownDocView';
 
 interface PullRequestsViewProps {
   repoName: string;
@@ -451,8 +452,8 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                         </div>
                         <span className="text-hub-muted font-mono text-[11px]">Author</span>
                       </div>
-                      <div className="p-4 text-xs text-hub-text whitespace-pre-line leading-relaxed">
-                        {selectedPR.body || 'No description provided.'}
+                      <div className="p-4 text-xs text-hub-text leading-relaxed">
+                        <MarkdownContent content={selectedPR.body || 'No description provided.'} />
                       </div>
                     </div>
 
@@ -473,8 +474,8 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                               <span className="text-hub-muted">{comment.createdAt}</span>
                             </div>
                           </div>
-                          <div className="p-3 text-xs text-hub-text whitespace-pre-line leading-relaxed">
-                            {comment.content}
+                          <div className="p-3 text-xs text-hub-text leading-relaxed">
+                            <MarkdownContent content={comment.content} />
                           </div>
                         </div>
                       ))}
