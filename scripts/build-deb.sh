@@ -92,7 +92,7 @@ Priority: optional
 Architecture: ${ARCH}
 Depends: nodejs (>= 22.0.0), git (>= 2.30.0)
 Recommends: xdg-utils, curl
-Maintainer: Nicholas <nick040791@gmail.com>
+Maintainer: SourceHub contributors
 Homepage: https://github.com/Nick040791/SourceHub
 Description: Self-hosted git forge, local CI runner, and AI coding agent
  SourceHub turns any directory of local git repositories into a comprehensive,

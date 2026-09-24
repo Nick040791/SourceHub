@@ -1,6 +1,6 @@
 [Unit]
 Description=SourceHub Git Forge & Development Daemon
-Documentation=https://github.com/mrnicholas/SourceHub
+Documentation=https://github.com/Nick040791/SourceHub
 After=network.target
 
 [Service]

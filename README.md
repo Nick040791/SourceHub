@@ -37,6 +37,14 @@ Designed specifically for solo developers, single operators, and agentic AI pair
 
 ---
 
+## Screenshot
+
+![SourceHub Desktop workbench](assets/screenshots/desktop.png)
+
+Desktop tab: hunk staging, live diffs, and commit/push for a local repository.
+
+---
+
 ## ⚡ Architecture
 
 ```
@@ -303,6 +311,6 @@ SourceHub is built with simplicity and autonomy in mind:
 
 ## 📄 License
 
-Released under the [MIT License](LICENSE). Copyright (c) 2026 Nicholas Beighley.
+Released under the [MIT License](LICENSE). Copyright (c) 2026 SourceHub contributors.
 
 Designed and maintained for single-operator autonomy.

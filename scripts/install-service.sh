@@ -30,7 +30,7 @@ echo "Writing ${SERVICE_FILE}..."
 cat <<EOF > "${SERVICE_FILE}"
 [Unit]
 Description=SourceHub Production Daemon
-Documentation=https://github.com/mrnicholas/SourceHub
+Documentation=https://github.com/Nick040791/SourceHub
 After=network.target
 
 [Service]

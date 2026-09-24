@@ -43,9 +43,3 @@ sourcehub launch
 ```bash
 systemctl --user enable --now sourcehub.service
 ```
-
----
-
-## Older packages
-
-- [`sourcehub_0.1.1_amd64.deb`](./sourcehub_0.1.1_amd64.deb)
