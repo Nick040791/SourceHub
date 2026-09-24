@@ -8,10 +8,10 @@ Pre-built binary packages for Debian, Ubuntu, Linux Mint, and derivative Linux d
 
 - **Package**: [`sourcehub_0.1.2_amd64.deb`](./sourcehub_0.1.2_amd64.deb)
 - **SHA-256**: [`sourcehub_0.1.2_amd64.deb.sha256`](./sourcehub_0.1.2_amd64.deb.sha256)
-- **SHA-256 hex**: `89ba276d4323a88fe8ef40d4780709ec36d41ae06605da7404834c6de6b2d155`
+- **SHA-256 hex**: `5b8374c26e15ec4fc4e3134baf1d7461da2969668ef6f2d9833ef015692ea410`
 - **Target Node.js**: Node.js >= 22.0.0 (required for built-in `node:sqlite`)
 - **Target Git**: Git >= 2.30.0
-- **Notes**: Style D UI; desktop/app icon is the S-in-hex brand mark.
+- **Notes**: Style D UI; desktop/app icon is the S-in-hex brand mark. Maintainer field is `SourceHub contributors` (no personal email).
 
 ---
 
