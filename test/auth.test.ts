@@ -198,3 +198,36 @@ describe('Auth: workflow env sandbox helpers', () => {
     assert.equal(isDangerousRunScript(''), true);
   });
 });
+
+describe('Auth: production server bind guard contract', () => {
+  test('assertSafeBindOrThrow matches production HOST defaults (README)', () => {
+    const prev = process.env.SOURCEHUB_TOKEN;
+    delete process.env.SOURCEHUB_TOKEN;
+    // Production default HOST is 127.0.0.1 — must allow without token
+    assert.doesNotThrow(() => assertSafeBindOrThrow('127.0.0.1'));
+    assert.doesNotThrow(() => assertSafeBindOrThrow('localhost'));
+    assert.doesNotThrow(() => assertSafeBindOrThrow('::1'));
+    // Non-loopback (LAN / all-interfaces) must refuse without SOURCEHUB_TOKEN
+    assert.throws(() => assertSafeBindOrThrow('0.0.0.0'), /Refusing to bind|SOURCEHUB_TOKEN/);
+    assert.throws(() => assertSafeBindOrThrow('192.168.1.10'), /SOURCEHUB_TOKEN/);
+    // With token, non-loopback is allowed
+    process.env.SOURCEHUB_TOKEN = 'prod-path-secret';
+    assert.doesNotThrow(() => assertSafeBindOrThrow('0.0.0.0'));
+    assert.doesNotThrow(() => assertSafeBindOrThrow('192.168.1.10'));
+    if (prev === undefined) delete process.env.SOURCEHUB_TOKEN;
+    else process.env.SOURCEHUB_TOKEN = prev;
+  });
+
+  test('server/index.ts calls assertSafeBindOrThrow before listen', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+    const src = await fs.readFile(path.join(root, 'server/index.ts'), 'utf8');
+    const guardIdx = src.indexOf('assertSafeBindOrThrow(HOST)');
+    const listenIdx = src.indexOf('server.listen(');
+    assert.ok(guardIdx >= 0, 'production server must call assertSafeBindOrThrow(HOST)');
+    assert.ok(listenIdx >= 0, 'production server must call server.listen');
+    assert.ok(guardIdx < listenIdx, 'assertSafeBindOrThrow must run before server.listen');
+  });
+});

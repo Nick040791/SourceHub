@@ -166,6 +166,9 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+// Refuse non-loopback binds without SOURCEHUB_TOKEN (matches README / Vite path)
+assertSafeBindOrThrow(HOST);
+
 server.listen(PORT, HOST, () => {
   const networks = getNetworkAddresses();
   console.log('\n╔════════════════════════════════════════════════════════════╗');
