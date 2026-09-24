@@ -1,0 +1,1 @@
+@/workspace/tiny0.txt
