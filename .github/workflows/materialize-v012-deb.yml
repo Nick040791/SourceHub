@@ -4,22 +4,35 @@ on:
 permissions:
   contents: write
 jobs:
-  materialize:
+  build-and-commit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Decode deb, commit, cleanup staging artifacts
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install deps and build deb
         run: |
           set -euo pipefail
-          cat releases/sourcehub_0.1.2_amd64.deb.b64.part.* > /tmp/deb.b64
-          wc -c /tmp/deb.b64
-          base64 -d /tmp/deb.b64 > releases/sourcehub_0.1.2_amd64.deb
-          echo "89ba276d4323a88fe8ef40d4780709ec36d41ae06605da7404834c6de6b2d155  releases/sourcehub_0.1.2_amd64.deb" | sha256sum -c -
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq dpkg-dev
+          npm ci
+          bash scripts/build-deb.sh
+          ls -la dist-deb/
+          cp -f dist-deb/sourcehub_0.1.2_amd64.deb releases/sourcehub_0.1.2_amd64.deb
+          cp -f dist-deb/sourcehub_0.1.2_amd64.deb.sha256 releases/sourcehub_0.1.2_amd64.deb.sha256
+          dpkg-deb -c releases/sourcehub_0.1.2_amd64.deb | grep -F 'usr/share/icons/hicolor/scalable/apps/sourcehub.svg'
           rm -f releases/sourcehub_0.1.2_amd64.deb.b64.part.*
           rm -f .github/workflows/materialize-v012-deb.yml
+          EXPECTED="$(cut -d' ' -f1 releases/sourcehub_0.1.2_amd64.deb.sha256)"
+          echo "Built sha256=${EXPECTED}"
+          if [ -f releases/README.md ]; then
+            sed -i "s/89ba276d4323a88fe8ef40d4780709ec36d41ae06605da7404834c6de6b2d155/${EXPECTED}/g" releases/README.md || true
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git status
-          git commit -m "release(v0.1.2): materialize deb binary (Style D S-in-hex icon)"
+          git commit -m "release(v0.1.2): deb with Style D S-in-hex desktop icon"
           git push
