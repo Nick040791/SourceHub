@@ -1,21 +1,60 @@
 import { Repository, FileItem, Commit, PullRequest, Secret, PersonalAccessToken, SSHKey, DiffFile, WorkflowRun, AgentRun, Webhook, WorkingCopyStatus, GitRemote, GitStashEntry, PRMergeability, NetworkInfo, UserProfile, BlameLine, AISettingsState, AIProviderId, AIProviderConfig, ThinkingEffort } from '../types';
 
+/** localStorage key for operator shared secret or PAT used by the SPA. */
+export const SOURCEHUB_API_TOKEN_KEY = 'sourcehub_api_token';
+
+export function getStoredApiToken(): string | null {
+  try {
+    const v = localStorage.getItem(SOURCEHUB_API_TOKEN_KEY);
+    return v && v.trim() ? v.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredApiToken(token: string | null): void {
+  try {
+    if (!token || !token.trim()) {
+      localStorage.removeItem(SOURCEHUB_API_TOKEN_KEY);
+    } else {
+      localStorage.setItem(SOURCEHUB_API_TOKEN_KEY, token.trim());
+    }
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+/** Fetch wrapper that attaches Authorization / X-SourceHub-Token when configured. */
+export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers || {});
+  const token = getStoredApiToken();
+  if (token) {
+    if (!headers.has('Authorization')) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+    if (!headers.has('X-SourceHub-Token')) {
+      headers.set('X-SourceHub-Token', token);
+    }
+  }
+  return fetch(input, { ...init, headers });
+}
+
 export const api = {
   // --- Repositories ---
   async fetchRepositories(): Promise<Repository[]> {
-    const res = await fetch('/api/v1/repos');
+    const res = await apiFetch('/api/v1/repos');
     if (!res.ok) throw new Error('Failed to fetch repositories');
     return await res.json();
   },
 
   async fetchRepository(name: string): Promise<Repository> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(name)}`);
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(name)}`);
     if (!res.ok) throw new Error('Failed to fetch repository');
     return await res.json();
   },
 
   async createRepository(name: string, description: string = ''): Promise<Repository> {
-    const res = await fetch('/api/v1/repos', {
+    const res = await apiFetch('/api/v1/repos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, description }),
@@ -29,13 +68,13 @@ export const api = {
 
   // --- Branches ---
   async fetchBranches(repoName: string): Promise<string[]> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/branches`);
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/branches`);
     if (!res.ok) throw new Error('Failed to fetch branches');
     return await res.json();
   },
 
   async createBranch(repoName: string, branchName: string, baseBranch?: string): Promise<void> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/branches`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/branches`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: branchName, base: baseBranch }),
@@ -47,7 +86,7 @@ export const api = {
   },
 
   async deleteBranch(repoName: string, branchName: string): Promise<void> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/branches/${encodeURIComponent(branchName)}`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/branches/${encodeURIComponent(branchName)}`, {
       method: 'DELETE',
     });
     if (!res.ok) {
@@ -58,7 +97,7 @@ export const api = {
 
   // --- Commits & Files ---
   async fetchCommits(repoName: string, branch: string = 'HEAD', limit: number = 50): Promise<Commit[]> {
-    const res = await fetch(
+    const res = await apiFetch(
       `/api/v1/repos/${encodeURIComponent(repoName)}/commits?branch=${encodeURIComponent(branch)}&limit=${limit}`
     );
     if (!res.ok) throw new Error('Failed to fetch commits');
@@ -66,13 +105,13 @@ export const api = {
   },
 
   async fetchCommitDiff(repoName: string, sha: string): Promise<DiffFile[]> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/commits/${encodeURIComponent(sha)}`);
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/commits/${encodeURIComponent(sha)}`);
     if (!res.ok) throw new Error('Failed to fetch commit diff');
     return await res.json();
   },
 
   async fetchTree(repoName: string, branch: string = 'HEAD', path: string = ''): Promise<FileItem[]> {
-    const res = await fetch(
+    const res = await apiFetch(
       `/api/v1/repos/${encodeURIComponent(repoName)}/tree?branch=${encodeURIComponent(branch)}&path=${encodeURIComponent(path)}`
     );
     if (!res.ok) throw new Error('Failed to fetch file tree');
@@ -88,7 +127,7 @@ export const api = {
   },
 
   async fetchBlob(repoName: string, branch: string = 'HEAD', path: string): Promise<string> {
-    const res = await fetch(
+    const res = await apiFetch(
       `/api/v1/repos/${encodeURIComponent(repoName)}/blob?branch=${encodeURIComponent(branch)}&path=${encodeURIComponent(path)}`
     );
     if (!res.ok) throw new Error('Failed to fetch file content');
@@ -97,7 +136,7 @@ export const api = {
   },
 
   async fetchBlame(repoName: string, branch: string = 'HEAD', path: string): Promise<BlameLine[]> {
-    const res = await fetch(
+    const res = await apiFetch(
       `/api/v1/repos/${encodeURIComponent(repoName)}/blame?branch=${encodeURIComponent(branch)}&path=${encodeURIComponent(path)}`
     );
     if (!res.ok) throw new Error('Failed to fetch file blame');
@@ -106,19 +145,19 @@ export const api = {
 
   // --- Real Pull Requests ---
   async fetchPRs(repoName: string): Promise<PullRequest[]> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls`);
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls`);
     if (!res.ok) throw new Error('Failed to fetch pull requests');
     return await res.json();
   },
 
   async fetchPR(repoName: string, id: number): Promise<PullRequest> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/${id}`);
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/${id}`);
     if (!res.ok) throw new Error('Failed to fetch pull request');
     return await res.json();
   },
 
   async compareBranches(repoName: string, base: string, head: string): Promise<{ base: string; head: string; commits: Commit[]; diffs: DiffFile[] }> {
-    const res = await fetch(
+    const res = await apiFetch(
       `/api/v1/repos/${encodeURIComponent(repoName)}/pulls/compare?base=${encodeURIComponent(base)}&head=${encodeURIComponent(head)}`
     );
     if (!res.ok) throw new Error('Failed to compare branches');
@@ -129,7 +168,7 @@ export const api = {
     repoName: string,
     data: { base: string; head: string; commits?: Commit[]; diffs?: DiffFile[] }
   ): Promise<{ title?: string; description: string }> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/generate-description`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/generate-description`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -142,7 +181,7 @@ export const api = {
     repoName: string,
     data: { title: string; body?: string; sourceBranch: string; targetBranch: string; isAgent?: boolean; agentRunId?: string }
   ): Promise<{ id: number }> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -155,7 +194,7 @@ export const api = {
   },
 
   async addPRComment(repoName: string, id: number, content: string, isAgent: boolean = false): Promise<void> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/${id}/comments`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/${id}/comments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content, isAgent }),
@@ -168,7 +207,7 @@ export const api = {
     id: number,
     strategy: 'squash' | 'merge' | 'rebase' = 'squash'
   ): Promise<{ success: boolean; commitSha?: string; message: string }> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/${id}/merge`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/${id}/merge`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ strategy }),
@@ -181,13 +220,13 @@ export const api = {
   },
 
   async checkPRMergeability(repoName: string, id: number): Promise<PRMergeability> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/${id}/mergeability`);
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/${id}/mergeability`);
     if (!res.ok) throw new Error('Failed to check PR mergeability');
     return await res.json();
   },
 
   async closePR(repoName: string, id: number, comment?: string): Promise<void> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/${id}/close`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/${id}/close`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ comment }),
@@ -196,7 +235,7 @@ export const api = {
   },
 
   async reopenPR(repoName: string, id: number): Promise<void> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/${id}/reopen`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/${id}/reopen`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
@@ -205,7 +244,7 @@ export const api = {
   },
 
   async reviewPRWithHelper(repoName: string, id: number): Promise<{ review: string }> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/${id}/review`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/${id}/review`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
@@ -215,7 +254,7 @@ export const api = {
   },
 
   async addressPRCommentsWithHelper(repoName: string, id: number): Promise<{ response: string }> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/${id}/address-comments`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/${id}/address-comments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
@@ -226,13 +265,13 @@ export const api = {
 
   // --- Real Issues ---
   async fetchIssues(repoName: string): Promise<any[]> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/issues`);
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/issues`);
     if (!res.ok) throw new Error('Failed to fetch issues');
     return await res.json();
   },
 
   async createIssue(repoName: string, data: { title: string; body?: string; assignedToAgent?: boolean }): Promise<{ id: number }> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/issues`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/issues`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -242,7 +281,7 @@ export const api = {
   },
 
   async updateIssue(repoName: string, id: number, data: { status?: string; assignedToAgent?: boolean }): Promise<void> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/issues/${id}`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/issues/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -252,20 +291,20 @@ export const api = {
 
   // --- Real Workflows ---
   async fetchWorkflows(repoName: string): Promise<any[]> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/workflows`);
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/workflows`);
     if (!res.ok) throw new Error('Failed to fetch workflows');
     return await res.json();
   },
 
   // --- Real Secrets ---
   async fetchSecrets(repoName: string): Promise<Secret[]> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/secrets`);
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/secrets`);
     if (!res.ok) throw new Error('Failed to fetch secrets');
     return await res.json();
   },
 
   async createSecret(repoName: string, data: { name: string; scope: string; value?: string }): Promise<void> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/secrets`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/secrets`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -274,7 +313,7 @@ export const api = {
   },
 
   async deleteSecret(repoName: string, id: string): Promise<void> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/secrets/${encodeURIComponent(id)}`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/secrets/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
     if (!res.ok) throw new Error('Failed to delete secret');
@@ -282,22 +321,23 @@ export const api = {
 
   // --- Real Tokens ---
   async fetchTokens(): Promise<PersonalAccessToken[]> {
-    const res = await fetch('/api/v1/tokens');
+    const res = await apiFetch('/api/v1/tokens');
     if (!res.ok) throw new Error('Failed to fetch tokens');
     return await res.json();
   },
 
-  async createToken(data: { name: string; scopes: string[] }): Promise<void> {
-    const res = await fetch('/api/v1/tokens', {
+  async createToken(data: { name: string; scopes: string[] }): Promise<PersonalAccessToken & { token: string }> {
+    const res = await apiFetch('/api/v1/tokens', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
     if (!res.ok) throw new Error('Failed to create token');
+    return await res.json();
   },
 
   async deleteToken(id: string): Promise<void> {
-    const res = await fetch(`/api/v1/tokens/${encodeURIComponent(id)}`, {
+    const res = await apiFetch(`/api/v1/tokens/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
     if (!res.ok) throw new Error('Failed to delete token');
@@ -305,13 +345,13 @@ export const api = {
 
   // --- Real SSH Keys ---
   async fetchKeys(): Promise<SSHKey[]> {
-    const res = await fetch('/api/v1/keys');
+    const res = await apiFetch('/api/v1/keys');
     if (!res.ok) throw new Error('Failed to fetch SSH keys');
     return await res.json();
   },
 
   async createKey(data: { title: string; publicKey: string; type?: string }): Promise<void> {
-    const res = await fetch('/api/v1/keys', {
+    const res = await apiFetch('/api/v1/keys', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -322,7 +362,7 @@ export const api = {
   // --- Real AI Models & Providers Settings ---
   async fetchOllamaModels(url?: string): Promise<{ models: string[]; defaultModel: string }> {
     const q = url ? `?url=${encodeURIComponent(url)}` : '';
-    const res = await fetch(`/api/v1/ollama/models${q}`);
+    const res = await apiFetch(`/api/v1/ollama/models${q}`);
     if (!res.ok) throw new Error('Failed to discover Ollama models');
     return await res.json();
   },
@@ -331,13 +371,13 @@ export const api = {
     const params = new URLSearchParams({ provider });
     if (url) params.append('url', url);
     if (apiKey) params.append('apiKey', apiKey);
-    const res = await fetch(`/api/v1/ai/models?${params.toString()}`);
+    const res = await apiFetch(`/api/v1/ai/models?${params.toString()}`);
     if (!res.ok) throw new Error(`Failed to discover models for ${provider}`);
     return await res.json();
   },
 
   async testAIConnection(provider: string, config: any): Promise<{ success: boolean; message: string; latencyMs: number }> {
-    const res = await fetch('/api/v1/ai/test', {
+    const res = await apiFetch('/api/v1/ai/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ provider, ...config }),
@@ -350,13 +390,13 @@ export const api = {
   },
 
   async fetchAISettings(): Promise<AISettingsState> {
-    const res = await fetch('/api/v1/settings/ai');
+    const res = await apiFetch('/api/v1/settings/ai');
     if (!res.ok) throw new Error('Failed to fetch AI settings');
     return await res.json();
   },
 
   async saveAISettings(settings: any): Promise<void> {
-    const res = await fetch('/api/v1/settings/ai', {
+    const res = await apiFetch('/api/v1/settings/ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(settings),
@@ -366,13 +406,13 @@ export const api = {
 
   // --- Real Actions / Workflows ---
   async fetchWorkflowRuns(repoName: string): Promise<WorkflowRun[]> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/actions/runs`);
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/actions/runs`);
     if (!res.ok) throw new Error('Failed to fetch workflow runs');
     return await res.json();
   },
 
   async dispatchWorkflow(repoName: string, workflowId: string = 'ci.yml', branch: string = 'main'): Promise<WorkflowRun> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/actions/dispatch`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/actions/dispatch`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ workflowId, branch }),
@@ -383,7 +423,7 @@ export const api = {
 
   // --- Real Helper Agent Runs ---
   async fetchAgentRuns(repoName: string): Promise<AgentRun[]> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/agents/runs`);
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/agents/runs`);
     if (!res.ok) throw new Error('Failed to fetch agent runs');
     return await res.json();
   },
@@ -392,7 +432,7 @@ export const api = {
     repoName: string,
     data: { prompt: string; baseBranch?: string; mode?: 'open_pr' | 'branch_only'; model?: string }
   ): Promise<AgentRun> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/agents/runs`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/agents/runs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -403,13 +443,13 @@ export const api = {
 
   // --- Real Webhooks ---
   async fetchWebhooks(repoName: string): Promise<Webhook[]> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/webhooks`);
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/webhooks`);
     if (!res.ok) throw new Error('Failed to fetch webhooks');
     return await res.json();
   },
 
   async createWebhook(repoName: string, data: { url: string; events?: string[] }): Promise<{ id: string; url: string }> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/webhooks`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/webhooks`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -419,14 +459,14 @@ export const api = {
   },
 
   async deleteWebhook(repoName: string, id: string): Promise<void> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/webhooks/${encodeURIComponent(id)}`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/webhooks/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
     if (!res.ok) throw new Error('Failed to delete webhook');
   },
 
   async testWebhook(repoName: string, id: string): Promise<{ success: boolean; status?: number; statusText?: string; durationMs: number; error?: string }> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/webhooks/${encodeURIComponent(id)}/test`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/webhooks/${encodeURIComponent(id)}/test`, {
       method: 'POST',
     });
     if (!res.ok) {
@@ -441,13 +481,13 @@ export const api = {
   // ==========================================
 
   async fetchDesktopStatus(repoName: string): Promise<WorkingCopyStatus> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/status`);
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/status`);
     if (!res.ok) throw new Error('Failed to fetch working copy status');
     return await res.json();
   },
 
   async fetchWorkingDiff(repoName: string, file: string, staged: boolean = false): Promise<DiffFile> {
-    const res = await fetch(
+    const res = await apiFetch(
       `/api/v1/repos/${encodeURIComponent(repoName)}/desktop/diff?file=${encodeURIComponent(file)}&staged=${staged}`
     );
     if (!res.ok) throw new Error('Failed to fetch working diff');
@@ -455,7 +495,7 @@ export const api = {
   },
 
   async stageFile(repoName: string, file: string): Promise<void> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/stage`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/stage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ file }),
@@ -464,7 +504,7 @@ export const api = {
   },
 
   async stageFiles(repoName: string, files: string[]): Promise<void> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/stage`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/stage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ files }),
@@ -473,7 +513,7 @@ export const api = {
   },
 
   async stageAll(repoName: string): Promise<void> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/stage`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/stage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ all: true }),
@@ -482,7 +522,7 @@ export const api = {
   },
 
   async unstageFile(repoName: string, file: string): Promise<void> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/unstage`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/unstage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ file }),
@@ -491,7 +531,7 @@ export const api = {
   },
 
   async unstageFiles(repoName: string, files: string[]): Promise<void> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/unstage`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/unstage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ files }),
@@ -500,7 +540,7 @@ export const api = {
   },
 
   async unstageAll(repoName: string): Promise<void> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/unstage`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/unstage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ all: true }),
@@ -509,7 +549,7 @@ export const api = {
   },
 
   async discardFileChanges(repoName: string, file: string): Promise<void> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/discard`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/discard`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ file }),
@@ -518,7 +558,7 @@ export const api = {
   },
 
   async discardAllChanges(repoName: string): Promise<void> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/discard`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/discard`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ all: true }),
@@ -531,7 +571,7 @@ export const api = {
     patch: string,
     options: { reverse?: boolean; cached?: boolean } = {}
   ): Promise<void> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/apply-patch`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/apply-patch`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ patch, ...options }),
@@ -548,7 +588,7 @@ export const api = {
     description?: string,
     files?: string[]
   ): Promise<{ sha: string }> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/commit`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/commit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ summary, description, files }),
@@ -561,14 +601,14 @@ export const api = {
   },
 
   async undoLastCommit(repoName: string): Promise<void> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/undo-commit`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/undo-commit`, {
       method: 'POST',
     });
     if (!res.ok) throw new Error('Failed to undo last commit');
   },
 
   async fetchRemote(repoName: string, remote: string = 'origin'): Promise<{ success: boolean; message: string }> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/fetch`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/fetch`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ remote }),
@@ -585,7 +625,7 @@ export const api = {
     remote: string = 'origin',
     branch?: string
   ): Promise<{ success: boolean; message: string }> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/pull`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/pull`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ remote, branch }),
@@ -603,7 +643,7 @@ export const api = {
     branch?: string,
     setUpstream: boolean = true
   ): Promise<{ success: boolean; message: string }> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/push`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/push`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ remote, branch, setUpstream }),
@@ -616,13 +656,13 @@ export const api = {
   },
 
   async fetchRemotes(repoName: string): Promise<GitRemote[]> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/remotes`);
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/remotes`);
     if (!res.ok) throw new Error('Failed to fetch remotes');
     return await res.json();
   },
 
   async addRemote(repoName: string, name: string, url: string, update?: boolean): Promise<{ success: boolean; remotes: GitRemote[] }> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/remotes`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/remotes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, url, update }),
@@ -635,7 +675,7 @@ export const api = {
   },
 
   async deleteRemote(repoName: string, remoteName: string): Promise<{ success: boolean; remotes: GitRemote[] }> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/remotes/${encodeURIComponent(remoteName)}`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/remotes/${encodeURIComponent(remoteName)}`, {
       method: 'DELETE',
     });
     if (!res.ok) throw new Error('Failed to delete remote');
@@ -648,7 +688,7 @@ export const api = {
     message?: string,
     index?: number
   ): Promise<{ success: boolean; stashes: GitStashEntry[] }> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/stash`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/stash`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, message, index }),
@@ -658,7 +698,7 @@ export const api = {
   },
 
   async switchBranch(repoName: string, branchName: string): Promise<void> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/branch`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/branch`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ branchName, create: false }),
@@ -667,7 +707,7 @@ export const api = {
   },
 
   async createAndSwitchBranch(repoName: string, branchName: string, baseBranch?: string): Promise<void> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/branch`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/branch`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ branchName, baseBranch, create: true }),
@@ -677,20 +717,20 @@ export const api = {
 
   // --- System & Network ---
   async fetchNetworkInfo(): Promise<NetworkInfo> {
-    const res = await fetch('/api/v1/system/network');
+    const res = await apiFetch('/api/v1/system/network');
     if (!res.ok) throw new Error('Failed to fetch system network info');
     return await res.json();
   },
 
   // --- Profile & Theme ---
   async fetchUserProfile(): Promise<UserProfile> {
-    const res = await fetch('/api/v1/user/profile');
+    const res = await apiFetch('/api/v1/user/profile');
     if (!res.ok) throw new Error('Failed to fetch user profile');
     return await res.json();
   },
 
   async saveUserProfile(profile: Partial<UserProfile>): Promise<UserProfile> {
-    const res = await fetch('/api/v1/user/profile', {
+    const res = await apiFetch('/api/v1/user/profile', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(profile),
@@ -700,7 +740,7 @@ export const api = {
   },
 
   async discardSelectedChanges(repoName: string, files: string[]): Promise<void> {
-    const res = await fetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/discard`, {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/desktop/discard`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ files }),

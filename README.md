@@ -31,7 +31,7 @@ Designed specifically for solo developers, single operators, and agentic AI pair
 - ⚡ **Local Actions CI Runner** — Executes `.sourcehub/workflows/*.yml` locally with live step-by-step logs, status indicators, and duration tracking.
 - 📋 **Issue Tracker** — Built-in issue lifecycle with one-click "Assign to Agent" handoff.
 - 🌐 **Git Smart HTTP Wire Protocol** — Built-in Smart HTTP server allows standard `git clone http://<host>:5173/git/<repo>.git` over localhost and LAN.
-- 🔒 **Secrets, Keys & Webhooks** — Encrypted repository/global secrets vault, SSH user & deploy keys registry, PAT UI placeholders (not enforced on requests today), and outbound webhooks with optional HMAC signing and live ping testing.
+- 🔒 **Secrets, Keys & Webhooks** — Encrypted repository/global secrets vault, SSH user & deploy keys registry, hashed Personal Access Tokens (enforced), optional `SOURCEHUB_TOKEN` shared secret for LAN, and outbound webhooks with optional HMAC signing and live ping testing.
 - 🎨 **14 Themes & Profile Customization** — Matrix Neon (default), Cyber Amber, Tokyo Night, Dracula, OLED Black, and more, alongside persistent operator profile settings stored in SQLite.
 - 🚀 **Zero Web Framework Overhead** — Powered by Node 22+ built-in `node:http` and `node:sqlite`, eliminating bloated web frameworks and native C++ binary dependencies.
 
@@ -135,9 +135,14 @@ Helper is an asynchronous repository agent designed for autonomous code developm
 ### 🌐 Git Smart HTTP Wire Protocol
 - Clone and fetch directly with standard Git CLI tools:
   ```bash
+  # Loopback (no SOURCEHUB_TOKEN): unauthenticated local use
   git clone http://localhost:5173/git/my-repo.git
-  # Only if you bind beyond localhost (no auth on Smart HTTP today):
-  git clone http://<lan-ip>:5173/git/my-repo.git
+
+  # LAN / shared secret: pass token via HTTP Basic (password field) or configure git credential helper.
+  # Preferred: Authorization Bearer / X-SourceHub-Token on API; for git CLI use:
+  git -c http.extraHeader="Authorization: Bearer $SOURCEHUB_TOKEN" clone http://<lan-ip>:5173/git/my-repo.git
+  # or with a PAT:
+  git -c http.extraHeader="Authorization: Bearer sh_pat_…" clone http://<lan-ip>:5173/git/my-repo.git
   ```
 - Dynamic LAN IP detection displayed in the repository clone drawer when the server is reachable on the LAN.
 
@@ -146,8 +151,15 @@ Helper is an asynchronous repository agent designed for autonomous code developm
 ### 🔒 Security, Keys & Webhooks
 - **Encrypted Secrets Vault**: Store repository-scoped and global secrets with masked values for CI and agent workflows.
 - **Keys Management**: Register and manage SSH user keys and deploy keys (fingerprints stored for display).
-- **Personal Access Tokens (PATs)**: UI placeholders with scopes/expiration metadata — **not enforced** on API or Smart HTTP requests today.
+- **Operator Shared Secret (`SOURCEHUB_TOKEN`)**: When set, required for all `/api/*` and `/git/*` requests via `Authorization: Bearer <token>` or `X-SourceHub-Token: <token>`. Binding non-loopback (`0.0.0.0` / LAN IP) **without** this env var causes the server to refuse to start.
+- **Personal Access Tokens (PATs)**: Real tokens (`sh_pat_…`) — SHA-256 hashed in SQLite; full token returned **once** on create; list UI shows prefix/last4 only. Accepted as Bearer credentials on API and Smart HTTP.
+- **Auth acceptance order**:
+  1. Valid `SOURCEHUB_TOKEN`, OR
+  2. Valid PAT, OR
+  3. Unauthenticated only when bind is loopback **and** `SOURCEHUB_TOKEN` is unset.
+- **Browser SPA**: Settings → Access Tokens stores the operator token or PAT in `localStorage` and sends it on every same-origin fetch.
 - **Outbound Webhooks**: Dispatch event notifications; HMAC SHA-256 signatures (`X-SourceHub-Signature-256`) are attached when a webhook secret is configured. Built-in ping test tools included.
+- **CI sandboxing (pragmatic)**: Workflow `run:` steps execute via `execFile('/bin/bash', ['-c', …])` with sanitized env (no full `process.env` dump), repo cwd, timeout/maxBuffer, and a light dangerous-pattern guard. Workflow YAML is **trusted operator content** — not a multi-tenant sandbox.
 
 ---
 
@@ -261,12 +273,13 @@ This checks if the SourceHub daemon is running, starts it if necessary, and open
 | Variable | Default | Description |
 | :--- | :--- | :--- |
 | `PORT` | `5173` | Port for the HTTP server to listen on. |
-| `HOST` | `127.0.0.1` | Bind address for the production daemon / packaged service (`assets/sourcehub.conf`). Use `0.0.0.0` only if you intentionally expose the forge on the LAN. |
+| `HOST` | `127.0.0.1` | Bind address for the production daemon / Vite / packaged service (`assets/sourcehub.conf`). Use `0.0.0.0` only with `SOURCEHUB_TOKEN` set — the server refuses non-loopback binds without it. |
+| `SOURCEHUB_TOKEN` | _(unset)_ | Operator shared secret. When set, required for `/api/*` and `/git/*`. Required to bind beyond loopback. |
 | `SOURCEHUB_REPOS_DIR` | `~/Dev` | Base directory containing git repositories to discover and manage. |
 | `SOURCEHUB_DATA_DIR` | `~/.sourcehub` | Directory storing SQLite database (`sourcehub.db`), worktrees, and logs. |
 | `NODE_ENV` | `development` | Set to `production` when serving static frontend bundles. |
 
-**Threat model (single-operator localhost):** SourceHub has **no API or Smart HTTP authentication** today. Anyone who can reach the bind address can use the forge. Default production bind is `127.0.0.1`. Setting `HOST=0.0.0.0` (or otherwise exposing the port) makes the UI, API, and `git clone`/`fetch` reachable on the LAN without credentials — do that only on a trusted network. Vite `npm run dev` may still listen more openly (`0.0.0.0` via `vite.config.ts`) even when production defaults to localhost.
+**Threat model (single-operator forge):** Default bind is `127.0.0.1` for both production and `npm run dev`. Loopback + unset `SOURCEHUB_TOKEN` allows unauthenticated local use. For LAN exposure: set a strong `SOURCEHUB_TOKEN` (e.g. `openssl rand -hex 32`), bind `HOST=0.0.0.0`, and paste the same token (or a PAT) into Settings → Access Tokens so the SPA can authenticate. Anyone who can reach the bind address without a valid shared secret or PAT cannot use the API or Smart HTTP.
 
 AI provider settings (Ollama URL, default model) and user profile preferences can be configured directly in the **Settings** tab and **Profile Modal** within the web interface.
 
@@ -284,6 +297,7 @@ SourceHub/
 │   ├── install-service.sh      # Systemd user service installer
 │   └── uninstall-service.sh    # Systemd user service uninstaller
 ├── server/
+│   ├── auth.ts                 # Shared secret + PAT auth & workflow env helpers
 │   ├── agentService.ts         # Autonomous AI coding agent & worktree manager
 │   ├── db.ts                   # Built-in SQLite database initialization (node:sqlite)
 │   ├── gitService.ts           # Git CLI operations, Smart HTTP, and diff engines
@@ -320,7 +334,9 @@ SourceHub is built with simplicity and autonomy in mind:
 - **Keep Everything Local**: Do not introduce required dependencies on cloud services or external APIs.
 - **Code Style**: Follow TypeScript standards and ensure code passes type-checking:
   ```bash
-  npm run build
+  npm run typecheck   # client (tsconfig.json) + server/tests (tsconfig.server.json)
+  npm test
+  npm run build       # runs typecheck, then vite build
   ```
 
 ---

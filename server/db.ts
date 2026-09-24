@@ -76,6 +76,8 @@ db.exec(`
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     token_prefix TEXT NOT NULL,
+    token_hash TEXT,
+    token_last4 TEXT,
     scopes TEXT NOT NULL,
     created_at TEXT NOT NULL,
     expires_at TEXT NOT NULL,
@@ -167,6 +169,16 @@ db.exec(`
 // Migrations / safe column additions
 try {
   db.exec('ALTER TABLE secrets ADD COLUMN encrypted_value TEXT;');
+} catch (_) {}
+try {
+  db.exec('ALTER TABLE tokens ADD COLUMN token_hash TEXT;');
+} catch (_) {}
+try {
+  db.exec('ALTER TABLE tokens ADD COLUMN token_last4 TEXT;');
+} catch (_) {}
+// Clear legacy placeholder PATs that never stored a verifiable hash
+try {
+  db.exec(`DELETE FROM tokens WHERE token_hash IS NULL OR token_hash = ''`);
 } catch (_) {}
 try {
   db.exec("ALTER TABLE pull_requests ADD COLUMN checks_status TEXT DEFAULT 'passed';");

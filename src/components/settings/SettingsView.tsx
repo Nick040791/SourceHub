@@ -32,7 +32,7 @@ import {
   AISettingsState,
   AIProviderConfig
 } from '../../types';
-import { api } from '../../services/api';
+import { api, getStoredApiToken, setStoredApiToken } from '../../services/api';
 
 const PROVIDER_ORDER: AIProviderId[] = [
   'azure_foundry_openai',
@@ -184,6 +184,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [showAddToken, setShowAddToken] = useState(false);
   const [newTokenName, setNewTokenName] = useState('');
   const [selectedScopes, setSelectedScopes] = useState<TokenScope[]>(['repo:read', 'pr:write']);
+  const [createdTokenOnce, setCreatedTokenOnce] = useState<string | null>(null);
+  const [operatorToken, setOperatorToken] = useState(() => getStoredApiToken() || '');
+  const [operatorTokenSaved, setOperatorTokenSaved] = useState(false);
 
   // SSH Keys state
   const [sshKeysList, setSshKeysList] = useState<SSHKey[]>([]);
@@ -303,16 +306,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     e.preventDefault();
     if (!newTokenName.trim()) return;
     try {
-      await api.createToken({
+      const created = await api.createToken({
         name: newTokenName.trim(),
         scopes: selectedScopes,
       });
+      setCreatedTokenOnce(created.token);
       setNewTokenName('');
       setShowAddToken(false);
       loadData();
     } catch (err: any) {
       alert(`Error creating token: ${err.message}`);
     }
+  };
+
+  const handleSaveOperatorToken = () => {
+    setStoredApiToken(operatorToken.trim() || null);
+    setOperatorTokenSaved(true);
+    setTimeout(() => setOperatorTokenSaved(false), 2000);
   };
 
   const handleDeleteToken = async (id: string) => {
@@ -651,10 +661,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <div>
                 <h3 className="text-sm font-bold text-hub-text flex items-center space-x-2">
                   <Key className="w-4 h-4 text-hub-accent" />
-                  <span>Personal Access Tokens (PATs) (§8)</span>
+                  <span>Access Tokens</span>
                 </h3>
                 <p className="text-xs text-hub-muted mt-0.5">
-                  UI placeholders stored in SQLite — scopes/expiration are metadata only; not enforced on API or Smart HTTP requests today.
+                  PATs are hashed in SQLite (full token shown once on create). The SPA also stores an operator token in localStorage for <code className="text-hub-text">Authorization</code> / <code className="text-hub-text">X-SourceHub-Token</code> headers when <code className="text-hub-text">SOURCEHUB_TOKEN</code> or a PAT is required.
                 </p>
               </div>
 
@@ -666,6 +676,59 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <span>Generate New Token</span>
               </button>
             </div>
+
+            <div className="border border-hub-border rounded-xl p-4 bg-hub-surface space-y-3 text-xs">
+              <span className="font-bold text-hub-text block">Browser API Token (localStorage)</span>
+              <p className="text-hub-muted">
+                Paste your <code className="text-hub-text">SOURCEHUB_TOKEN</code> (server env) or a PAT here so same-origin fetches include auth headers. Leave empty for loopback-only mode with no shared secret.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={operatorToken}
+                  onChange={(e) => setOperatorToken(e.target.value)}
+                  placeholder="SOURCEHUB_TOKEN or sh_pat_…"
+                  className="flex-1 bg-hub-bg border border-hub-border rounded px-2.5 py-1.5 text-xs text-hub-text font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveOperatorToken}
+                  className="px-3 py-1.5 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-lg font-semibold whitespace-nowrap"
+                >
+                  {operatorTokenSaved ? 'Saved' : 'Save'}
+                </button>
+              </div>
+            </div>
+
+            {createdTokenOnce && (
+              <div className="border border-hub-accent/40 rounded-xl p-4 bg-hub-subtle space-y-2 text-xs">
+                <div className="font-bold text-hub-text flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-hub-accent" />
+                  <span>Copy your new PAT now — it will not be shown again</span>
+                </div>
+                <code className="block break-all bg-hub-bg border border-hub-border rounded px-2.5 py-2 text-hub-accent font-mono text-[11px]">
+                  {createdTokenOnce}
+                </code>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(createdTokenOnce);
+                    }}
+                    className="px-3 py-1 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-lg font-semibold"
+                  >
+                    Copy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCreatedTokenOnce(null)}
+                    className="px-3 py-1 bg-hub-subtle hover:bg-hub-border text-hub-muted rounded"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
 
             {showAddToken && (
               <form onSubmit={handleCreateToken} className="border border-hub-border rounded-xl p-4 bg-hub-surface space-y-4 text-xs">
@@ -752,7 +815,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </div>
 
                   <div className="flex items-center justify-between text-[11px] text-hub-muted font-mono pt-1">
-                    <span>Prefix: <code className="text-hub-text">{tok.tokenPrefix}</code></span>
+                    <span>Token: <code className="text-hub-text">{tok.tokenPrefix}</code> (hashed)</span>
                     <span>Expires: {tok.expiresAt}</span>
                   </div>
                 </div>

@@ -13,7 +13,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    host: process.env.HOST || '0.0.0.0',
+    host: process.env.HOST || '127.0.0.1',
     allowedHosts: true,
   },
   build: {

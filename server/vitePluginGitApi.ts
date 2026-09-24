@@ -5,6 +5,12 @@ import { WorkflowService } from './workflowService';
 import { webhookService } from './webhookService';
 import { db } from './db';
 import { encryptSecret, maskSecret } from './crypto';
+import {
+  enforceAuth,
+  generatePat,
+  formatTokenDisplay,
+  assertSafeBindOrThrow,
+} from './auth';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import os from 'node:os';
 import { execSync } from 'node:child_process';
@@ -67,6 +73,12 @@ export async function handleApiAndGit(
 
   const { pathname, searchParams } = parseUrl(req.url);
 
+  // Auth gate for API + Smart HTTP (shared secret / PAT / loopback-open)
+  const bindHost = process.env.HOST || '127.0.0.1';
+  if (enforceAuth(req, res, pathname, bindHost)) {
+    return true;
+  }
+
   // ==========================================
   // 1. SMART HTTP GIT CLONE PROTOCOL
   // Format: /git/:repo.git/info/refs?service=git-upload-pack
@@ -100,7 +112,7 @@ export async function handleApiAndGit(
             const mapped = tokens.map((t: any) => ({
               id: t.id,
               name: t.name,
-              tokenPrefix: t.token_prefix,
+              tokenPrefix: formatTokenDisplay(t.token_prefix, t.token_last4),
               scopes: JSON.parse(t.scopes || '[]'),
               createdAt: t.created_at,
               expiresAt: t.expires_at,
@@ -112,21 +124,34 @@ export async function handleApiAndGit(
           if (req.method === 'POST') {
             const body = await readJsonBody(req);
             if (!body.name) return sendError(res, 400, 'Token name is required');
-            const prefix = `sh_pat_${Math.random().toString(36).substring(2, 8)}...`;
+            const { token, prefix, last4, hash } = generatePat();
             const id = `tok-${Date.now()}`;
+            const createdAt = new Date().toISOString();
+            const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
             db.prepare(`
-              INSERT INTO tokens (id, name, token_prefix, scopes, created_at, expires_at, last_used)
-              VALUES (?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO tokens (id, name, token_prefix, token_hash, token_last4, scopes, created_at, expires_at, last_used)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).run(
               id,
               body.name,
               prefix,
+              hash,
+              last4,
               JSON.stringify(body.scopes || ['repo:read']),
-              'Just now',
-              'In 90 days',
-              'Never'
+              createdAt,
+              expiresAt,
+              null
             );
-            return sendJson(res, 201, { id, name: body.name, tokenPrefix: prefix });
+            // Full token returned once; list endpoints only expose masked prefix/last4
+            return sendJson(res, 201, {
+              id,
+              name: body.name,
+              tokenPrefix: formatTokenDisplay(prefix, last4),
+              token,
+              scopes: body.scopes || ['repo:read'],
+              createdAt,
+              expiresAt,
+            });
           }
         }
 
@@ -1132,6 +1157,8 @@ export function vitePluginGitApi(): Plugin {
   return {
     name: 'vite-plugin-git-api',
     configureServer(server: ViteDevServer) {
+      const bindHost = process.env.HOST || '127.0.0.1';
+      assertSafeBindOrThrow(bindHost);
       server.middlewares.use(async (req, res, next) => {
         try {
           const handled = await handleApiAndGit(req, res);

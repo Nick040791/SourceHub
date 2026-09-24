@@ -234,7 +234,7 @@ export class AIProviderService {
 
     for (const [key, def] of Object.entries(PROVIDER_DEFINITIONS)) {
       const pid = key as AIProviderId;
-      const stored = rawConfigs.providers?.[pid] || {};
+      const stored: Partial<StoredProviderConfig> = rawConfigs.providers?.[pid] || {};
       const endpointUrl = stored.endpointUrl || def.defaultEndpoint;
       const defaultModel = stored.defaultModel || def.defaultModel;
       const isKeySet = Boolean(stored.apiKeyEncrypted);
@@ -304,9 +304,10 @@ export class AIProviderService {
 
     // 3. Handle legacy Ollama URL and default model if sent directly
     if (input.ollamaUrl || (input.provider === 'ollama' && input.defaultModel)) {
-      if (!current.providers.ollama) current.providers.ollama = {} as any;
-      if (input.ollamaUrl) current.providers.ollama.endpointUrl = input.ollamaUrl;
-      if (input.defaultModel) current.providers.ollama.defaultModel = input.defaultModel;
+      if (!current.providers.ollama) current.providers.ollama = {} as Partial<StoredProviderConfig>;
+      const ollamaCfg = current.providers.ollama;
+      if (input.ollamaUrl) ollamaCfg.endpointUrl = input.ollamaUrl;
+      if (input.defaultModel) ollamaCfg.defaultModel = input.defaultModel;
     }
 
     // 4. Update individual providers
@@ -322,7 +323,7 @@ export class AIProviderService {
           };
         }
 
-        const target = current.providers[pid];
+        const target = current.providers[pid]!;
 
         if (partialConfig.endpointUrl !== undefined) target.endpointUrl = partialConfig.endpointUrl;
         if (partialConfig.defaultModel !== undefined) target.defaultModel = partialConfig.defaultModel;
@@ -356,11 +357,11 @@ export class AIProviderService {
       ON CONFLICT(key) DO UPDATE SET value = excluded.value
     `);
 
-    upsert.run('ai_provider', current.activeProvider);
+    upsert.run('ai_provider', current.activeProvider || 'ollama');
     if (current.providers.ollama?.endpointUrl) {
       upsert.run('ollama_url', current.providers.ollama.endpointUrl);
     }
-    const activeDefaultModel = current.providers[current.activeProvider]?.defaultModel || input.defaultModel;
+    const activeDefaultModel = (current.activeProvider && current.providers[current.activeProvider]?.defaultModel) || input.defaultModel;
     if (activeDefaultModel) {
       upsert.run('ollama_model', activeDefaultModel);
     }
@@ -375,7 +376,7 @@ export class AIProviderService {
     const providerDef = PROVIDER_DEFINITIONS[providerId] || PROVIDER_DEFINITIONS.ollama;
 
     const storedConfigs = this.loadAllStoredConfigs();
-    const stored = storedConfigs.providers?.[providerId] || {};
+    const stored: Partial<StoredProviderConfig> = storedConfigs.providers?.[providerId] || {};
 
     const endpointUrl = stored.endpointUrl || providerDef.defaultEndpoint;
     const model = options.modelOverride || stored.defaultModel || providerDef.defaultModel;
@@ -428,7 +429,7 @@ export class AIProviderService {
   ): Promise<{ models: string[]; defaultModel: string }> {
     const providerDef = PROVIDER_DEFINITIONS[providerId] || PROVIDER_DEFINITIONS.ollama;
     const storedConfigs = this.loadAllStoredConfigs();
-    const stored = storedConfigs.providers?.[providerId] || {};
+    const stored: Partial<StoredProviderConfig> = storedConfigs.providers?.[providerId] || {};
 
     const targetUrl = customUrl || stored.endpointUrl || providerDef.defaultEndpoint;
     const apiKey = customApiKey || this.decryptApiKey(stored.apiKeyEncrypted) || '';
@@ -528,7 +529,7 @@ export class AIProviderService {
     const startTime = Date.now();
     const providerDef = PROVIDER_DEFINITIONS[providerId] || PROVIDER_DEFINITIONS.ollama;
     const storedConfigs = this.loadAllStoredConfigs();
-    const stored = storedConfigs.providers?.[providerId] || {};
+    const stored: Partial<StoredProviderConfig> = storedConfigs.providers?.[providerId] || {};
 
     const endpointUrl = config.endpointUrl || stored.endpointUrl || providerDef.defaultEndpoint;
     const apiKey = config.apiKey !== undefined
@@ -546,7 +547,7 @@ export class AIProviderService {
     try {
       const responseText = await this.complete({
         prompt: 'Ping test. Reply with strictly the word "OK".',
-        modelOverride: model,
+        modelOverride: config.model,
         providerOverride: providerId,
         thinkingEffortOverride: 'none',
       });
@@ -675,7 +676,7 @@ export class AIProviderService {
     prompt: string,
     systemPrompt?: string,
     thinkingEffort: ThinkingEffort = 'none',
-    storedConfig: StoredProviderConfig = { endpointUrl: '', defaultModel: '' }
+    storedConfig: Partial<StoredProviderConfig> = { endpointUrl: '', defaultModel: '' }
   ): Promise<string> {
     let url = endpointUrl.replace(/\/$/, '');
 
@@ -764,7 +765,7 @@ export class AIProviderService {
   private loadAllStoredConfigs(): {
     activeProvider?: AIProviderId;
     thinkingEffort?: ThinkingEffort;
-    providers?: Record<string, StoredProviderConfig>;
+    providers?: Partial<Record<AIProviderId, Partial<StoredProviderConfig>>>;
   } {
     try {
       const row = db.prepare("SELECT value FROM system_settings WHERE key = 'ai_multi_provider_config'").get() as any;

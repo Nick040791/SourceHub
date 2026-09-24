@@ -2,14 +2,33 @@ import { db } from './db';
 import { GitService } from './gitService';
 import { decryptSecret } from './crypto';
 import type { WorkflowRun, WorkflowStep } from '../src/types';
-import { exec, execFile } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
 import fs from 'node:fs';
 import yaml from 'yaml';
+import {
+  buildSanitizedWorkflowEnv,
+  isDangerousRunScript,
+  resolveSafeExecutionDir,
+} from './auth';
 
-const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
+
+/** Run a trusted workflow shell command via bash -c with sanitized env. */
+async function runWorkflowCommand(
+  command: string,
+  cwd: string,
+  env: NodeJS.ProcessEnv,
+  timeoutMs = 120000
+): Promise<{ stdout: string; stderr: string }> {
+  return execFileAsync('/bin/bash', ['-c', command], {
+    cwd,
+    env,
+    timeout: timeoutMs,
+    maxBuffer: 5 * 1024 * 1024,
+  }) as Promise<{ stdout: string; stderr: string }>;
+}
 
 interface ParsedStep {
   name?: string;
@@ -245,29 +264,50 @@ export class WorkflowService {
           }
 
           if (stepDef.run) {
-            // Prepare command and inject secrets
+            // Prepare command and inject secrets into the command string for ${{ secrets.X }} placeholders.
+            // Secrets are ALSO available as env vars; avoid dumping full process.env.
             let command = stepDef.run;
             for (const [sKey, sVal] of Object.entries(decryptedSecrets)) {
               command = command.replaceAll(`\${{ secrets.${sKey} }}`, sVal);
               command = command.replaceAll(`\${secrets.${sKey}}`, sVal);
             }
 
-            const stepEnv: Record<string, string> = {
-              ...process.env as Record<string, string>,
-              ...decryptedSecrets,
-              ...(stepDef.env || {}),
-              CI: 'true',
-              SOURCEHUB: 'true',
+            if (isDangerousRunScript(command)) {
+              allPassed = false;
+              steps.push({
+                name: stepName,
+                status: 'failed',
+                duration: `${((Date.now() - stepStart) / 1000).toFixed(1)}s`,
+                logs: ['Refused to run step: command matched dangerous-pattern guard.'],
+              });
+              continue;
+            }
+
+            let safeCwd: string;
+            try {
+              safeCwd = resolveSafeExecutionDir(repoPath, executionDir);
+            } catch (pathErr: any) {
+              allPassed = false;
+              steps.push({
+                name: stepName,
+                status: 'failed',
+                duration: `${((Date.now() - stepStart) / 1000).toFixed(1)}s`,
+                logs: [`Refused to run step: ${pathErr.message}`],
+              });
+              continue;
+            }
+
+            const stepEnv = buildSanitizedWorkflowEnv(decryptedSecrets, stepDef.env, {
               SOURCEHUB_BRANCH: branch,
               SOURCEHUB_COMMIT: commitSha,
-            };
+              SOURCEHUB_REPO: repoName,
+            });
+
+            // Workflows are trusted operator content (same trust boundary as local shell).
+            console.log(`[WorkflowRunner] Running trusted step in ${safeCwd}: ${stepName}`);
 
             try {
-              const { stdout, stderr } = await execAsync(command, {
-                cwd: executionDir,
-                env: stepEnv,
-                timeout: 120000,
-              });
+              const { stdout, stderr } = await runWorkflowCommand(command, safeCwd, stepEnv, 120000);
 
               const rawLogs = (stdout + '\n' + stderr).split('\n').filter(Boolean);
               const sanitizedLogs = rawLogs.map(line => redactSecrets(line, decryptedSecrets));
@@ -297,7 +337,7 @@ export class WorkflowService {
         // Step 1: Environment & Repository Verification
         const step1Start = Date.now();
         try {
-          const { stdout } = await execAsync('git status -s && git branch --show-current', { cwd: executionDir });
+          const { stdout } = await runWorkflowCommand('git status -s && git branch --show-current', executionDir, buildSanitizedWorkflowEnv({}, undefined, {}), 30000);
           steps.push({
             name: 'Verify Environment & Git State',
             status: 'success',
@@ -324,7 +364,7 @@ export class WorkflowService {
         if (fs.existsSync(path.join(executionDir, 'package.json'))) {
           const step2Start = Date.now();
           try {
-            const { stdout, stderr } = await execAsync('npm run build', { cwd: executionDir, timeout: 60000 });
+            const { stdout, stderr } = await runWorkflowCommand('npm run build', executionDir, buildSanitizedWorkflowEnv({}, undefined, {}), 60000);
             const rawLines = (stdout + '\n' + stderr).split('\n').filter(Boolean);
             steps.push({
               name: 'Type Check & Application Build',
@@ -347,7 +387,7 @@ export class WorkflowService {
         // Step 3: Wire Protocol & Integrity Checks
         const step3Start = Date.now();
         try {
-          const { stdout } = await execAsync('git rev-parse --is-inside-work-tree', { cwd: executionDir });
+          const { stdout } = await runWorkflowCommand('git rev-parse --is-inside-work-tree', executionDir, buildSanitizedWorkflowEnv({}, undefined, {}), 15000);
           steps.push({
             name: 'Verify Git Wire Protocol & Object Graph',
             status: 'success',

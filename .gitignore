@@ -44,3 +44,6 @@ master.key
 .vscode/*
 !.vscode/extensions.json
 .idea/
+
+# TypeScript project-reference emit
+node_modules/.tmp/

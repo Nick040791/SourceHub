@@ -3,6 +3,7 @@ import { GitService } from './gitService';
 import { WorkflowService } from './workflowService';
 import { webhookService } from './webhookService';
 import { aiProviderService, AIProviderId, ThinkingEffort } from './aiProviderService';
+import type { AgentRun, AgentTimelineEvent } from '../src/types';
 interface ParsedFile {
   path: string;
   content: string;
@@ -119,6 +120,7 @@ export class AgentService {
         createdAt: r.created_at,
         completedAt: r.completed_at || undefined,
         timeline,
+        logs: [],
       };
     });
   }
@@ -250,7 +252,7 @@ export class AgentService {
       );
 
       const fileContext = snapshot.files
-        .map(f => `=== FILE: ${f.path} ===\n${f.content}\n`)
+        .map((f: ParsedFile) => `=== FILE: ${f.path} ===\n${f.content}\n`)
         .join('\n');
 
       const commitHistory = recentCommits
@@ -402,7 +404,7 @@ ${prompt}
         sourceBranch: targetBranch,
         targetBranch: baseBranch,
         isAgent: true,
-      }).catch(err => console.warn('[Webhook] agent PR opened dispatch failed:', err.message));
+      }).catch((err: any) => console.warn('[Webhook] agent PR opened dispatch failed:', err.message));
 
       addEvent(
         'agent.pr_opened',
@@ -487,7 +489,7 @@ ${prompt}
       filesTouched,
       targetBranch,
       state: 'ready_for_review',
-    }).catch(err => console.warn('[Webhook] agent_run.completed dispatch failed:', err.message));
+    }).catch((err: any) => console.warn('[Webhook] agent_run.completed dispatch failed:', err.message));
   }
 
   // 6. Generate PR Description using Ollama Helper
@@ -587,7 +589,7 @@ TITLE: <concise conventional title>
       ]);
 
       const commitList = commits.map((c: any) => `- ${c.shortSha || c.sha?.substring(0, 7)}: ${c.message} (${c.author})`).join('\n');
-      const fileList = snapshot.files.map(f => `=== FILE: ${f.path} ===\n${f.content}\n`).join('\n');
+      const fileList = snapshot.files.map((f: ParsedFile) => `=== FILE: ${f.path} ===\n${f.content}\n`).join('\n');
 
       const prompt = `You are Helper, an expert staff software engineer performing a comprehensive line-by-line and architectural Pull Request code review.
 
@@ -689,7 +691,7 @@ ${formattedComments || 'No existing comments.'}
 ${diff || 'No diff'}
 
 === REPOSITORY FILES (${snapshot.files.length} files) ===
-${snapshot.files.map(f => `=== FILE: ${f.path} ===\n${f.content}\n`).join('\n')}
+${snapshot.files.map((f: ParsedFile) => `=== FILE: ${f.path} ===\n${f.content}\n`).join('\n')}
 
 Analyze all feedback above and provide:
 1. Response to each comment / critique.

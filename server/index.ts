@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import { handleApiAndGit } from './vitePluginGitApi';
+import { assertSafeBindOrThrow } from './auth';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -132,7 +133,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-SourceHub-Event, X-SourceHub-Delivery');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-SourceHub-Token, X-SourceHub-Event, X-SourceHub-Delivery');
 
   if (req.method === 'OPTIONS') {
     res.statusCode = allowed ? 204 : 403;
@@ -176,6 +177,11 @@ server.listen(PORT, HOST, () => {
   }
   console.log(`► Repos:    ${process.env.SOURCEHUB_REPOS_DIR || path.join(process.env.HOME || '', 'Dev')}`);
   console.log(`► Static:   ${distDir}`);
+  if (process.env.SOURCEHUB_TOKEN) {
+    console.log('► Auth:     SOURCEHUB_TOKEN required (Bearer / X-SourceHub-Token)');
+  } else {
+    console.log('► Auth:     loopback open (set SOURCEHUB_TOKEN for LAN / shared secret)');
+  }
   console.log('────────────────────────────────────────────────────────────\n');
 });
 
