@@ -4,7 +4,7 @@
 
 # SourceHub
 
-**A single-operator, self-hosted software forge with native GitHub Desktop source control, local CI actions runner, and an autonomous AI coding agent — running entirely on your own hardware.**
+**A single-operator, self-hosted software forge with native Git Desktop source control, local CI actions runner, and an autonomous AI coding agent — running entirely on your own hardware.**
 
 [![Node.js](https://img.shields.io/badge/Node.js-22+-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev)
