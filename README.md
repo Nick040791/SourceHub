@@ -165,7 +165,7 @@ Pre-compiled packages for Debian, Ubuntu, and Linux Mint are available in the [`
 
 ```bash
 # Install package
-sudo dpkg -i releases/sourcehub_0.1.1_amd64.deb
+sudo dpkg -i releases/sourcehub_0.1.2_amd64.deb
 
 # Launch SourceHub (opens in default browser)
 sourcehub
