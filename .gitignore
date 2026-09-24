@@ -16,10 +16,23 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Environment & Editor
+# Environment & secrets
 .env
 .env.local
 .env.*.local
+*.pem
+*.key
+!public/*.svg
+credentials*
+secrets*
+master.key
+
+# Runtime data (keep sample workflows tracked)
+.sourcehub/*
+!.sourcehub/workflows/
+!.sourcehub/workflows/**
+
+# Editor
 .DS_Store
 *.suo
 *.ntvs*
