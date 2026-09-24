@@ -37,11 +37,25 @@ Designed specifically for solo developers, single operators, and agentic AI pair
 
 ---
 
-## Screenshot
+## Screenshots
 
-![SourceHub Desktop workbench](assets/screenshots/desktop.png)
+**1 — The Hook · Helper agent**
 
-Desktop tab: hunk staging, live diffs, and commit/push for a local repository.
+![SourceHub Helper agent with task pipeline](assets/screenshots/01-helper.png)
+
+Prompt a coding task, pick a local Ollama model, and watch the run move through Queued → Ready with an audit trail.
+
+**2 — The Classic Workflow · Desktop**
+
+![SourceHub Desktop workbench with hunk staging](assets/screenshots/02-desktop.png)
+
+Hunk staging, live diffs, and commit/push for day-to-day source control.
+
+**3 — The Proof · Pull requests**
+
+![SourceHub pull request forge view](assets/screenshots/03-pull-request.png)
+
+Full PR lifecycle on the local forge — merge strategies, CI gating, and Smart HTTP-backed repos.
 
 ---
 
