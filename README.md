@@ -13,6 +13,7 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
 [![Git](https://img.shields.io/badge/Git-Native_CLI-F05032?logo=git&logoColor=white)](https://git-scm.com)
 [![Status](https://img.shields.io/badge/Version-v0.1.0--alpha-00ff66)](#)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 </div>
 
@@ -114,7 +115,7 @@ Helper is an asynchronous repository agent designed for autonomous code developm
   ```bash
   git clone http://localhost:5173/git/my-repo.git
   # Or from any device on your local network:
-  git clone http://192.168.1.150:5173/git/my-repo.git
+  git clone http://<lan-ip>:5173/git/my-repo.git
   ```
 - Dynamic LAN IP detection displayed directly in the repository clone drawer.
 
@@ -174,7 +175,7 @@ sourcehub
 
 ```bash
 # Clone the repository
-git clone https://github.com/mrnicholas/SourceHub.git
+git clone https://github.com/Nick040791/SourceHub.git
 cd SourceHub
 
 # Install frontend and server dependencies
@@ -304,4 +305,6 @@ SourceHub is built with simplicity and autonomy in mind:
 
 ## 📄 License
 
-MIT License. Designed and maintained for single-operator autonomy.
+Released under the [MIT License](LICENSE). Copyright (c) 2026 Nicholas Beighley.
+
+Designed and maintained for single-operator autonomy.
