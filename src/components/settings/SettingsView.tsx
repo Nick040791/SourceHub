@@ -654,7 +654,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <span>Personal Access Tokens (PATs) (§8)</span>
                 </h3>
                 <p className="text-xs text-hub-muted mt-0.5">
-                  Fine-grained tokens stored persistently in SQLite for CLI, VS Code, and AI teammates.
+                  UI placeholders stored in SQLite — scopes/expiration are metadata only; not enforced on API or Smart HTTP requests today.
                 </p>
               </div>
 

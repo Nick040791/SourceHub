@@ -297,10 +297,9 @@ export const App: React.FC = () => {
       {/* 7. Footer */}
       <footer className="border-t border-hub-border py-4 px-6 text-center text-xs text-hub-muted bg-hub-surface/40 mt-auto">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1.5">
             <span className="font-bold text-hub-text">SourceHub</span>
-            <span>•</span>
-            <span>Single-Operator Self-Hosted Forge for {profile.name}</span>
+            <span>Self-Hosted Forge</span>
           </div>
           <div className="flex items-center space-x-4 text-[11px] font-mono">
             <span>Repos: {repositories.length} Active</span>

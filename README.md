@@ -21,7 +21,7 @@
 
 ## 📖 Overview
 
-**SourceHub** turns any directory of local git repositories (default: `~/Dev`) into a comprehensive, high-performance development forge served locally over the web and LAN.
+**SourceHub** turns any directory of local git repositories (default: `~/Dev`) into a comprehensive, high-performance development forge served on your machine (localhost by default; LAN only if you intentionally rebind).
 
 Designed specifically for solo developers, single operators, and agentic AI pair programming, SourceHub replaces both GitHub and GitHub Desktop without relying on external cloud infrastructure, subscriptions, or telemetry:
 
@@ -31,7 +31,7 @@ Designed specifically for solo developers, single operators, and agentic AI pair
 - ⚡ **Local Actions CI Runner** — Executes `.sourcehub/workflows/*.yml` locally with live step-by-step logs, status indicators, and duration tracking.
 - 📋 **Issue Tracker** — Built-in issue lifecycle with one-click "Assign to Agent" handoff.
 - 🌐 **Git Smart HTTP Wire Protocol** — Built-in Smart HTTP server allows standard `git clone http://<host>:5173/git/<repo>.git` over localhost and LAN.
-- 🔒 **Secrets, Keys & Webhooks** — Encrypted repository/global secrets vault, SSH user & deploy keys, Personal Access Tokens (PATs), and HMAC-signed outbound webhooks with live ping testing.
+- 🔒 **Secrets, Keys & Webhooks** — Encrypted repository/global secrets vault, SSH user & deploy keys registry, PAT UI placeholders (not enforced on requests today), and outbound webhooks with optional HMAC signing and live ping testing.
 - 🎨 **14 Themes & Profile Customization** — Matrix Neon (default), Cyber Amber, Tokyo Night, Dracula, OLED Black, and more, alongside persistent operator profile settings stored in SQLite.
 - 🚀 **Zero Web Framework Overhead** — Powered by Node 22+ built-in `node:http` and `node:sqlite`, eliminating bloated web frameworks and native C++ binary dependencies.
 
@@ -126,7 +126,7 @@ Helper is an asynchronous repository agent designed for autonomous code developm
 
 ### ⚡ Local Actions (CI Runner)
 - **Declarative Workflows**: Reads workflow definitions from `.sourcehub/workflows/*.yml`.
-- **Real Local Execution**: Runs workflow commands step-by-step using native bash processes.
+- **Real Local Execution**: Runs workflow `run:` steps as shell commands on the host user — treat workflow YAML as trusted code.
 - **Audit & History**: Real-time log capture, exit code recording, execution timestamps, and run durations.
 - **Event Triggers**: Dispatches automatically on `push`, `pull_request`, `agent_run`, or manual UI dispatch.
 
@@ -136,18 +136,18 @@ Helper is an asynchronous repository agent designed for autonomous code developm
 - Clone and fetch directly with standard Git CLI tools:
   ```bash
   git clone http://localhost:5173/git/my-repo.git
-  # Or from any device on your local network:
+  # Only if you bind beyond localhost (no auth on Smart HTTP today):
   git clone http://<lan-ip>:5173/git/my-repo.git
   ```
-- Dynamic LAN IP detection displayed directly in the repository clone drawer.
+- Dynamic LAN IP detection displayed in the repository clone drawer when the server is reachable on the LAN.
 
 ---
 
 ### 🔒 Security, Keys & Webhooks
 - **Encrypted Secrets Vault**: Store repository-scoped and global secrets with masked values for CI and agent workflows.
-- **Keys Management**: Register and manage SSH user keys and deploy keys with fingerprint verification.
-- **Personal Access Tokens (PATs)**: Issue granular API tokens with custom expiration policies.
-- **Outbound Webhooks**: Dispatch event notifications with HMAC SHA-256 signatures (`X-SourceHub-Signature-256`) and built-in ping test tools.
+- **Keys Management**: Register and manage SSH user keys and deploy keys (fingerprints stored for display).
+- **Personal Access Tokens (PATs)**: UI placeholders with scopes/expiration metadata — **not enforced** on API or Smart HTTP requests today.
+- **Outbound Webhooks**: Dispatch event notifications; HMAC SHA-256 signatures (`X-SourceHub-Signature-256`) are attached when a webhook secret is configured. Built-in ping test tools included.
 
 ---
 
@@ -261,10 +261,12 @@ This checks if the SourceHub daemon is running, starts it if necessary, and open
 | Variable | Default | Description |
 | :--- | :--- | :--- |
 | `PORT` | `5173` | Port for the HTTP server to listen on. |
-| `HOST` | `0.0.0.0` | Bind host address (`0.0.0.0` enables local network access). |
+| `HOST` | `127.0.0.1` | Bind address for the production daemon / packaged service (`assets/sourcehub.conf`). Use `0.0.0.0` only if you intentionally expose the forge on the LAN. |
 | `SOURCEHUB_REPOS_DIR` | `~/Dev` | Base directory containing git repositories to discover and manage. |
 | `SOURCEHUB_DATA_DIR` | `~/.sourcehub` | Directory storing SQLite database (`sourcehub.db`), worktrees, and logs. |
 | `NODE_ENV` | `development` | Set to `production` when serving static frontend bundles. |
+
+**Threat model (single-operator localhost):** SourceHub has **no API or Smart HTTP authentication** today. Anyone who can reach the bind address can use the forge. Default production bind is `127.0.0.1`. Setting `HOST=0.0.0.0` (or otherwise exposing the port) makes the UI, API, and `git clone`/`fetch` reachable on the LAN without credentials — do that only on a trusted network. Vite `npm run dev` may still listen more openly (`0.0.0.0` via `vite.config.ts`) even when production defaults to localhost.
 
 AI provider settings (Ollama URL, default model) and user profile preferences can be configured directly in the **Settings** tab and **Profile Modal** within the web interface.
 
