@@ -84,7 +84,7 @@ export const HamburgerMenu: React.FC<HamburgerMenuProps> = ({
   if (!isOpen) return null;
 
   const currentPort = window.location.port || '5173';
-  const primaryIp = networkInfo?.primaryLanIp || (window.location.hostname !== 'localhost' ? window.location.hostname : '192.168.1.128');
+  const primaryIp = networkInfo?.primaryLanIp || (window.location.hostname !== 'localhost' ? window.location.hostname : '127.0.0.1');
   const lanUrl = `http://${primaryIp}:${currentPort}`;
   const localhostUrl = `http://localhost:${currentPort}`;
 

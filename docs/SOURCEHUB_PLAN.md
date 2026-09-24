@@ -2,7 +2,7 @@
 
 **Status:** Planning baseline (MVP)  
 **Audience:** Design, Development, Deployment, Chief of Staff  
-**Owner:** Nicholas Beighley (single-operator forge)  
+**Owner:** SourceHub maintainers (single-operator forge)  
 **Last updated:** 2026-09-22  
 
 **Plan quality self-score: 10/10** — criteria in [§14](#14-plan-quality-score-1010).
@@ -52,7 +52,7 @@
 | A5 | MVP executor = **direct provider (Ollama)** + SourceHub job worker; OpenClaw/Hermes optional later | **Keep** | User deferred gateway; OpenClaw’s `agent exec` and managed worktrees are proven *later* adapters ([OpenClaw agent exec](https://docs.openclaw.ai/cli/agent); [managed worktrees](https://docs.openclaw.ai/concepts/managed-worktrees)), not MVP blockers. | Weaker coding quality early; acceptable if job state machine is correct. |
 | A6 | SourceHub-native API + MCP (not full GitHub API clone) | **Keep** | Avoid half-compatible GitHub API trap; bots talk SourceHub. Optional thin facade later. | Some tools expect GitHub; first-party CLI/MCP covers our bots. |
 | A7 | Laptop-first `docker compose` deployment | **Keep** | Matches solo developer; Deployment owns runner + volumes. | Multi-machine sync deferred. |
-| A8 | Git identity for agent commits = operator (“on Nick’s behalf”) with clear bot trailer | **Keep** | Matches “started working on your behalf” UX; audit via trailers/`SourceHub-Agent-Run: <id>`. | Blame noise; settings toggle for bot identity later. |
+| A8 | Git identity for agent commits = operator (“on your behalf”) with clear bot trailer | **Keep** | Matches “started working on your behalf” UX; audit via trailers/`SourceHub-Agent-Run: <id>`. | Blame noise; settings toggle for bot identity later. |
 
 **Rejected assumptions**
 
