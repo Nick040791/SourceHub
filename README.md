@@ -12,7 +12,7 @@
 [![Vite](https://img.shields.io/badge/Vite-6.2-646CFF?logo=vite&logoColor=white)](https://vitejs.dev)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
 [![Git](https://img.shields.io/badge/Git-Native_CLI-F05032?logo=git&logoColor=white)](https://git-scm.com)
-[![Status](https://img.shields.io/badge/Version-v0.1.2-00ff66)](#)
+[![Status](https://img.shields.io/badge/Version-v0.1.3-00ff66)](#)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 </div>
@@ -199,7 +199,7 @@ Pre-compiled packages for Debian, Ubuntu, and Linux Mint are available in the [`
 
 ```bash
 # Install package
-sudo dpkg -i releases/sourcehub_0.1.2_amd64.deb
+sudo dpkg -i releases/sourcehub_0.1.3_amd64.deb
 
 # Launch SourceHub (opens in default browser)
 sourcehub

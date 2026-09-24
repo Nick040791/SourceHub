@@ -4,14 +4,14 @@ Pre-built binary packages for Debian, Ubuntu, Linux Mint, and derivative Linux d
 
 ---
 
-## Latest Release: v0.1.2
+## Latest Release: v0.1.3
 
-- **Package**: [`sourcehub_0.1.2_amd64.deb`](./sourcehub_0.1.2_amd64.deb)
-- **SHA-256**: [`sourcehub_0.1.2_amd64.deb.sha256`](./sourcehub_0.1.2_amd64.deb.sha256)
-- **SHA-256 hex**: `5b8374c26e15ec4fc4e3134baf1d7461da2969668ef6f2d9833ef015692ea410`
+- **Package**: [`sourcehub_0.1.3_amd64.deb`](./sourcehub_0.1.3_amd64.deb)
+- **SHA-256**: [`sourcehub_0.1.3_amd64.deb.sha256`](./sourcehub_0.1.3_amd64.deb.sha256)
+- **SHA-256 hex**: `9cdc7f00cbefd1569078a093d9117c77b9b9fabfa53f7d1acf8c0932e7b8dce6`
 - **Target Node.js**: Node.js >= 22.0.0 (required for built-in `node:sqlite`)
 - **Target Git**: Git >= 2.30.0
-- **Notes**: Style D UI; desktop/app icon is the S-in-hex brand mark. Maintainer field is `SourceHub contributors` (no personal email).
+- **Notes**: Auth hardening release — enforces optional `SOURCEHUB_TOKEN` / hashed PATs; Style D UI; Maintainer field is `SourceHub contributors` (no personal email).
 
 ---
 
@@ -19,15 +19,15 @@ Pre-built binary packages for Debian, Ubuntu, Linux Mint, and derivative Linux d
 
 ### 1. Verify Checksum
 ```bash
-sha256sum -c sourcehub_0.1.2_amd64.deb.sha256
-# Should output: sourcehub_0.1.2_amd64.deb: OK
+sha256sum -c sourcehub_0.1.3_amd64.deb.sha256
+# Should output: sourcehub_0.1.3_amd64.deb: OK
 ```
 
 ### 2. Install Package
 ```bash
-sudo apt install ./sourcehub_0.1.2_amd64.deb
+sudo apt install ./sourcehub_0.1.3_amd64.deb
 # or
-sudo dpkg -i sourcehub_0.1.2_amd64.deb
+sudo dpkg -i sourcehub_0.1.3_amd64.deb
 
 # If any dependencies are missing:
 sudo apt-get install -f
