@@ -30,7 +30,7 @@ Designed specifically for solo developers, single operators, and agentic AI pair
 - 🔀 **Pull Requests & Code Review** — Full PR lifecycle backed by Node's built-in SQLite, featuring pre-flight merge conflict detection, squash/rebase/merge strategies, CI check gating, post-merge issue auto-closing, and branch pruning.
 - ⚡ **Local Actions CI Runner** — Executes `.sourcehub/workflows/*.yml` locally with live step-by-step logs, status indicators, and duration tracking.
 - 📋 **Issue Tracker** — Built-in issue lifecycle with one-click "Assign to Agent" handoff.
-- 🌐 **Git Smart HTTP Wire Protocol** — Built-in Smart HTTP server allows standard `git clone http://<host>:5173/git/<repo>.git` over localhost and LAN.
+- 🌐 **Git Smart HTTP Wire Protocol** — Built-in Smart HTTP server allows standard `git clone http://<host>:5179/git/<repo>.git` over localhost and LAN.
 - 🔒 **Secrets, Keys & Webhooks** — Encrypted repository/global secrets vault, SSH user & deploy keys registry, hashed Personal Access Tokens (enforced), optional `SOURCEHUB_TOKEN` shared secret for LAN, and outbound webhooks with optional HMAC signing and live ping testing.
 - 🎨 **14 Themes & Profile Customization** — Matrix Neon (default), Cyber Amber, Tokyo Night, Dracula, OLED Black, and more, alongside persistent operator profile settings stored in SQLite.
 - 🚀 **Zero Web Framework Overhead** — Powered by Node 22+ built-in `node:http` and `node:sqlite`, eliminating bloated web frameworks and native C++ binary dependencies.
@@ -136,13 +136,13 @@ Helper is an asynchronous repository agent designed for autonomous code developm
 - Clone and fetch directly with standard Git CLI tools:
   ```bash
   # Loopback (no SOURCEHUB_TOKEN): unauthenticated local use
-  git clone http://localhost:5173/git/my-repo.git
+  git clone http://localhost:5179/git/my-repo.git
 
   # LAN / shared secret: pass token via HTTP Basic (password field) or configure git credential helper.
   # Preferred: Authorization Bearer / X-SourceHub-Token on API; for git CLI use:
-  git -c http.extraHeader="Authorization: Bearer $SOURCEHUB_TOKEN" clone http://<lan-ip>:5173/git/my-repo.git
+  git -c http.extraHeader="Authorization: Bearer $SOURCEHUB_TOKEN" clone http://<lan-ip>:5179/git/my-repo.git
   # or with a PAT:
-  git -c http.extraHeader="Authorization: Bearer sh_pat_…" clone http://<lan-ip>:5173/git/my-repo.git
+  git -c http.extraHeader="Authorization: Bearer sh_pat_…" clone http://<lan-ip>:5179/git/my-repo.git
   ```
 - Dynamic LAN IP detection displayed in the repository clone drawer when the server is reachable on the LAN.
 
@@ -221,7 +221,7 @@ npm install
 ```bash
 npm run dev
 ```
-Visit `http://localhost:5173` in your browser.
+Visit `http://localhost:5179` in your browser.
 
 ### Building & Running the Production Daemon
 
@@ -272,7 +272,7 @@ This checks if the SourceHub daemon is running, starts it if necessary, and open
 
 | Variable | Default | Description |
 | :--- | :--- | :--- |
-| `PORT` | `5173` | Port for the HTTP server to listen on. |
+| `PORT` | `5179` | Port for the HTTP server to listen on. |
 | `HOST` | `127.0.0.1` | Bind address for the production daemon / Vite / packaged service (`assets/sourcehub.conf`). Use `0.0.0.0` only with `SOURCEHUB_TOKEN` set — the server refuses non-loopback binds without it. |
 | `SOURCEHUB_TOKEN` | _(unset)_ | Operator shared secret. When set, required for `/api/*` and `/git/*`. Required to bind beyond loopback. |
 | `SOURCEHUB_REPOS_DIR` | `~/Dev` | Base directory containing git repositories to discover and manage. |

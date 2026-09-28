@@ -14,7 +14,7 @@ const distDir = process.env.SOURCEHUB_DIST_DIR ||
     ? path.resolve(__dirname, './dist')
     : path.resolve(__dirname, '../dist'));
 
-const PORT = parseInt(process.env.PORT || '5173', 10);
+const PORT = parseInt(process.env.PORT || '5179', 10);
 const HOST = process.env.HOST || '127.0.0.1';
 
 const MIME_TYPES: Record<string, string> = {
