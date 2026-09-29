@@ -3,7 +3,7 @@ import { GitService } from './gitService';
 import { AgentService } from './agentService';
 import { WorkflowService } from './workflowService';
 import { webhookService } from './webhookService';
-import { db } from './db';
+import { db, nextPullRequestNumber } from './db';
 import { encryptSecret, maskSecret } from './crypto';
 import {
   enforceAuth,
@@ -701,6 +701,7 @@ export async function handleApiAndGit(
 
                 return {
                   id: p.id,
+                  number: p.number ?? p.id,
                   title: p.title,
                   body: p.body,
                   state: p.state,
@@ -733,11 +734,13 @@ export async function handleApiAndGit(
                 return sendError(res, 400, 'Title, source/head branch, and target/base branch are required');
               }
 
+              const prNumber = nextPullRequestNumber(repoName);
               const resDb = db.prepare(`
-                INSERT INTO pull_requests (repo_name, title, body, state, author, is_agent, agent_run_id, source_branch, target_branch, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO pull_requests (repo_name, number, title, body, state, author, is_agent, agent_run_id, source_branch, target_branch, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               `).run(
                 repoName,
+                prNumber,
                 body.title,
                 body.body || '',
                 'open',
@@ -753,6 +756,7 @@ export async function handleApiAndGit(
               const prId = Number(resDb.lastInsertRowid);
               webhookService.dispatch(repoName, 'pull_request.opened', {
                 id: prId,
+                number: prNumber,
                 repoName,
                 title: body.title,
                 author: body.author || 'Forge Operator',
@@ -760,7 +764,7 @@ export async function handleApiAndGit(
                 targetBranch,
                 isAgent: Boolean(body.isAgent),
               }).catch(e => console.warn('[Webhook] pull_request.opened dispatch failed:', e.message));
-              return sendJson(res, 201, { id: prId, message: 'Pull request created' });
+              return sendJson(res, 201, { id: prId, number: prNumber, message: 'Pull request created' });
             }
 
             const prId = parseInt(parts[2], 10);
@@ -779,6 +783,7 @@ export async function handleApiAndGit(
 
               return sendJson(res, 200, {
                 id: p.id,
+                number: p.number ?? p.id,
                 title: p.title,
                 body: p.body,
                 state: p.state,

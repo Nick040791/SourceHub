@@ -314,7 +314,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                         ) : (
                           <GitPullRequest className="w-3.5 h-3.5 text-hub-success-text shrink-0" />
                         )}
-                        <span className="truncate">#{pr.id} {pr.title}</span>
+                        <span className="truncate">#{pr.number ?? pr.id} {pr.title}</span>
                       </span>
 
                       <div className="shrink-0 flex items-center">
@@ -353,7 +353,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                 <div className="space-y-2">
                   <div className="flex items-start justify-between gap-4">
                     <h1 className="text-xl font-bold text-hub-text">
-                      {selectedPR.title} <span className="text-hub-muted font-normal">#{selectedPR.id}</span>
+                      {selectedPR.title} <span className="text-hub-muted font-normal">#{selectedPR.number ?? selectedPR.id}</span>
                     </h1>
 
                     <div className="flex items-center space-x-2 shrink-0">

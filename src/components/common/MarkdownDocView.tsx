@@ -10,7 +10,10 @@ import {
   Maximize2, 
   Minimize2, 
   BookOpen,
-  Clock
+  Clock,
+  Sparkles,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 
 interface MarkdownDocViewProps {
@@ -18,6 +21,54 @@ interface MarkdownDocViewProps {
   filename?: string;
   className?: string;
 }
+
+// Parse model thinking tags out of output (#6): visual text stays in chat,
+// the thinking goes into a small collapsible "Thoughts" button after it.
+export function parseThinking(content: string): { visual: string; thinking: string } {
+  let visual = content;
+  const chunks: string[] = [];
+  const patterns: RegExp[] = [
+    /<think(?:ing)?>([\s\S]*?)<\/think(?:ing)?>/gi,
+    /<thought>([\s\S]*?)<\/thought>/gi,
+    /<reasoning>([\s\S]*?)<\/reasoning>/gi,
+  ];
+  for (const re of patterns) {
+    visual = visual.replace(re, (_m: string, inner: string) => {
+      const trimmed = String(inner).trim();
+      if (trimmed) chunks.push(trimmed);
+      return '';
+    });
+  }
+  // Streaming cutoff: an unclosed thinking tag swallows the rest of the output
+  const openMatch = visual.match(/<think(?:ing)?>|<thought>|<reasoning>/i);
+  if (openMatch && openMatch.index !== undefined) {
+    visual = visual.slice(0, openMatch.index);
+  }
+  return { visual: visual.trim(), thinking: chunks.join('\n\n') };
+}
+
+// Small thoughts disclosure matching the existing chip style (#6)
+export const ThoughtsToggle: React.FC<{ thinking: string; className?: string }> = ({ thinking, className = '' }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={`mt-1.5 ${className}`}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-hub-bg border border-hub-border text-[10px] font-medium text-hub-muted hover:text-hub-text hover:bg-hub-subtle transition-colors"
+        title="Show Helper's thinking"
+      >
+        <Sparkles className="w-3 h-3" />
+        <span>Thoughts</span>
+        {open ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+      </button>
+      {open && (
+        <div className="mt-1.5 p-2.5 bg-hub-bg border border-hub-border rounded-lg text-[11px] text-hub-muted leading-relaxed whitespace-pre-wrap break-words max-h-72 overflow-y-auto">
+          {thinking}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const MarkdownDocView: React.FC<MarkdownDocViewProps> = ({
   content,
@@ -29,24 +80,27 @@ export const MarkdownDocView: React.FC<MarkdownDocViewProps> = ({
   const [isFullWidth, setIsFullWidth] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // Strip model thinking tags from doc rendering (#6)
+  const { visual: docContent, thinking: docThinking } = useMemo(() => parseThinking(content), [content]);
+
   // Compute document stats
   const stats = useMemo(() => {
-    const text = content.replace(/[#*`_\[\]]/g, '').trim();
+    const text = docContent.replace(/[#*`_\[\]]/g, '').trim();
     const words = text ? text.split(/\s+/).length : 0;
-    const chars = content.length;
+    const chars = docContent.length;
     const readMinutes = Math.max(1, Math.ceil(words / 220));
     return { words, chars, readMinutes };
-  }, [content]);
+  }, [docContent]);
 
   // Parse Markdown using marked with GFM
   const parsedHtml = useMemo(() => {
     try {
-      return marked.parse(content, { gfm: true, breaks: true }) as string;
+      return marked.parse(docContent, { gfm: true, breaks: true }) as string;
     } catch (e) {
       console.warn('Failed to parse markdown:', e);
-      return `<pre>${content}</pre>`;
+      return `<pre>${docContent}</pre>`;
     }
-  }, [content]);
+  }, [docContent]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(content);
@@ -184,6 +238,7 @@ export const MarkdownDocView: React.FC<MarkdownDocViewProps> = ({
               }`}
               dangerouslySetInnerHTML={{ __html: parsedHtml }}
             />
+            {docThinking && <ThoughtsToggle thinking={docThinking} />}
           </div>
         </div>
       </div>
@@ -191,23 +246,29 @@ export const MarkdownDocView: React.FC<MarkdownDocViewProps> = ({
   );
 };
 
-// Compact Markdown renderer for PR descriptions, comments, and agent timeline entries
+// Compact Markdown renderer for PR descriptions, comments, and agent timeline entries.
+// Thinking tags are parsed out and collapsed into a small Thoughts button (#6).
 export const MarkdownContent: React.FC<{ content: string; className?: string }> = ({
   content,
   className = '',
 }) => {
+  const { visual, thinking } = useMemo(() => parseThinking(content), [content]);
+
   const parsedHtml = useMemo(() => {
     try {
-      return marked.parse(content, { gfm: true, breaks: true }) as string;
+      return marked.parse(visual, { gfm: true, breaks: true }) as string;
     } catch {
-      return `<pre>${content}</pre>`;
+      return `<pre>${visual}</pre>`;
     }
-  }, [content]);
+  }, [visual]);
 
   return (
-    <div
-      className={`prose prose-invert max-w-none text-xs leading-relaxed doc-content-compact ${className}`}
-      dangerouslySetInnerHTML={{ __html: parsedHtml }}
-    />
+    <div className={className}>
+      <div
+        className="prose prose-invert max-w-none text-xs leading-relaxed doc-content-compact"
+        dangerouslySetInnerHTML={{ __html: parsedHtml }}
+      />
+      {thinking && <ThoughtsToggle thinking={thinking} />}
+    </div>
   );
 };

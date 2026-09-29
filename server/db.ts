@@ -189,6 +189,33 @@ try {
 try {
   db.exec('ALTER TABLE pull_requests ADD COLUMN workflow_run_id TEXT;');
 } catch (_) {}
+// Per-repo PR numbers (#4): the global autoincrement id made the first PR of a
+// fresh repo show as "PR #14". Add a repo-scoped `number` and backfill.
+try {
+  const prCols = db.prepare('PRAGMA table_info(pull_requests)').all() as { name: string }[];
+  if (!prCols.some(c => c.name === 'number')) {
+    db.exec('ALTER TABLE pull_requests ADD COLUMN number INTEGER;');
+    const prRepos = db.prepare('SELECT DISTINCT repo_name FROM pull_requests').all() as { repo_name: string }[];
+    const prRowsStmt = db.prepare('SELECT id FROM pull_requests WHERE repo_name = ? ORDER BY id ASC');
+    const prRenumberStmt = db.prepare('UPDATE pull_requests SET number = ? WHERE id = ?');
+    for (const prRepo of prRepos) {
+      (prRowsStmt.all(prRepo.repo_name) as { id: number }[]).forEach((row, idx) => {
+        prRenumberStmt.run(idx + 1, row.id);
+      });
+    }
+    console.log('[db] pull_requests: backfilled per-repo PR numbers');
+  }
+} catch (e) {
+  console.warn('[db] pull_requests number migration skipped:', (e as Error).message);
+}
+
+/** Next repo-scoped PR number for inserts. Single-process SQLite => no race. */
+export function nextPullRequestNumber(repoName: string): number {
+  const row = db.prepare(
+    'SELECT COALESCE(MAX(number), 0) + 1 AS n FROM pull_requests WHERE repo_name = ?'
+  ).get(repoName) as { n: number };
+  return row.n || 1;
+}
 
 // Auto-seed initial SSH key if user has ~/.ssh/id_ed25519.pub or id_rsa.pub
 try {

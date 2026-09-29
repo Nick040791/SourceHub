@@ -50,11 +50,8 @@ export const ActionsView: React.FC<ActionsViewProps> = ({ repoName }) => {
     try {
       const data = await api.fetchWorkflowRuns(repoName);
       setRuns(data);
-      if (data.length > 0) {
-        setSelectedRun(data[0]);
-      } else {
-        setSelectedRun(null);
-      }
+      // Detail renders only after a run card is clicked (#7) — no auto-select
+      setSelectedRun(prev => (prev && data.some(r => r.id === prev.id) ? prev : null));
     } catch (e) {
       console.warn('Could not fetch workflow runs:', e);
     } finally {
@@ -189,32 +186,38 @@ export const ActionsView: React.FC<ActionsViewProps> = ({ repoName }) => {
                       isSelected ? 'bg-hub-subtle border-l-2 border-l-hub-accent' : 'hover:bg-hub-subtle/50'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center space-x-1.5 font-bold text-hub-text">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[10px] font-mono uppercase font-medium ${
+                        run.status === 'success'
+                          ? 'bg-hub-success/15 text-hub-success-text border border-hub-success/30'
+                          : run.status === 'failed'
+                          ? 'bg-hub-danger/15 text-hub-danger-text border border-hub-danger/30'
+                          : 'bg-hub-accent/12 text-hub-accent border border-hub-accent/30'
+                      }`}>
                         {run.status === 'success' ? (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-hub-success-text" />
+                          <CheckCircle2 className="w-3 h-3" />
                         ) : run.status === 'failed' ? (
-                          <AlertTriangle className="w-3.5 h-3.5 text-hub-danger-text" />
+                          <AlertTriangle className="w-3 h-3" />
                         ) : (
-                          <Loader2 className="w-3.5 h-3.5 text-hub-warning-text animate-spin" />
+                          <Loader2 className="w-3 h-3 animate-spin" />
                         )}
-                        <span>{run.id}</span>
+                        <span>{run.status === 'success' ? 'Tests pass' : run.status === 'failed' ? 'Tests fail' : run.status === 'cancelled' ? 'Cancelled' : 'Running'}</span>
                       </span>
-                      <span className="px-1.5 py-0.2 rounded font-mono text-[10px] bg-hub-bg text-hub-muted border border-hub-border uppercase">
+                      <span className="shrink-0 px-1.5 py-0.5 rounded font-mono text-[10px] bg-hub-bg text-hub-muted border border-hub-border uppercase">
                         {run.event}
                       </span>
                     </div>
 
-                    <p className="text-hub-text line-clamp-1 font-medium">
+                    <p className="text-hub-text font-semibold line-clamp-1 leading-snug" title={run.commitMessage}>
                       {run.commitMessage}
                     </p>
 
-                    <div className="flex items-center justify-between text-[11px] text-hub-muted font-mono">
-                      <span className="flex items-center space-x-1">
-                        <GitBranch className="w-3 h-3" />
-                        <span className="truncate max-w-[130px]">{run.branch}</span>
+                    <div className="flex items-center justify-between gap-2 text-[11px] text-hub-muted font-mono">
+                      <span className="flex items-center gap-1 min-w-0">
+                        <GitBranch className="w-3 h-3 shrink-0" />
+                        <span className="truncate max-w-[130px]" title={run.branch}>{run.branch}</span>
                       </span>
-                      <span>{run.duration}</span>
+                      <span className="shrink-0">{run.duration}</span>
                     </div>
                   </div>
                 );
@@ -222,8 +225,8 @@ export const ActionsView: React.FC<ActionsViewProps> = ({ repoName }) => {
             </div>
           </div>
 
-          {/* Right: Selected Run Detail & Steps/Logs */}
-          {selectedRun && (
+          {/* Right: run detail — renders after a run card is clicked (#7) */}
+          {selectedRun ? (
             <div className="lg:col-span-8 space-y-4">
               <div className="border border-hub-border rounded-xl bg-hub-surface p-4 space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-hub-border pb-3">
@@ -243,7 +246,7 @@ export const ActionsView: React.FC<ActionsViewProps> = ({ repoName }) => {
                       </span>
                     </div>
                     <div className="text-xs text-hub-muted mt-1">
-                      Triggered by <strong>{selectedRun.author}</strong> via <code className="text-hub-link">{selectedRun.event}</code> event • Commit <code className="text-hub-text font-mono">{selectedRun.commitSha}</code>
+                      Triggered by <strong>{selectedRun.author}</strong> via <code className="text-hub-link">{selectedRun.event}</code> event • Commit <code className="text-hub-text font-mono">{selectedRun.commitSha}</code> • Run <code className="text-hub-text font-mono">{selectedRun.id}</code>
                     </div>
                   </div>
 
@@ -306,6 +309,16 @@ export const ActionsView: React.FC<ActionsViewProps> = ({ repoName }) => {
                     );
                   })}
                 </div>
+              </div>
+            </div>
+          ) : (
+            <div className="lg:col-span-8 border border-hub-border border-dashed rounded-xl bg-hub-surface/40 flex items-center justify-center p-10 text-center">
+              <div className="space-y-1.5">
+                <PlayCircle className="w-7 h-7 text-hub-muted/60 mx-auto" />
+                <h3 className="text-sm font-semibold text-hub-text">Select a run</h3>
+                <p className="text-xs text-hub-muted">
+                  Click a run card to view full details — steps, logs, and runner info.
+                </p>
               </div>
             </div>
           )}

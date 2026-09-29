@@ -74,7 +74,8 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
       const data = await api.fetchAgentRuns(repoName);
       setRuns(data);
       if (data.length > 0) {
-        setSelectedRunId(prev => (prev && data.some(r => r.id === prev) ? prev : data[0].id));
+        // Detail renders only after a run card is clicked (#5) — no auto-select
+        setSelectedRunId(prev => (prev && data.some(r => r.id === prev) ? prev : ''));
       } else {
         setSelectedRunId('');
       }
@@ -132,7 +133,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
     return () => clearInterval(interval);
   }, [runs, repoName]);
 
-  const selectedRun = runs.find(r => r.id === selectedRunId) || runs[0];
+  const selectedRun = runs.find(r => r.id === selectedRunId);
 
   // Helper State Machine steps for visual progress tracker (§9.2)
   const stateSteps: { key: AgentRunState; label: string }[] = [
@@ -352,7 +353,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
                           size="sm"
                           className={`w-3.5 h-3.5 ${isRunning ? 'text-hub-accent animate-pulse' : 'text-hub-accent/70'}`}
                         />
-                        <span className="truncate font-mono text-[11px]">{run.id}</span>
+                        <span className="truncate font-mono text-[11px]" title={run.prompt}>{run.slug}</span>
                       </span>
 
                       <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-mono uppercase font-medium ${
@@ -368,16 +369,22 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
                       </span>
                     </div>
 
-                    <p className="text-hub-text/90 font-medium line-clamp-2 text-xs leading-snug">
-                      {run.prompt}
-                    </p>
-
-                    <div className="flex items-center justify-between text-[11px] text-hub-muted font-mono pt-0.5">
+                    <div className="flex items-center gap-3 text-[11px] text-hub-muted font-mono">
+                      <span className="flex items-center gap-1 min-w-0">
+                        <Cpu className="w-3 h-3 shrink-0" />
+                        <span className="truncate max-w-[110px]" title={run.model}>{run.model}</span>
+                      </span>
                       <span className="flex items-center gap-1 min-w-0">
                         <GitBranch className="w-3 h-3 shrink-0" />
-                        <span className="truncate max-w-[120px]">{run.targetBranch}</span>
+                        <span className="truncate max-w-[110px]" title={run.targetBranch}>{run.targetBranch}</span>
                       </span>
-                      <span className="shrink-0">{run.createdAt}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 text-[11px] pt-0.5">
+                      <p className="text-hub-muted line-clamp-1 min-w-0 leading-snug">
+                        {run.prompt}
+                      </p>
+                      <span className="shrink-0 text-hub-muted font-mono">{run.createdAt}</span>
                     </div>
                   </div>
                 );
@@ -385,8 +392,8 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
             </div>
           </div>
 
-          {/* Selected run detail */}
-          {selectedRun && (
+          {/* Selected run detail — renders after a run card is clicked (#5) */}
+          {selectedRun ? (
             <div className="lg:col-span-8 space-y-3">
               <div className="border border-hub-border rounded-xl bg-hub-surface p-4 sm:p-5 space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-hub-border/50 pb-3.5">
@@ -412,7 +419,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
                       className="flex items-center gap-1.5 px-2.5 py-1.5 bg-hub-bg hover:bg-hub-subtle border border-hub-border rounded-lg text-xs font-semibold text-hub-link transition-colors shrink-0"
                     >
                       <GitPullRequest className="w-3.5 h-3.5 text-hub-success-text" />
-                      <span>PR #{selectedRun.prId}</span>
+                      <span>PR #{selectedRun.prNumber ?? selectedRun.prId}</span>
                     </button>
                   )}
                 </div>
@@ -511,13 +518,23 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
                         )}
                         {event.metadata?.prId && (
                           <div className="pt-0.5 text-[10px] font-mono text-hub-success-text">
-                            Pull Request #{event.metadata.prId}
+                            Pull Request #{event.metadata.prNumber ?? event.metadata.prId}
                           </div>
                         )}
                       </div>
                     ))}
                   </div>
                 </div>
+              </div>
+            </div>
+          ) : (
+            <div className="lg:col-span-8 border border-hub-border border-dashed rounded-xl bg-hub-bg/30 flex items-center justify-center p-10 text-center">
+              <div className="space-y-1.5">
+                <HelperAvatar size="lg" className="w-7 h-7 text-hub-muted/60 mx-auto" />
+                <h3 className="text-sm font-semibold text-hub-text">Select a run</h3>
+                <p className="text-xs text-hub-muted">
+                  Click a run card to interact with the run — pipeline, timeline, files, and its PR.
+                </p>
               </div>
             </div>
           )}

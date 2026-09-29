@@ -111,6 +111,8 @@ export interface DiffFile {
 
 export interface PullRequest {
   id: number;
+  /** Repo-scoped PR number (the global autoincrement id is internal only) */
+  number?: number;
   title: string;
   body: string;
   state: PRState;
@@ -204,6 +206,7 @@ export interface AgentTimelineEvent {
     branch?: string;
     commitSha?: string;
     prId?: number;
+    prNumber?: number;
     checkId?: string;
     details?: string;
   };
@@ -223,6 +226,7 @@ export interface AgentRun {
   completedAt?: string;
   operator: string;
   prId?: number;
+  prNumber?: number;
   timeline: AgentTimelineEvent[];
   logs: string[];
   filesTouched: string[];

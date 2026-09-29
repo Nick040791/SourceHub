@@ -1,4 +1,4 @@
-import { db } from './db';
+import { db, nextPullRequestNumber } from './db';
 import { GitService } from './gitService';
 import { WorkflowService } from './workflowService';
 import { webhookService } from './webhookService';
@@ -95,6 +95,10 @@ export class AgentService {
         ORDER BY created_order ASC
       `).all(r.id) as any[];
 
+      const prNumberRow = r.pr_id
+        ? (db.prepare('SELECT number FROM pull_requests WHERE id = ?').get(r.pr_id) as { number: number } | undefined)
+        : undefined;
+
       const timeline: AgentTimelineEvent[] = timelineRows.map(t => ({
         id: t.id,
         type: t.type as any,
@@ -116,6 +120,7 @@ export class AgentService {
         model: r.model,
         operator: r.operator,
         prId: r.pr_id || undefined,
+        prNumber: prNumberRow?.number,
         filesTouched: JSON.parse(r.files_touched || '[]'),
         createdAt: r.created_at,
         completedAt: r.completed_at || undefined,
@@ -373,14 +378,16 @@ ${prompt}
     if (mode === 'open_pr') {
       db.prepare("UPDATE agent_runs SET state = 'checks_pending' WHERE id = ?").run(runId);
 
+      const prNumber = nextPullRequestNumber(repoName);
       const prTitle = `agent: ${prompt.length > 60 ? prompt.substring(0, 57) + '...' : prompt}`;
       const prBody = `**Helper automated PR**\n\n**Operator:** ${operator}\n**Model:** \`${model}\`\n**Audit Trailer:** \`SourceHub-Agent-Run: ${runId}\`\n\n### Task Prompt\n> ${prompt}\n\n### Agent Implementation Summary\n${ollamaResponse}`;
 
       const resDb = db.prepare(`
-        INSERT INTO pull_requests (repo_name, title, body, state, author, is_agent, agent_run_id, source_branch, target_branch, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO pull_requests (repo_name, number, title, body, state, author, is_agent, agent_run_id, source_branch, target_branch, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         repoName,
+        prNumber,
         prTitle,
         prBody,
         'open',
@@ -398,6 +405,7 @@ ${prompt}
 
       webhookService.dispatch(repoName, 'pull_request.opened', {
         id: prId,
+        number: prNumber,
         title: prTitle,
         repoName,
         author: 'Helper',
@@ -408,9 +416,9 @@ ${prompt}
 
       addEvent(
         'agent.pr_opened',
-        `Opened Pull Request #${prId}`,
+        `Opened Pull Request #${prNumber}`,
         `Generated PR with task summary, rationale, and branch \`${targetBranch}\`.`,
-        { prId }
+        { prId, prNumber }
       );
 
       addEvent(
