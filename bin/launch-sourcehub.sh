@@ -4,7 +4,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOURCEHUB_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DATA_DIR="${SOURCEHUB_DATA_DIR:-${HOME}/.sourcehub}"
-PORT="${PORT:-5179}"
+PORT="${PORT:-5177}"
 URL="http://localhost:${PORT}/"
 
 mkdir -p "${DATA_DIR}"

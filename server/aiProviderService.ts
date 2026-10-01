@@ -709,7 +709,7 @@ export class AIProviderService {
     }
 
     if (providerId === 'openrouter') {
-      headers['HTTP-Referer'] = 'http://localhost:5179';
+      headers['HTTP-Referer'] = 'http://localhost:5177';
       headers['X-Title'] = 'SourceHub Forge Helper';
     }
 

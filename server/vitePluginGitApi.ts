@@ -864,7 +864,7 @@ export async function handleApiAndGit(
                   closedIssues.push(issueId);
                   const issueRow = db.prepare('SELECT * FROM issues WHERE id = ? AND repo_name = ?').get(issueId, repoName) as any;
                   if (issueRow && issueRow.status === 'open') {
-                    db.prepare("UPDATE issues SET status = 'closed' WHERE id = ?").run(issueId);
+                    db.prepare("UPDATE issues SET status = 'closed' WHERE id = ? AND repo_name = ?").run(issueId, repoName);
                     db.prepare(`
                       INSERT INTO issue_comments (issue_id, author, content, created_at)
                       VALUES (?, ?, ?, ?)
@@ -974,12 +974,19 @@ export async function handleApiAndGit(
           // --- Real Issues ---
           if (subResource === 'issues') {
             if (parts.length === 2 && req.method === 'GET') {
+              const statusFilter = searchParams.get('status');
+              let where = 'WHERE i.repo_name = ?';
+              const params: any[] = [repoName];
+              if (statusFilter === 'open' || statusFilter === 'closed') {
+                where += ' AND i.status = ?';
+                params.push(statusFilter);
+              }
               const issues = db.prepare(`
                 SELECT i.*, (SELECT COUNT(*) FROM issue_comments WHERE issue_id = i.id) as comment_count
                 FROM issues i
-                WHERE i.repo_name = ?
+                ${where}
                 ORDER BY i.id DESC
-              `).all(repoName) as any[];
+              `).all(...params) as any[];
 
               return sendJson(res, 200, issues.map(i => ({
                 id: i.id,
@@ -1012,16 +1019,100 @@ export async function handleApiAndGit(
               return sendJson(res, 201, { id: Number(resDb.lastInsertRowid), message: 'Issue created' });
             }
 
+            // DELETE /repos/:name/issues?status=closed — clear (permanently delete)
+            // all closed issues from the list. Requires ?status=closed guard.
+            if (parts.length === 2 && req.method === 'DELETE') {
+              const statusFilter = searchParams.get('status');
+              if (statusFilter !== 'closed') {
+                return sendError(res, 400, 'Bulk clear requires ?status=closed');
+              }
+              const closed = db.prepare(
+                'SELECT id FROM issues WHERE repo_name = ? AND status = ?'
+              ).all(repoName, 'closed') as { id: number }[];
+              const delComments = db.prepare('DELETE FROM issue_comments WHERE issue_id = ?');
+              const delIssue = db.prepare('DELETE FROM issues WHERE id = ? AND repo_name = ?');
+              for (const row of closed) {
+                delComments.run(row.id);
+                delIssue.run(row.id, repoName);
+              }
+              return sendJson(res, 200, { success: true, cleared: closed.length });
+            }
+
+            // POST /repos/:name/issues/clear-closed — alias for clients that
+            // prefer POST for bulk clear. Deletes closed issues from the list.
+            if (parts.length === 3 && parts[2] === 'clear-closed' && req.method === 'POST') {
+              const closed = db.prepare(
+                'SELECT id FROM issues WHERE repo_name = ? AND status = ?'
+              ).all(repoName, 'closed') as { id: number }[];
+              const delComments = db.prepare('DELETE FROM issue_comments WHERE issue_id = ?');
+              const delIssue = db.prepare('DELETE FROM issues WHERE id = ? AND repo_name = ?');
+              for (const row of closed) {
+                delComments.run(row.id);
+                delIssue.run(row.id, repoName);
+              }
+              return sendJson(res, 200, { success: true, cleared: closed.length });
+            }
+
             const issueId = parseInt(parts[2], 10);
-            if (parts.length === 3 && req.method === 'PATCH') {
+            if (parts.length === 3 && Number.isFinite(issueId) && req.method === 'GET') {
+              const row = db.prepare(`
+                SELECT i.*, (SELECT COUNT(*) FROM issue_comments WHERE issue_id = i.id) as comment_count
+                FROM issues i WHERE i.id = ? AND i.repo_name = ?
+              `).get(issueId, repoName) as any;
+              if (!row) return sendError(res, 404, 'Issue not found');
+              return sendJson(res, 200, {
+                id: row.id,
+                title: row.title,
+                body: row.body,
+                status: row.status,
+                author: row.author,
+                assignedToAgent: Boolean(row.assigned_to_agent),
+                agentRunId: row.agent_run_id,
+                createdAt: row.created_at,
+                comments: row.comment_count,
+              });
+            }
+            if (parts.length === 3 && Number.isFinite(issueId) && req.method === 'PATCH') {
               const body = await readJsonBody(req);
-              if (body.status) {
-                db.prepare('UPDATE issues SET status = ? WHERE id = ?').run(body.status, issueId);
+              const existing = db.prepare(
+                'SELECT * FROM issues WHERE id = ? AND repo_name = ?'
+              ).get(issueId, repoName) as any;
+              if (!existing) return sendError(res, 404, 'Issue not found');
+              if (body.status !== undefined) {
+                if (body.status !== 'open' && body.status !== 'closed') {
+                  return sendError(res, 400, "Status must be 'open' or 'closed'");
+                }
+                db.prepare('UPDATE issues SET status = ? WHERE id = ? AND repo_name = ?').run(body.status, issueId, repoName);
               }
               if (body.assignedToAgent !== undefined) {
-                db.prepare('UPDATE issues SET assigned_to_agent = ? WHERE id = ?').run(body.assignedToAgent ? 1 : 0, issueId);
+                db.prepare('UPDATE issues SET assigned_to_agent = ? WHERE id = ? AND repo_name = ?').run(body.assignedToAgent ? 1 : 0, issueId, repoName);
               }
-              return sendJson(res, 200, { success: true });
+              const updated = db.prepare(
+                'SELECT * FROM issues WHERE id = ? AND repo_name = ?'
+              ).get(issueId, repoName) as any;
+              return sendJson(res, 200, {
+                success: true,
+                issue: {
+                  id: updated.id,
+                  title: updated.title,
+                  body: updated.body,
+                  status: updated.status,
+                  author: updated.author,
+                  assignedToAgent: Boolean(updated.assigned_to_agent),
+                  agentRunId: updated.agent_run_id,
+                  createdAt: updated.created_at,
+                },
+              });
+            }
+            // DELETE /repos/:name/issues/:id — clear a single issue from the list.
+            if (parts.length === 3 && Number.isFinite(issueId) && req.method === 'DELETE') {
+              const existing = db.prepare(
+                'SELECT id FROM issues WHERE id = ? AND repo_name = ?'
+              ).get(issueId, repoName) as any;
+              if (!existing) return sendError(res, 404, 'Issue not found');
+              db.prepare('DELETE FROM issue_comments WHERE issue_id = ?').run(issueId);
+              db.prepare('DELETE FROM issues WHERE id = ? AND repo_name = ?').run(issueId, repoName);
+              return sendJson(res, 200, { success: true, id: issueId });
             }
           }
 
