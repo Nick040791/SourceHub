@@ -264,9 +264,16 @@ export const api = {
   },
 
   // --- Real Issues ---
-  async fetchIssues(repoName: string): Promise<any[]> {
-    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/issues`);
+  async fetchIssues(repoName: string, status?: 'open' | 'closed'): Promise<any[]> {
+    const q = status === 'open' || status === 'closed' ? `?status=${status}` : '';
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/issues${q}`);
     if (!res.ok) throw new Error('Failed to fetch issues');
+    return await res.json();
+  },
+
+  async fetchIssue(repoName: string, id: number): Promise<any> {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/issues/${id}`);
+    if (!res.ok) throw new Error('Failed to fetch issue');
     return await res.json();
   },
 
@@ -287,6 +294,23 @@ export const api = {
       body: JSON.stringify(data),
     });
     if (!res.ok) throw new Error('Failed to update issue');
+  },
+
+  /** Permanently clear a single issue from the list. */
+  async deleteIssue(repoName: string, id: number): Promise<void> {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/issues/${id}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw new Error('Failed to delete issue');
+  },
+
+  /** Permanently clear all closed issues from the list. Returns count cleared. */
+  async clearClosedIssues(repoName: string): Promise<{ cleared: number }> {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/issues?status=closed`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw new Error('Failed to clear closed issues');
+    return await res.json().catch(() => ({ cleared: 0 }));
   },
 
   // --- Real Workflows ---

@@ -26,7 +26,7 @@ else
 fi
 
 HOST="${HOST:-127.0.0.1}"
-PORT="${PORT:-5179}"
+PORT="${PORT:-5177}"
 DATA_DIR="${SOURCEHUB_DATA_DIR:-${HOME}/.sourcehub}"
 REPOS_DIR="${SOURCEHUB_REPOS_DIR:-${HOME}/Dev}"
 NODE_BIN="${NODE_BIN:-$(which node || echo /usr/bin/node)}"
@@ -200,7 +200,7 @@ Commands:
   help                Display this help message
 
 Options:
-  --port <port>       Port to bind (default: 5179 or \$PORT)
+  --port <port>       Port to bind (default: 5177 or $PORT)
   --host <host>       Interface to bind (default: 127.0.0.1 or \$HOST)
 
 Configuration Files:

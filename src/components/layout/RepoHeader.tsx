@@ -23,7 +23,7 @@ export const RepoHeader: React.FC<RepoHeaderProps> = ({ repo, showDescription = 
   const [cloneProtocol, setCloneProtocol] = useState<'http' | 'ssh' | 'local' | 'cli'>('http');
   const [copied, setCopied] = useState(false);
 
-  const origin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'http://localhost:5179';
+  const origin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'http://localhost:5177';
   const owner = repo.owner || 'operator';
   const repoPath = (repo as any).path || repo.name;
   const httpUrl = `${origin}/git/${repo.name}.git`;

@@ -8,7 +8,7 @@ SERVICE_FILE="${SERVICE_DIR}/sourcehub.service"
 NPM_BIN="$(which npm || echo /usr/bin/npm)"
 REPOS_DIR="${SOURCEHUB_REPOS_DIR:-${HOME}/Dev}"
 BIND_HOST="${HOST:-127.0.0.1}"
-SERVER_PORT="${PORT:-5179}"
+SERVER_PORT="${PORT:-5177}"
 
 echo "=== SourceHub Systemd Service Installer ==="
 echo "Working directory: ${SOURCEHUB_DIR}"

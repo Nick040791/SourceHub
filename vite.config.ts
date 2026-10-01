@@ -12,7 +12,7 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5179,
+    port: 5177,
     host: process.env.HOST || '127.0.0.1',
     allowedHosts: true,
   },
