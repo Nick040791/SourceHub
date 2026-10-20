@@ -114,3 +114,20 @@ export function maskSecret(plaintext: string): string {
   const visibleSuffix = plaintext.substring(plaintext.length - 2);
   return `${visiblePrefix}${'•'.repeat(Math.min(plaintext.length - 4, 16))}${visibleSuffix}`;
 }
+
+/**
+ * Compute the OpenSSH-style SHA-256 fingerprint of a public key.
+ * Previously the registry stored a placeholder string, which made it
+ * impossible to tell two keys apart.
+ */
+export function computeSshFingerprint(publicKey: string): string {
+  try {
+    const parts = String(publicKey).trim().split(/\s+/);
+    const keyData = parts[1];
+    if (!keyData) return 'SHA256:unknown';
+    const digest = crypto.createHash('sha256').update(Buffer.from(keyData, 'base64')).digest('base64');
+    return `SHA256:${digest.replace(/=+$/, '')}`;
+  } catch {
+    return 'SHA256:unknown';
+  }
+}
