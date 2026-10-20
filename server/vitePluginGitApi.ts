@@ -85,12 +85,13 @@ export async function handleApiAndGit(
   }
 
   // ==========================================
-  // 1. SMART HTTP GIT CLONE PROTOCOL
+  // 1. SMART HTTP GIT CLONE & PUSH PROTOCOL
   // Format: /git/:repo.git/info/refs?service=git-upload-pack
   //         /git/:repo.git/git-upload-pack
+  //         /git/:repo.git/git-receive-pack
   // ==========================================
         if (pathname.startsWith('/git/')) {
-          const match = pathname.match(/^\/git\/([^\/]+)\.git\/(info\/refs|git-upload-pack)$/);
+          const match = pathname.match(/^\/git\/([^\/]+)\.git\/(info\/refs|git-upload-pack|git-receive-pack)$/);
           if (match) {
             const repoName = match[1];
             const action = match[2];
@@ -103,6 +104,11 @@ export async function handleApiAndGit(
 
             if (action === 'git-upload-pack' && req.method === 'POST') {
               await gitService.handleGitUploadPack(repoName, req, res);
+              return true;
+            }
+
+            if (action === 'git-receive-pack' && req.method === 'POST') {
+              await gitService.handleGitReceivePack(repoName, req, res);
               return true;
             }
           }

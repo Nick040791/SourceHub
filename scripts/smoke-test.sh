@@ -138,6 +138,40 @@ echo "==> protected branches"
 check "deleting the default branch is refused" "400" \
   "$(status_of -X DELETE "$BASE/api/v1/repos/$REPO/branches/main")"
 
+echo "==> git push over smart http"
+CLONE="$WORK/clone"
+if git clone -q "$BASE/git/$REPO.git" "$CLONE" 2>"$WORK/clone.err"; then
+  check "clone over http works" "0" "0"
+  cd "$CLONE"
+  git -c user.name=Smoke -c user.email=smoke@sourcehub.local checkout -q -b pushed
+  echo "pushed" > pushed.txt
+  git add .
+  git -c user.name=Smoke -c user.email=smoke@sourcehub.local commit -q -m "pushed commit"
+  if git push -q origin pushed 2>"$WORK/push.err"; then
+    check "push over http succeeds" "0" "0"
+  else
+    check "push over http succeeds" "0" "1"
+    sed -n '1,5p' "$WORK/push.err"
+  fi
+  cd "$ROOT"
+  check "pushed branch exists on the server" "1" \
+    "$(git -C "$FIX" rev-parse --verify pushed >/dev/null 2>&1 && echo 1 || echo 0)"
+
+  # A direct push to the protected default branch must be refused.
+  git -C "$CLONE" checkout -q main
+  echo "direct" > "$CLONE/direct.txt"
+  git -C "$CLONE" add direct.txt
+  git -C "$CLONE" -c user.name=Smoke -c user.email=smoke@sourcehub.local commit -q -m "direct push"
+  if git -C "$CLONE" push origin main >"$WORK/protected.err" 2>&1; then
+    check "push to a protected branch is refused" "refused" "allowed"
+  else
+    check "push to a protected branch is refused" "refused" "refused"
+  fi
+else
+  check "clone over http works" "0" "1"
+  sed -n '1,5p' "$WORK/clone.err"
+fi
+
 echo
 echo "passed: $PASS   failed: $FAIL"
 [[ $FAIL -eq 0 ]]

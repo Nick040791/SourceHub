@@ -7,7 +7,7 @@ import { assertValidRefname, assertValidSha, assertSafePositional } from './gitR
 import { resolveWithin, normalizeRepoRelative } from './pathSafety';
 import { worktreeManager } from './worktreeManager';
 import { identityArgs } from './operatorProfile';
-import { isProtectedBranch } from './repoSettings';
+import { isProtectedBranch, getProtectedBranches } from './repoSettings';
 
 const execFileAsync = promisify(execFile);
 
@@ -1338,7 +1338,46 @@ export class GitService {
     }
   }
 
-  // --- Smart HTTP Git Clone Handlers ---
+  // --- Smart HTTP Git Clone & Push Handlers ---
+
+  /**
+   * Install a `pre-receive` hook that refuses updates to protected branches.
+   * This is how a local forge protects `main` from a direct `git push`,
+   * exactly as a hosted forge does.
+   */
+  async ensureProtectedBranchHooks(repoPath: string): Promise<void> {
+    const protectedBranches = getProtectedBranches();
+    if (protectedBranches.length === 0) return;
+
+    const gitDir = path.join(repoPath, '.git');
+    const hooksDir = path.join(gitDir, 'hooks');
+    const hookPath = path.join(hooksDir, 'pre-receive');
+
+    const pattern = protectedBranches.map(b => `refs/heads/${b}`).join('|');
+    const script = `#!/bin/sh
+# Installed by SourceHub - refuses pushes to protected branches.
+while read oldrev newrev refname; do
+  case "$refname" in
+    ${pattern})
+      echo "SourceHub: '$refname' is a protected branch and cannot be pushed to directly." >&2
+      echo "SourceHub: open a pull request instead." >&2
+      exit 1
+      ;;
+  esac
+done
+exit 0
+`;
+
+    try {
+      const current = await fs.readFile(hookPath, 'utf8').catch(() => null);
+      if (current === script) return;
+      await fs.mkdir(hooksDir, { recursive: true });
+      await fs.writeFile(hookPath, script, { mode: 0o755 });
+      await fs.chmod(hookPath, 0o755).catch(() => {});
+    } catch (e) {
+      console.warn(`Could not install protected branch hook for ${repoPath}:`, (e as Error).message);
+    }
+  }
 
   async handleGitInfoRefs(name: string, service: string, res: ServerResponse): Promise<void> {
     const repoPath = this.getRepoPath(name);
@@ -1349,30 +1388,35 @@ export class GitService {
       return;
     }
 
-    if (service !== 'git-upload-pack') {
+    if (service !== 'git-upload-pack' && service !== 'git-receive-pack') {
       res.statusCode = 400;
-      res.end('Only git-upload-pack is supported for read/clone operations');
+      res.end('Only git-upload-pack and git-receive-pack are supported');
       return;
     }
 
+    if (service === 'git-receive-pack') {
+      await this.ensureProtectedBranchHooks(repoPath);
+    }
+
     res.statusCode = 200;
-    res.setHeader('Content-Type', 'application/x-git-upload-pack-advertisement');
+    res.setHeader('Content-Type', `application/x-${service}-advertisement`);
     res.setHeader('Cache-Control', 'no-cache');
 
-    const serviceHeader = '# service=git-upload-pack\n';
+    const serviceHeader = `# service=${service}\n`;
     const hexLen = (serviceHeader.length + 4).toString(16).padStart(4, '0');
     res.write(`${hexLen}${serviceHeader}0000`);
 
-    const child = spawn('git', ['upload-pack', '--stateless-rpc', '--advertise-refs', repoPath]);
+    const command = service === 'git-receive-pack' ? 'receive-pack' : 'upload-pack';
+    const child = spawn('git', [command, '--stateless-rpc', '--advertise-refs', repoPath]);
     child.on('error', err => {
-      console.error('git upload-pack spawn error:', err);
+      console.error(`git ${command} spawn error:`, err);
       if (!res.headersSent) {
         res.statusCode = 500;
         res.end('Git server error');
       }
     });
     child.stdout.pipe(res);
-    child.stderr.on('data', d => console.error('git upload-pack stderr:', d.toString()));
+    child.stderr.on('data', d => console.error(`git ${command} stderr:`, d.toString()));
   }
 
   async handleGitUploadPack(name: string, req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -1399,6 +1443,34 @@ export class GitService {
     req.pipe(child.stdin);
     child.stdout.pipe(res);
     child.stderr.on('data', d => console.error('git upload-pack execution stderr:', d.toString()));
+  }
+
+  async handleGitReceivePack(name: string, req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const repoPath = this.getRepoPath(name);
+    const exists = await this.isGitRepo(repoPath);
+    if (!exists) {
+      res.statusCode = 404;
+      res.end('Repository not found');
+      return;
+    }
+
+    await this.ensureProtectedBranchHooks(repoPath);
+
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/x-git-receive-pack-result');
+    res.setHeader('Cache-Control', 'no-cache');
+
+    const child = spawn('git', ['receive-pack', '--stateless-rpc', repoPath]);
+    child.on('error', err => {
+      console.error('git receive-pack execution spawn error:', err);
+      if (!res.headersSent) {
+        res.statusCode = 500;
+        res.end('Git server error');
+      }
+    });
+    req.pipe(child.stdin);
+    child.stdout.pipe(res);
+    child.stderr.on('data', d => console.error('git receive-pack execution stderr:', d.toString()));
   }
 
   // ==========================================
