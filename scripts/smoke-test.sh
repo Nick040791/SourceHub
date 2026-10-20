@@ -58,9 +58,11 @@ status_of() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
 body_of() { curl -s "$@"; }
 
 echo "==> starting daemon on port $PORT"
-cd "$ROOT"
+# Run from the scratch directory: the test must never write into the
+# repository it is testing.
+cd "$WORK"
 SOURCEHUB_REPOS_DIR="$REPOS" SOURCEHUB_DATA_DIR="$DATA" PORT="$PORT" HOST="127.0.0.1" \
-  ./node_modules/.bin/tsx server/index.ts > "$WORK/server.log" 2>&1 &
+  "$ROOT/node_modules/.bin/tsx" "$ROOT/server/index.ts" > "$WORK/server.log" 2>&1 &
 SERVER_PID=$!
 
 for _ in $(seq 1 60); do
@@ -153,7 +155,7 @@ if git clone -q "$BASE/git/$REPO.git" "$CLONE" 2>"$WORK/clone.err"; then
     check "push over http succeeds" "0" "1"
     sed -n '1,5p' "$WORK/push.err"
   fi
-  cd "$ROOT"
+  cd "$WORK"
   check "pushed branch exists on the server" "1" \
     "$(git -C "$FIX" rev-parse --verify pushed >/dev/null 2>&1 && echo 1 || echo 0)"
 
