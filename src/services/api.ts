@@ -1,4 +1,4 @@
-import { Repository, FileItem, Commit, PullRequest, Secret, PersonalAccessToken, SSHKey, DiffFile, WorkflowRun, AgentRun, Webhook, WorkingCopyStatus, GitRemote, GitStashEntry, PRMergeability, NetworkInfo, UserProfile, BlameLine, AISettingsState, AIProviderId, AIProviderConfig, ThinkingEffort } from '../types';
+import { Repository, FileItem, Commit, PullRequest, Secret, PersonalAccessToken, SSHKey, DiffFile, WorkflowRun, AgentRun, Webhook, WorkingCopyStatus, GitRemote, GitStashEntry, PRMergeability, NetworkInfo, UserProfile, BlameLine, AISettingsState, AIProviderId, AIProviderConfig, ThinkingEffort, AuditEntry } from '../types';
 
 /** localStorage key for operator shared secret or PAT used by the SPA. */
 export const SOURCEHUB_API_TOKEN_KEY = 'sourcehub_api_token';
@@ -63,6 +63,40 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Failed to create repository');
     }
+    return await res.json();
+  },
+
+  async renameRepository(name: string, newName: string): Promise<Repository> {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(name)}/rename`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newName }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to rename repository');
+    }
+    return await res.json();
+  },
+
+  async deleteRepository(name: string): Promise<void> {
+    const res = await apiFetch(
+      `/api/v1/repos/${encodeURIComponent(name)}?confirm=${encodeURIComponent(name)}`,
+      { method: 'DELETE' }
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to delete repository');
+    }
+  },
+
+  async fetchAuditLog(repoName?: string, limit = 100): Promise<AuditEntry[]> {
+    const query = `?limit=${limit}`;
+    const path = repoName
+      ? `/api/v1/repos/${encodeURIComponent(repoName)}/audit${query}`
+      : `/api/v1/audit${query}`;
+    const res = await apiFetch(path);
+    if (!res.ok) throw new Error('Failed to fetch audit log');
     return await res.json();
   },
 
@@ -205,12 +239,13 @@ export const api = {
   async mergePR(
     repoName: string,
     id: number,
-    strategy: 'squash' | 'merge' | 'rebase' = 'squash'
-  ): Promise<{ success: boolean; commitSha?: string; message: string }> {
+    strategy: 'squash' | 'merge' | 'rebase' = 'squash',
+    deleteBranch = false
+  ): Promise<{ success: boolean; commitSha?: string; message: string; branchPruned?: boolean }> {
     const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/${id}/merge`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ strategy }),
+      body: JSON.stringify({ strategy, deleteBranch }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -392,10 +427,13 @@ export const api = {
   },
 
   async fetchProviderModels(provider: string, url?: string, apiKey?: string): Promise<{ models: string[]; defaultModel: string }> {
-    const params = new URLSearchParams({ provider });
-    if (url) params.append('url', url);
-    if (apiKey) params.append('apiKey', apiKey);
-    const res = await apiFetch(`/api/v1/ai/models?${params.toString()}`);
+    // The API key is sent in the body: putting it in the query string leaks
+    // it into server logs, proxies and browser history.
+    const res = await apiFetch('/api/v1/ai/models', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, url, apiKey }),
+    });
     if (!res.ok) throw new Error(`Failed to discover models for ${provider}`);
     return await res.json();
   },
@@ -433,6 +471,24 @@ export const api = {
     const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/actions/runs`);
     if (!res.ok) throw new Error('Failed to fetch workflow runs');
     return await res.json();
+  },
+
+  async fetchWorkflowRun(repoName: string, runId: string): Promise<WorkflowRun> {
+    const res = await apiFetch(
+      `/api/v1/repos/${encodeURIComponent(repoName)}/actions/runs/${encodeURIComponent(runId)}`
+    );
+    if (!res.ok) throw new Error('Failed to fetch workflow run');
+    return await res.json();
+  },
+
+  async cancelWorkflowRun(repoName: string, runId: string): Promise<boolean> {
+    const res = await apiFetch(
+      `/api/v1/repos/${encodeURIComponent(repoName)}/actions/runs/${encodeURIComponent(runId)}/cancel`,
+      { method: 'POST' }
+    );
+    if (!res.ok) throw new Error('Failed to cancel workflow run');
+    const data = await res.json();
+    return Boolean(data?.canceled);
   },
 
   async dispatchWorkflow(repoName: string, workflowId: string = 'ci.yml', branch: string = 'main'): Promise<WorkflowRun> {

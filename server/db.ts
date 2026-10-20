@@ -2,6 +2,8 @@ import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
+import crypto from 'node:crypto';
+import { computeSshFingerprint } from './crypto';
 
 const dataDir = process.env.SOURCEHUB_DATA_DIR || path.join(os.homedir(), '.sourcehub');
 if (!fs.existsSync(dataDir)) {
@@ -167,28 +169,51 @@ db.exec(`
 `);
 
 // Migrations / safe column additions
-try {
-  db.exec('ALTER TABLE secrets ADD COLUMN encrypted_value TEXT;');
-} catch (_) {}
-try {
-  db.exec('ALTER TABLE tokens ADD COLUMN token_hash TEXT;');
-} catch (_) {}
-try {
-  db.exec('ALTER TABLE tokens ADD COLUMN token_last4 TEXT;');
-} catch (_) {}
+function addColumn(table: string, column: string, definition: string): void {
+  try {
+    const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+    if (!cols.some(c => c.name === column)) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    }
+  } catch (e) {
+    console.warn(`[db] could not add ${table}.${column}:`, (e as Error).message);
+  }
+}
+
+addColumn('secrets', 'encrypted_value', 'TEXT');
+addColumn('tokens', 'token_hash', 'TEXT');
+addColumn('tokens', 'token_last4', 'TEXT');
 // Clear legacy placeholder PATs that never stored a verifiable hash
 try {
   db.exec(`DELETE FROM tokens WHERE token_hash IS NULL OR token_hash = ''`);
 } catch (_) {}
-try {
-  db.exec("ALTER TABLE pull_requests ADD COLUMN checks_status TEXT DEFAULT 'passed';");
-} catch (_) {}
-try {
-  db.exec("ALTER TABLE pull_requests ADD COLUMN checks_summary TEXT DEFAULT 'All checks passed';");
-} catch (_) {}
-try {
-  db.exec('ALTER TABLE pull_requests ADD COLUMN workflow_run_id TEXT;');
-} catch (_) {}
+addColumn('pull_requests', 'checks_status', "TEXT DEFAULT 'pending'");
+addColumn('pull_requests', 'checks_summary', "TEXT DEFAULT 'Checks have not run yet'");
+addColumn('pull_requests', 'workflow_run_id', 'TEXT');
+
+// Real timestamps: the old columns stored the literal string "Just now",
+// which can never be ordered or rendered as a date. `*_ms` columns hold
+// epoch milliseconds and are the source of truth.
+for (const table of [
+  'pull_requests',
+  'pr_comments',
+  'issues',
+  'issue_comments',
+  'workflow_runs',
+  'workflow_steps',
+  'agent_runs',
+  'agent_timeline',
+  'secrets',
+  'webhooks',
+  'ssh_keys',
+]) {
+  addColumn(table, 'created_ms', 'INTEGER');
+}
+for (const table of ['pull_requests', 'workflow_runs', 'agent_runs']) {
+  addColumn(table, 'updated_ms', 'INTEGER');
+  addColumn(table, 'completed_ms', 'INTEGER');
+}
+
 // Per-repo PR numbers (#4): the global autoincrement id made the first PR of a
 // fresh repo show as "PR #14". Add a repo-scoped `number` and backfill.
 try {
@@ -209,10 +234,87 @@ try {
   console.warn('[db] pull_requests number migration skipped:', (e as Error).message);
 }
 
+// Per-repo issue numbers (mirrors the PR numbering fix above).
+try {
+  const issueCols = db.prepare('PRAGMA table_info(issues)').all() as { name: string }[];
+  if (!issueCols.some(c => c.name === 'number')) {
+    db.exec('ALTER TABLE issues ADD COLUMN number INTEGER;');
+    const issueRepos = db.prepare('SELECT DISTINCT repo_name FROM issues').all() as { repo_name: string }[];
+    const issueRowsStmt = db.prepare('SELECT id FROM issues WHERE repo_name = ? ORDER BY id ASC');
+    const issueRenumberStmt = db.prepare('UPDATE issues SET number = ? WHERE id = ?');
+    for (const issueRepo of issueRepos) {
+      (issueRowsStmt.all(issueRepo.repo_name) as { id: number }[]).forEach((row, idx) => {
+        issueRenumberStmt.run(idx + 1, row.id);
+      });
+    }
+    console.log('[db] issues: backfilled per-repo issue numbers');
+  }
+} catch (e) {
+  console.warn('[db] issues number migration skipped:', (e as Error).message);
+}
+
+// Pull request snapshots: the diff of a PR used to be recomputed from git on
+// every read, so deleting the source branch erased the PR's contents.
+// The snapshot keeps merged/closed PRs readable forever.
+addColumn('pull_requests', 'base_sha', 'TEXT');
+addColumn('pull_requests', 'head_sha', 'TEXT');
+addColumn('pull_requests', 'merge_base', 'TEXT');
+addColumn('pull_requests', 'diff_snapshot', 'TEXT');
+addColumn('pull_requests', 'commits_snapshot', 'TEXT');
+addColumn('pull_requests', 'additions', 'INTEGER DEFAULT 0');
+addColumn('pull_requests', 'deletions', 'INTEGER DEFAULT 0');
+addColumn('pull_requests', 'merged_sha', 'TEXT');
+addColumn('pull_requests', 'merge_strategy', 'TEXT');
+addColumn('pull_requests', 'merged_ms', 'INTEGER');
+
+// Workflow run lifecycle bookkeeping.
+addColumn('workflow_runs', 'started_ms', 'INTEGER');
+addColumn('workflow_runs', 'finished_ms', 'INTEGER');
+addColumn('workflow_runs', 'error', 'TEXT');
+addColumn('workflow_runs', 'canceled', 'INTEGER DEFAULT 0');
+
+// Webhook delivery history.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS webhook_deliveries (
+    id TEXT PRIMARY KEY,
+    webhook_id TEXT NOT NULL,
+    repo_name TEXT,
+    event TEXT NOT NULL,
+    url TEXT NOT NULL,
+    status INTEGER,
+    status_text TEXT,
+    error TEXT,
+    duration_ms INTEGER NOT NULL DEFAULT 0,
+    success INTEGER NOT NULL DEFAULT 0,
+    created_ms INTEGER NOT NULL
+  );
+`);
+
+// Operator audit log.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id TEXT PRIMARY KEY,
+    repo_name TEXT,
+    actor TEXT NOT NULL,
+    action TEXT NOT NULL,
+    target TEXT,
+    detail TEXT,
+    created_ms INTEGER NOT NULL
+  );
+`);
+
 /** Next repo-scoped PR number for inserts. Single-process SQLite => no race. */
 export function nextPullRequestNumber(repoName: string): number {
   const row = db.prepare(
     'SELECT COALESCE(MAX(number), 0) + 1 AS n FROM pull_requests WHERE repo_name = ?'
+  ).get(repoName) as { n: number };
+  return row.n || 1;
+}
+
+/** Next repo-scoped issue number for inserts. */
+export function nextIssueNumber(repoName: string): number {
+  const row = db.prepare(
+    'SELECT COALESCE(MAX(number), 0) + 1 AS n FROM issues WHERE repo_name = ?'
   ).get(repoName) as { n: number };
   return row.n || 1;
 }
@@ -231,16 +333,17 @@ try {
         const keyType = parts[0] || 'ssh-ed25519';
         const title = parts[2] || `${os.userInfo().username}@${os.hostname()}`;
         db.prepare(`
-          INSERT INTO ssh_keys (id, title, key_type, public_key, fingerprint, type, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO ssh_keys (id, title, key_type, public_key, fingerprint, type, created_at, created_ms)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
-          `key-${Date.now()}`,
+          `key-${crypto.randomUUID()}`,
           `Local Key (${title})`,
           keyType,
           content,
-          'SHA256:auto-detected-local-key',
+          computeSshFingerprint(content),
           'user',
-          'auto-detected'
+          'auto-detected',
+          Date.now()
         );
         break;
       }

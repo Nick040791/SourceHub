@@ -64,6 +64,17 @@ export const ActionsView: React.FC<ActionsViewProps> = ({ repoName }) => {
     loadRuns();
   }, [repoName]);
 
+  // Poll while a run is still executing so the step list and logs update
+  // live instead of only after the run finished.
+  useEffect(() => {
+    const hasActiveRun = runs.some(r => r.status === 'in_progress' || r.status === 'running');
+    if (!hasActiveRun) return;
+    const timer = setInterval(() => {
+      loadRuns();
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [runs]);
+
   const toggleStep = (index: number) => {
     setExpandedSteps(prev => ({ ...prev, [index]: !prev[index] }));
   };
@@ -201,7 +212,7 @@ export const ActionsView: React.FC<ActionsViewProps> = ({ repoName }) => {
                         ) : (
                           <Loader2 className="w-3 h-3 animate-spin" />
                         )}
-                        <span>{run.status === 'success' ? 'Tests pass' : run.status === 'failed' ? 'Tests fail' : run.status === 'cancelled' ? 'Cancelled' : 'Running'}</span>
+                        <span>{run.status === 'success' ? 'Tests pass' : run.status === 'failed' ? 'Tests fail' : run.status === 'canceled' || run.status === 'cancelled' ? 'Cancelled' : run.status === 'skipped' ? 'Skipped' : 'Running'}</span>
                       </span>
                       <span className="shrink-0 px-1.5 py-0.5 rounded font-mono text-[10px] bg-hub-bg text-hub-muted border border-hub-border uppercase">
                         {run.event}

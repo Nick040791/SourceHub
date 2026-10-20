@@ -1,9 +1,11 @@
-import { db, nextPullRequestNumber } from './db';
+import { db } from './db';
 import { GitService } from './gitService';
 import { WorkflowService } from './workflowService';
 import { webhookService } from './webhookService';
 import { aiProviderService, AIProviderId, ThinkingEffort } from './aiProviderService';
+import { capturePullRequestSnapshot, insertPullRequest } from './prService';
 import type { AgentRun, AgentTimelineEvent } from '../src/types';
+import crypto from 'node:crypto';
 interface ParsedFile {
   path: string;
   content: string;
@@ -41,6 +43,8 @@ export class AgentService {
   private gitService: GitService;
   private workflowService: WorkflowService;
   private activePROperations = new Set<string>();
+  /** Repositories with an agent run in flight — one run per repo at a time. */
+  private activeRepoRuns = new Set<string>();
 
   constructor() {
     this.gitService = new GitService();
@@ -49,6 +53,11 @@ export class AgentService {
 
   isPROperationActive(repoName: string, prId: number): boolean {
     return this.activePROperations.has(`${repoName}:${prId}`);
+  }
+
+  /** True when the repository already has an agent run in flight. */
+  isRepoBusy(repoName: string): boolean {
+    return this.activeRepoRuns.has(repoName);
   }
 
   // 1. AI Settings (Persisted in SQLite via AIProviderService)
@@ -141,10 +150,15 @@ export class AgentService {
       operator?: string;
     }
   ): Promise<AgentRun> {
+    if (this.activeRepoRuns.has(repoName)) {
+      throw new Error(`An agent run is already in progress for this repository.`);
+    }
+    this.activeRepoRuns.add(repoName);
+
     const settings = this.getAISettings();
     const model = params.model || settings.defaultModel || 'glm-5.3-flash:cloud';
     const operator = params.operator || 'Forge Operator';
-    const runId = `run-${Math.random().toString(36).substring(2, 6)}`;
+    const runId = `run-${crypto.randomUUID()}`;
     const slug = `${runId}-task`;
     const targetBranch = `agent/${slug}`;
     const baseBranch = params.baseBranch || 'main';
@@ -153,8 +167,8 @@ export class AgentService {
     db.prepare(`
       INSERT INTO agent_runs (
         id, repo_name, slug, prompt, base_branch, target_branch, mode,
-        state, provider, model, operator, files_touched, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        state, provider, model, operator, files_touched, created_at, created_ms
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       runId,
       repoName,
@@ -168,16 +182,17 @@ export class AgentService {
       model,
       operator,
       JSON.stringify([]),
-      'Just now'
+      'Just now',
+      Date.now()
     );
 
     // Initial event
     let eventOrder = 1;
     const addEvent = (type: string, title: string, description: string, metadata?: any) => {
-      const eventId = `ev-${Date.now()}-${eventOrder}`;
+      const eventId = `ev-${crypto.randomUUID()}`;
       db.prepare(`
-        INSERT INTO agent_timeline (id, run_id, type, title, description, timestamp, metadata, created_order)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO agent_timeline (id, run_id, type, title, description, timestamp, metadata, created_order, created_ms)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         eventId,
         runId,
@@ -186,7 +201,8 @@ export class AgentService {
         description,
         'Just now',
         metadata ? JSON.stringify(metadata) : null,
-        eventOrder++
+        eventOrder++,
+        Date.now()
       );
     };
 
@@ -200,7 +216,12 @@ export class AgentService {
     this.executeAgentLoop(repoName, runId, slug, targetBranch, baseBranch, params.prompt, params.mode, model, operator, addEvent)
       .catch(err => {
         console.error(`Error in agent loop for ${runId}:`, err);
-        db.prepare('UPDATE agent_runs SET state = ? WHERE id = ?').run('failed', runId);
+        db.prepare(
+          "UPDATE agent_runs SET state = 'failed', updated_ms = ?, completed_ms = ? WHERE id = ?"
+        ).run(Date.now(), Date.now(), runId);
+      })
+      .finally(() => {
+        this.activeRepoRuns.delete(repoName);
       });
 
     return this.listRuns(repoName).find(r => r.id === runId)!;
@@ -315,6 +336,7 @@ ${prompt}
     const parsedFiles = parseGeneratedFiles(ollamaResponse);
     let commitSha = '';
     let filesTouched: string[] = [];
+    let commitError: string | null = null;
 
     if (parsedFiles.length > 0) {
       addEvent(
@@ -336,8 +358,9 @@ ${prompt}
         commitSha = commitRes.commitSha;
         filesTouched = commitRes.filesCommitted;
       } catch (err: any) {
+        commitError = err.message || 'Could not commit the generated files';
         console.warn('Error committing files via worktree:', err);
-        addEvent('agent.commit_warning', 'Git commit notice', `Worktree commit note: ${err.message}`);
+        addEvent('agent.commit_failed', 'Commit failed', `Worktree commit failed: ${commitError}`);
       }
     } else {
       // Record task analysis in .sourcehub/agent-runs/<slug>.md
@@ -357,13 +380,40 @@ ${prompt}
         commitSha = commitRes.commitSha;
         filesTouched = [summaryPath];
       } catch (err: any) {
+        commitError = err.message || 'Could not record the run summary';
         console.warn('Error recording summary commit:', err);
+        addEvent('agent.commit_failed', 'Commit failed', `Summary commit failed: ${commitError}`);
       }
     }
 
+    // The run must never report a commit that does not exist.
     if (!commitSha) {
-      commitSha = Math.random().toString(16).substring(2, 9);
-      filesTouched = ['.sourcehub/agent-runs/' + slug + '.md'];
+      db.prepare(`
+        UPDATE agent_runs
+        SET state = 'failed', updated_ms = ?, completed_ms = ?, files_touched = ?
+        WHERE id = ?
+      `).run(Date.now(), Date.now(), JSON.stringify(filesTouched), runId);
+
+      addEvent(
+        'agent.failed',
+        'Run failed',
+        commitError
+          ? `The agent could not commit its changes: ${commitError}`
+          : 'The agent did not produce any committable output.',
+        { error: commitError }
+      );
+
+      webhookService.dispatch(repoName, 'agent_run.completed', {
+        runId,
+        repoName,
+        prId: null,
+        filesTouched,
+        targetBranch,
+        state: 'failed',
+        error: commitError,
+      }).catch((err: any) => console.warn('[Webhook] agent_run.completed dispatch failed:', err.message));
+
+      return;
     }
 
     addEvent(
@@ -378,29 +428,30 @@ ${prompt}
     if (mode === 'open_pr') {
       db.prepare("UPDATE agent_runs SET state = 'checks_pending' WHERE id = ?").run(runId);
 
-      const prNumber = nextPullRequestNumber(repoName);
       const prTitle = `agent: ${prompt.length > 60 ? prompt.substring(0, 57) + '...' : prompt}`;
       const prBody = `**Helper automated PR**\n\n**Operator:** ${operator}\n**Model:** \`${model}\`\n**Audit Trailer:** \`SourceHub-Agent-Run: ${runId}\`\n\n### Task Prompt\n> ${prompt}\n\n### Agent Implementation Summary\n${ollamaResponse}`;
 
-      const resDb = db.prepare(`
-        INSERT INTO pull_requests (repo_name, number, title, body, state, author, is_agent, agent_run_id, source_branch, target_branch, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
+      const snapshot = await capturePullRequestSnapshot(
+        this.gitService,
         repoName,
-        prNumber,
-        prTitle,
-        prBody,
-        'open',
-        `${operator} (via Helper)`,
-        1,
-        runId,
         targetBranch,
-        baseBranch,
-        'Just now',
-        'Just now'
+        baseBranch
       );
 
-      prId = Number(resDb.lastInsertRowid);
+      const created = insertPullRequest({
+        repoName,
+        title: prTitle,
+        body: prBody,
+        author: `${operator} (via Helper)`,
+        isAgent: true,
+        agentRunId: runId,
+        sourceBranch: targetBranch,
+        targetBranch: baseBranch,
+        snapshot,
+      });
+
+      prId = created.id;
+      const prNumber = created.number;
       db.prepare('UPDATE agent_runs SET pr_id = ? WHERE id = ?').run(prId, runId);
 
       webhookService.dispatch(repoName, 'pull_request.opened', {
@@ -650,9 +701,9 @@ Checklist of recommended tests to run before merging.
 
       // Save review as a PR comment
       db.prepare(`
-        INSERT INTO pr_comments (pr_id, author, is_agent, content, created_at)
-        VALUES (?, ?, ?, ?, ?)
-      `).run(prId, `Helper (${model})`, 1, review, 'Just now');
+        INSERT INTO pr_comments (pr_id, author, is_agent, content, created_at, created_ms)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(prId, `Helper (${model})`, 1, review, 'Just now', Date.now());
 
       return { review };
     } finally {
@@ -661,7 +712,11 @@ Checklist of recommended tests to run before merging.
   }
 
   // 8. Address Review Comments with Helper
-  async addressReviewComments(repoName: string, prId: number): Promise<{ response: string }> {
+  //
+  // Unlike the previous implementation this does not only write a reply:
+  // when the model returns file blocks they are committed onto the pull
+  // request's source branch and the CI checks are re-run.
+  async addressReviewComments(repoName: string, prId: number): Promise<{ response: string; filesApplied: string[]; commitSha?: string }> {
     const pr = db.prepare('SELECT * FROM pull_requests WHERE id = ? AND repo_name = ?').get(prId, repoName) as any;
     if (!pr) throw new Error(`Pull request #${prId} not found`);
 
@@ -674,7 +729,6 @@ Checklist of recommended tests to run before merging.
     try {
       const comments = db.prepare('SELECT * FROM pr_comments WHERE pr_id = ? ORDER BY id ASC').all(prId) as any[];
       const settings = this.getAISettings();
-      const ollamaUrl = settings.ollamaUrl || 'http://localhost:11434';
       const model = settings.defaultModel || 'glm-5.3-flash:cloud';
 
       const [diff, snapshot] = await Promise.all([
@@ -705,6 +759,11 @@ Analyze all feedback above and provide:
 1. Response to each comment / critique.
 2. Exact recommended code changes or patch required to resolve the concerns.
 3. Verification plan.
+
+When you change a file, output the COMPLETE new file content wrapped in:
+<<<FILE: relative/path/to/file.ext>>>
+<complete file content>
+<<<END_FILE>>>
 `;
 
       let response = '';
@@ -721,12 +780,66 @@ Analyze all feedback above and provide:
         response = `**Helper Resolution:** Processed review comments for \`${pr.source_branch}\`. All items reviewed against current diff.`;
       }
 
-      db.prepare(`
-        INSERT INTO pr_comments (pr_id, author, is_agent, content, created_at)
-        VALUES (?, ?, ?, ?, ?)
-      `).run(prId, `Helper (${model})`, 1, response, 'Just now');
+      // Apply the changes the model produced onto the source branch.
+      const parsedFiles = parseGeneratedFiles(response);
+      let filesApplied: string[] = [];
+      let commitSha: string | undefined;
 
-      return { response };
+      if (parsedFiles.length > 0) {
+        try {
+          const commitRes = await this.gitService.commitFilesToBranch(
+            repoName,
+            pr.source_branch,
+            parsedFiles,
+            `fix(agent): address review feedback on #${pr.number ?? pr.id}`,
+            `${pr.author} (via Helper)`,
+            `SourceHub-Agent-Run: pr-${pr.id}`
+          );
+          commitSha = commitRes.commitSha;
+          filesApplied = commitRes.filesCommitted;
+        } catch (err: any) {
+          console.warn('Could not commit review fixes:', err);
+          response += `\n\n> **Could not apply the suggested changes automatically:** ${err.message}`;
+        }
+      }
+
+      const appliedNote = filesApplied.length
+        ? `\n\n### Applied Changes\nCommitted ${filesApplied.length} file(s) to \`${pr.source_branch}\`${commitSha ? ` (commit \`${commitSha.substring(0, 7)}\`)` : ''}:\n${filesApplied.map(f => `- \`${f}\``).join('\n')}`
+        : '\n\n_No file changes were applied — the response above is guidance only._';
+
+      db.prepare(`
+        INSERT INTO pr_comments (pr_id, author, is_agent, content, created_at, created_ms)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(prId, `Helper (${model})`, 1, response + appliedNote, 'Just now', Date.now());
+
+      // Re-run the checks so the pull request reflects the new commits.
+      if (filesApplied.length > 0) {
+        try {
+          const run = await this.workflowService.dispatchWorkflow(
+            repoName,
+            'ci.yml',
+            pr.source_branch,
+            'pull_request'
+          );
+          const passed = run.status === 'success';
+          db.prepare(`
+            UPDATE pull_requests
+            SET checks_status = ?, checks_summary = ?, workflow_run_id = ?
+            WHERE id = ?
+          `).run(
+            passed ? 'passed' : 'failed',
+            passed
+              ? `All CI checks passed in ${run.duration}`
+              : `CI checks failed in ${run.duration}`,
+            run.id,
+            prId
+          );
+        } catch (err: any) {
+          console.warn('Could not re-run checks after applying review fixes:', err);
+        }
+      }
+
+      return { response, filesApplied, commitSha };
     } finally {
       this.activePROperations.delete(opKey);
     }

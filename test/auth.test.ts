@@ -13,6 +13,9 @@ import {
   isDangerousRunScript,
   buildSanitizedWorkflowEnv,
   formatTokenDisplay,
+  requiredScopeFor,
+  scopeSatisfies,
+  isLocalRequest,
   PAT_PREFIX,
 } from '../server/auth';
 import { db } from '../server/db';
@@ -172,8 +175,68 @@ describe('Auth: middleware allow/deny', () => {
   });
 });
 
-describe('Auth: workflow env sandbox helpers', () => {
-  test('buildSanitizedWorkflowEnv omits process.env dump and secrets keys', () => {
+describe('Auth: scope enforcement', () => {
+  test('routes map to the expected scopes', () => {
+    assert.equal(requiredScopeFor('/api/v1/repos', 'GET'), 'repo:read');
+    assert.equal(requiredScopeFor('/api/v1/repos/demo/pulls', 'GET'), 'repo:read');
+    assert.equal(requiredScopeFor('/api/v1/repos/demo/pulls/1/merge', 'POST'), 'repo:write');
+    assert.equal(requiredScopeFor('/api/v1/repos/demo/branches', 'POST'), 'repo:write');
+    assert.equal(requiredScopeFor('/api/v1/tokens', 'GET'), 'admin');
+    assert.equal(requiredScopeFor('/api/v1/keys', 'POST'), 'admin');
+    assert.equal(requiredScopeFor('/api/v1/settings/ai', 'POST'), 'admin');
+    assert.equal(requiredScopeFor('/git/demo.git/info/refs', 'GET'), 'repo:read');
+    assert.equal(requiredScopeFor('/git/demo.git/git-receive-pack', 'POST'), 'repo:write');
+  });
+
+  test('admin implies every other scope', () => {
+    assert.equal(scopeSatisfies(['admin'], 'repo:read'), true);
+    assert.equal(scopeSatisfies(['admin'], 'repo:write'), true);
+    assert.equal(scopeSatisfies(['admin'], 'admin'), true);
+  });
+
+  test('read-only tokens cannot write', () => {
+    assert.equal(scopeSatisfies(['repo:read'], 'repo:read'), true);
+    assert.equal(scopeSatisfies(['repo:read'], 'repo:write'), false);
+    assert.equal(scopeSatisfies(['repo:read'], 'admin'), false);
+  });
+
+  test('write tokens imply read', () => {
+    assert.equal(scopeSatisfies(['repo:write'], 'repo:read'), true);
+    assert.equal(scopeSatisfies(['repo:write'], 'repo:write'), true);
+    assert.equal(scopeSatisfies(['repo:write'], 'admin'), false);
+  });
+});
+
+describe('Auth: local request detection', () => {
+  function mockWith(headers: Record<string, any>, remoteAddress?: string): IncomingMessage {
+    return { headers, socket: { remoteAddress } } as unknown as IncomingMessage;
+  }
+
+  test('loopback client on a loopback bind is local', () => {
+    assert.equal(isLocalRequest(mockWith({}, '127.0.0.1'), '127.0.0.1'), true);
+    assert.equal(isLocalRequest(mockWith({}, '::1'), '127.0.0.1'), true);
+    assert.equal(isLocalRequest(mockWith({}, '::ffff:127.0.0.1'), '127.0.0.1'), true);
+  });
+
+  test('a remote client is never local', () => {
+    assert.equal(isLocalRequest(mockWith({}, '192.168.1.20'), '127.0.0.1'), false);
+  });
+
+  test('a proxied request is never local', () => {
+    // A reverse proxy on the same host connects over loopback but forwards
+    // X-Forwarded-For — the real client is remote.
+    assert.equal(
+      isLocalRequest(mockWith({ 'x-forwarded-for': '203.0.113.9' }, '127.0.0.1'), '127.0.0.1'),
+      false
+    );
+  });
+
+  test('a non-loopback bind is never local', () => {
+    assert.equal(isLocalRequest(mockWith({}, '127.0.0.1'), '0.0.0.0'), false);
+  });
+});
+
+describe('Auth: workflow env sandbox helpers', () => {  test('buildSanitizedWorkflowEnv omits process.env dump and secrets keys', () => {
     process.env.SOURCEHUB_TOKEN = 'should-not-leak';
     process.env.SOURCEHUB_MASTER_KEY = 'master-should-not-leak';
     const env = buildSanitizedWorkflowEnv(

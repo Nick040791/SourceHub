@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   GitPullRequest, 
   CheckCircle2, 
@@ -29,6 +29,8 @@ interface PullRequestsViewProps {
   defaultBase: string;
   onNavigateToAgentRun: (runId: string) => void;
   onNavigateToActionsRun: (runId: string) => void;
+  /** Called after a branch is deleted so the app can refresh its branch list. */
+  onBranchDeleted?: (branchName: string) => void;
 }
 
 export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
@@ -37,11 +39,13 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
   defaultBase,
   onNavigateToAgentRun,
   onNavigateToActionsRun,
+  onBranchDeleted,
 }) => {
   const [pullRequests, setPullRequests] = useState<PullRequest[]>([]);
   const [selectedPR, setSelectedPR] = useState<PullRequest | null>(null);
   const [activeSubTab, setActiveSubTab] = useState<'conversation' | 'commits' | 'checks' | 'files'>('conversation');
   const [mergeStrategy, setMergeStrategy] = useState<'squash' | 'merge' | 'rebase'>('squash');
+  const [deleteBranchOnMerge, setDeleteBranchOnMerge] = useState(false);
   const [isMerging, setIsMerging] = useState(false);
   const [isLoadingPRs, setIsLoadingPRs] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
@@ -53,9 +57,14 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
   const [isReviewing, setIsReviewing] = useState(false);
   const [isAddressingComments, setIsAddressingComments] = useState(false);
   const [mergeability, setMergeability] = useState<PRMergeability | null>(null);
+  /** Pull request the current mergeability result belongs to. */
+  const [mergeabilityForPrId, setMergeabilityForPrId] = useState<number | null>(null);
   const [isCheckingMergeability, setIsCheckingMergeability] = useState(false);
   const [isDeletingBranch, setIsDeletingBranch] = useState(false);
   const [branchDeleted, setBranchDeleted] = useState(false);
+  const [mergeError, setMergeError] = useState<string | null>(null);
+  /** Tracks which mergeability request is still relevant. */
+  const mergeabilityRequestRef = useRef<number | null>(null);
 
   const loadPRs = async () => {
     setIsLoadingPRs(true);
@@ -76,27 +85,39 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
 
   const checkMergeability = async (id: number) => {
     setIsCheckingMergeability(true);
+    mergeabilityRequestRef.current = id;
     try {
       const result = await api.checkPRMergeability(repoName, id);
+      // Ignore a response that arrived after the user switched pull requests.
+      if (mergeabilityRequestRef.current !== id) return;
       setMergeability(result);
+      setMergeabilityForPrId(id);
     } catch (err) {
       console.warn('Failed to check mergeability:', err);
-      setMergeability(null);
+      if (mergeabilityRequestRef.current !== id) return;
+      // Fail closed: an unknown mergeability must not enable the merge button.
+      setMergeability({ canMerge: false, conflictedFiles: ['Mergeability could not be determined'] });
+      setMergeabilityForPrId(id);
     } finally {
-      setIsCheckingMergeability(false);
+      if (mergeabilityRequestRef.current === id) {
+        setIsCheckingMergeability(false);
+      }
     }
   };
 
   const loadPRDetail = async (id: number) => {
     setIsLoadingDetail(true);
     setBranchDeleted(false);
+    // Reset the mergeability so a previous pull request's result cannot gate
+    // the merge button of the one that is opened now.
+    setMergeability(null);
+    setMergeabilityForPrId(null);
+    setMergeError(null);
     try {
       const detail = await api.fetchPR(repoName, id);
       setSelectedPR(detail);
       if (detail.state === 'open') {
         checkMergeability(id);
-      } else {
-        setMergeability(null);
       }
     } catch (err) {
       console.warn('Failed to load PR detail:', err);
@@ -112,6 +133,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
     try {
       await api.deleteBranch(repoName, selectedPR.sourceBranch);
       setBranchDeleted(true);
+      onBranchDeleted?.(selectedPR.sourceBranch);
     } catch (err: any) {
       alert(`Error deleting branch: ${err.message}`);
     } finally {
@@ -126,8 +148,9 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
   const handleMerge = async () => {
     if (!selectedPR) return;
     setIsMerging(true);
+    setMergeError(null);
     try {
-      await api.mergePR(repoName, selectedPR.id, mergeStrategy);
+      await api.mergePR(repoName, selectedPR.id, mergeStrategy, deleteBranchOnMerge);
       // Brief pause to allow Vite HMR/file-watcher to settle if working tree was modified
       await new Promise(r => setTimeout(r, 600));
       await loadPRDetail(selectedPR.id);
@@ -146,7 +169,9 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
           // If retry also failed, display error
         }
       }
-      alert(`Merge error: ${err.message}`);
+      // The server rejects merges with a precise reason (conflicts, failed
+      // checks, a branch that moved) — show it instead of a raw alert.
+      setMergeError(err.message || 'Merge failed');
     } finally {
       setIsMerging(false);
     }
@@ -228,6 +253,26 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
   const closedPRs = pullRequests.filter(p => p.state !== 'open');
   const filteredList = filterState === 'open' ? openPRs : closedPRs;
   const isAIOperationBusy = isReviewing || isAddressingComments || Boolean(selectedPR?.isAIBusy);
+
+  // Merge is only enabled when we know the pull request is mergeable and the
+  // server's own gating rules are satisfied.
+  const mergeabilityKnown = mergeabilityForPrId === selectedPR?.id && mergeability !== null;
+  const hasConflicts = mergeabilityKnown && !mergeability!.canMerge;
+  const checksGate = selectedPR?.mergeRequiresChecks !== false;
+  const checksPassed = selectedPR?.checksStatus === 'passed';
+  const isMergeBlocked =
+    isMerging ||
+    selectedPR?.state === 'merged' ||
+    selectedPR?.state === 'closed' ||
+    hasConflicts ||
+    (checksGate && !checksPassed);
+  const mergeBlockReason = hasConflicts
+    ? `Conflicting files: ${mergeability!.conflictedFiles.join(', ')}`
+    : checksGate && !checksPassed
+    ? selectedPR?.checksStatus === 'failed'
+      ? 'CI checks failed — fix the failing checks before merging.'
+      : 'CI checks have not passed yet.'
+    : null;
 
   return (
     <div className="space-y-4">
@@ -608,11 +653,13 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                             <span className="font-semibold">
                               {isCheckingMergeability
                                 ? 'Checking branch mergeability...'
-                                : mergeability?.canMerge
+                                : mergeabilityKnown && mergeability!.canMerge
                                 ? `Able to merge automatically — no conflicts with ${selectedPR.targetBranch}`
-                                : `Cannot merge automatically — conflict in: ${mergeability?.conflictedFiles.join(', ')}`}
+                                : mergeabilityKnown
+                                ? `Cannot merge automatically — conflict in: ${mergeability!.conflictedFiles.join(', ')}`
+                                : 'Mergeability has not been determined yet.'}
                             </span>
-                            {!isCheckingMergeability && !mergeability?.canMerge && (
+                            {mergeabilityKnown && !mergeability!.canMerge && (
                               <p className="text-[11px] text-hub-danger-text/80 mt-0.5">
                                 Rebase or resolve conflicting files locally before merging this pull request.
                               </p>
@@ -702,14 +749,26 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                                 <option value="rebase">Rebase and merge</option>
                               </select>
 
+                              <label
+                                className="flex items-center space-x-1.5 text-[11px] text-hub-muted cursor-pointer select-none"
+                title="Delete the source branch once the merge succeeded"
+              >
+                                <input
+                  type="checkbox"
+                  checked={deleteBranchOnMerge}
+                  onChange={(e) => setDeleteBranchOnMerge(e.target.checked)}
+                  className="accent-hub-accent"
+                />
+                <span>Delete branch</span>
+              </label>
+
                               <button
                                 onClick={handleMerge}
-                                disabled={isMerging || selectedPR.state === 'merged' || (mergeability !== null && !mergeability.canMerge)}
+                                disabled={isMergeBlocked}
+                                title={mergeBlockReason || undefined}
                                 className={`px-3 py-1.5 rounded-md text-xs font-semibold text-white shadow-sm transition-colors flex items-center space-x-1.5 ${
-                                  selectedPR.state === 'merged'
+                                  isMergeBlocked
                                     ? 'bg-hub-border text-hub-muted cursor-not-allowed'
-                                    : mergeability !== null && !mergeability.canMerge
-                                    ? 'bg-hub-danger/15 text-hub-danger-text border border-hub-danger/40 cursor-not-allowed'
                                     : 'bg-hub-success hover:brightness-110'
                                 }`}
                               >
@@ -720,8 +779,10 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                                   </>
                                 ) : selectedPR.state === 'merged' ? (
                                   <span>Merged</span>
-                                ) : mergeability !== null && !mergeability.canMerge ? (
+                                ) : hasConflicts ? (
                                   <span>Blocked by Conflicts</span>
+                                ) : checksGate && !checksPassed ? (
+                                  <span>{selectedPR.checksStatus === 'failed' ? 'Checks Failed' : 'Checks Pending'}</span>
                                 ) : (
                                   <span>Confirm Merge</span>
                                 )}
@@ -730,6 +791,13 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                           )}
                         </div>
                       </div>
+
+                      {(mergeError || mergeBlockReason) && (
+                        <div className="flex items-start space-x-2 px-3 py-2 rounded bg-hub-danger/10 border border-hub-danger/35 text-hub-danger-text text-xs">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                          <span>{mergeError || mergeBlockReason}</span>
+                        </div>
+                      )}
 
                       {/* Helper Actions */}
                       <div className="pt-2 border-t border-hub-border/60 space-y-2">
@@ -902,8 +970,12 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
 
                       <div className="pt-3 border-t border-hub-border text-xs text-hub-muted space-y-2">
                         <div className="flex items-center justify-between">
-                          <span>Target branch under test:</span>
+                          <span>Branch under test:</span>
                           <span className="font-mono text-hub-text bg-hub-subtle px-1.5 py-0.5 rounded border border-hub-border">{selectedPR.sourceBranch}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Target branch:</span>
+                          <span className="font-mono text-hub-text bg-hub-subtle px-1.5 py-0.5 rounded border border-hub-border">{selectedPR.targetBranch}</span>
                         </div>
                         <div className="flex items-center justify-between">
                           <span>Workflow file:</span>

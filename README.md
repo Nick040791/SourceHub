@@ -27,11 +27,12 @@ Designed specifically for solo developers, single operators, and agentic AI pair
 
 - 🖥️ **Full Source Control Workbench** — Hunk-level staging, discard, auto-fill commits, undo commit, stash management, branch switching, and remote sync.
 - **Autonomous AI Coding Agent ("Helper")** — Async task execution using local Ollama models. The agent snapshots the repository, ranks relevant files, writes code in an isolated git worktree, commits changes with audit trailers, opens PRs, runs reviews, and even addresses review comments automatically.
-- 🔀 **Pull Requests & Code Review** — Full PR lifecycle backed by Node's built-in SQLite, featuring pre-flight merge conflict detection, squash/rebase/merge strategies, CI check gating, post-merge issue auto-closing, and branch pruning.
+- 🔀 **Pull Requests & Code Review** — Full PR lifecycle backed by Node's built-in SQLite, featuring pre-flight merge conflict detection, squash/rebase/merge strategies, CI check gating, post-merge issue auto-closing, and a diff snapshot that keeps merged pull requests readable.
 - ⚡ **Local Actions CI Runner** — Executes `.sourcehub/workflows/*.yml` locally with live step-by-step logs, status indicators, and duration tracking.
 - 📋 **Issue Tracker** — Built-in issue lifecycle with one-click "Assign to Agent" handoff.
-- 🌐 **Git Smart HTTP Wire Protocol** — Built-in Smart HTTP server allows standard `git clone http://<host>:5177/git/<repo>.git` over localhost and LAN.
-- 🔒 **Secrets, Keys & Webhooks** — Encrypted repository/global secrets vault, SSH user & deploy keys registry, hashed Personal Access Tokens (enforced), optional `SOURCEHUB_TOKEN` shared secret for LAN, and outbound webhooks with optional HMAC signing and live ping testing.
+- 🌐 **Git Smart HTTP Wire Protocol** — Built-in Smart HTTP server allows standard `git clone` **and `git push`** over `http://<host>:5177/git/<repo>.git`.
+- 🔒 **Secrets, Keys & Webhooks** — Encrypted repository/global secrets vault, SSH key registry with real fingerprints, scoped Personal Access Tokens (enforced), optional `SOURCEHUB_TOKEN` shared secret for LAN, and outbound webhooks with HMAC signing, delivery history and live ping testing.
+- 🗂️ **Repository Management & Audit Log** — Rename or delete a repository from the UI, and review a durable audit trail of every branch, pull request and repository action.
 - 🎨 **14 Themes & Profile Customization** — Matrix Neon (default), Cyber Amber, Tokyo Night, Dracula, OLED Black, and more, alongside persistent operator profile settings stored in SQLite.
 - 🚀 **Zero Web Framework Overhead** — Powered by Node 22+ built-in `node:http` and `node:sqlite`, eliminating bloated web frameworks and native C++ binary dependencies.
 
@@ -109,57 +110,69 @@ Helper is an asynchronous repository agent designed for autonomous code developm
 5. **PR Lifecycle Integration**:
    - **Autonomous PR Creation**: Opens a PR with AI-generated titles and descriptions.
    - **Automated PR Review**: Performs line-by-line automated code review on PR diffs.
-   - **Address Review Comments**: The agent reads reviewer feedback, checks out the branch, implements the requested changes, commits them, and replies to comment threads.
+   - **Address Review Comments**: The agent reads reviewer feedback, implements the requested changes on the pull request's branch, commits them with an audit trailer, re-runs the checks and replies to the thread.
 6. **Ollama Integration**: Seamless model discovery from `localhost:11434` or custom endpoints, pre-configured for models like `glm-5.3-flash:cloud`, `llama3`, `deepseek-coder`, `qwen`, and more.
+
+---
+
+### 🗂️ Repository Management & Audit
+- **Rename & Delete**: Rename a repository (the `origin` remote is updated so clone URLs keep working) or delete it together with its pull requests, issues, secrets, webhooks and run history.
+- **Audit Trail**: Repository, branch and pull request actions are recorded with actor, target, detail and a real timestamp, and can be reviewed in Settings → Repository & Audit.
 
 ---
 
 ### 🔀 Pull Requests & Code Review
 - **Rich Diff Viewer**: Side-by-side and unified diff views with syntax highlighting.
-- **Pre-Flight Conflict Engine**: Checks mergeability against target branches in real time before attempting a merge.
-- **3 Merge Strategies**: Support for **Squash and Merge**, **Rebase and Merge**, and **Create a Merge Commit**.
-- **CI Check Gating**: Protects target branches by requiring passing Actions CI runs prior to merge.
-- **Post-Merge Automation**: Automatically closes linked issues (e.g., `#1`, `Closes #4`) and prunes deleted feature branches.
-- **Line & File Comments**: Real conversation threads on pull requests.
+- **Pre-Flight Conflict Engine**: Checks mergeability against target branches in real time before attempting a merge. The check is repeated on the server, so a stale browser state cannot merge a conflicting branch.
+- **3 Merge Strategies**: Support for **Squash and Merge**, **Rebase and Merge**, and **Create a Merge Commit**. Every merge runs in an isolated worktree and updates the target branch with a compare-and-swap, so a branch that moved during the merge is never overwritten.
+- **CI Check Gating**: Merges are refused until the Actions run of the pull request passed. The gate can be turned off with the `merge_require_checks` operator setting.
+- **Permanent Diffs**: The diff and the commit list are snapshotted when the pull request is created, so a merged pull request stays readable even after its branch was deleted.
+- **Post-Merge Automation**: Automatically closes linked issues (e.g. `#1`, `Closes #4`) and can prune the merged branch.
+- **Review Threads**: Conversation threads on pull requests, including automated reviews and responses from the Helper agent.
 
 ---
 
 ### ⚡ Local Actions (CI Runner)
 - **Declarative Workflows**: Reads workflow definitions from `.sourcehub/workflows/*.yml`.
-- **Real Local Execution**: Runs workflow `run:` steps as shell commands on the host user — treat workflow YAML as trusted code.
-- **Audit & History**: Real-time log capture, exit code recording, execution timestamps, and run durations.
+- **Real Local Execution**: Runs workflow `run:` steps as shell commands on the host user — treat workflow YAML as trusted code. Every run executes in its own worktree, so your working copy is never modified by a build.
+- **Audit & History**: Step-by-step log capture, exit code recording, execution timestamps, and run durations. Runs are persisted while they execute, can be cancelled, and are marked failed if the server restarts mid-run.
 - **Event Triggers**: Dispatches automatically on `push`, `pull_request`, `agent_run`, or manual UI dispatch.
+- **Secrets**: Secrets are passed to a step as environment variables only. A step that tries to interpolate `${{ secrets.X }}` inside a `run:` command is refused, because a secret value would otherwise end up unescaped on a shell command line.
 
 ---
 
 ### 🌐 Git Smart HTTP Wire Protocol
-- Clone and fetch directly with standard Git CLI tools:
+- Clone, fetch **and push** directly with standard Git CLI tools:
   ```bash
   # Loopback (no SOURCEHUB_TOKEN): unauthenticated local use
   git clone http://localhost:5177/git/my-repo.git
+  git push origin my-branch
 
-  # LAN / shared secret: pass token via HTTP Basic (password field) or configure git credential helper.
-  # Preferred: Authorization Bearer / X-SourceHub-Token on API; for git CLI use:
+  # LAN / shared secret: pass the token as an extra header
   git -c http.extraHeader="Authorization: Bearer $SOURCEHUB_TOKEN" clone http://<lan-ip>:5177/git/my-repo.git
   # or with a PAT:
   git -c http.extraHeader="Authorization: Bearer sh_pat_…" clone http://<lan-ip>:5177/git/my-repo.git
   ```
+- **Protected branches**: the server installs a `pre-receive` hook that refuses direct pushes to `main`/`master` — open a pull request instead. The protected list is configurable through the `protected_branches` setting.
 - Dynamic LAN IP detection displayed in the repository clone drawer when the server is reachable on the LAN.
 
 ---
 
 ### 🔒 Security, Keys & Webhooks
 - **Encrypted Secrets Vault**: Store repository-scoped and global secrets with masked values for CI and agent workflows.
-- **Keys Management**: Register and manage SSH user keys and deploy keys (fingerprints stored for display).
+- **Keys Management**: Register SSH user keys and deploy keys. The registry stores the real SHA-256 fingerprint of the key material. *(SourceHub serves git over HTTP; it does not implement the SSH transport — the keys are a registry for your own tooling.)*
 - **Operator Shared Secret (`SOURCEHUB_TOKEN`)**: When set, required for all `/api/*` and `/git/*` requests via `Authorization: Bearer <token>` or `X-SourceHub-Token: <token>`. Binding non-loopback (`0.0.0.0` / LAN IP) **without** this env var causes the server to refuse to start.
 - **Personal Access Tokens (PATs)**: Real tokens (`sh_pat_…`) — SHA-256 hashed in SQLite; full token returned **once** on create; list UI shows prefix/last4 only. Accepted as Bearer credentials on API and Smart HTTP.
+- **Token scopes are enforced**: `repo:read` for reads, `repo:write` for mutations, `admin` for global settings and token management. A read-only token cannot merge a pull request or push to a repository.
 - **Auth acceptance order**:
   1. Valid `SOURCEHUB_TOKEN`, OR
   2. Valid PAT, OR
-  3. Unauthenticated only when bind is loopback **and** `SOURCEHUB_TOKEN` is unset.
+  3. Unauthenticated only when the request is genuinely local.
+- **What "local" means**: the bind address *and* the peer address are loopback, and the request carries no `X-Forwarded-For` header. A reverse proxy in front of SourceHub therefore does **not** expose it without a token.
 - **Browser SPA**: Settings → Access Tokens stores the operator token or PAT in `localStorage` and sends it on every same-origin fetch.
-- **Outbound Webhooks**: Dispatch event notifications; HMAC SHA-256 signatures (`X-SourceHub-Signature-256`) are attached when a webhook secret is configured. Built-in ping test tools included.
-- **CI sandboxing (pragmatic)**: Workflow `run:` steps execute via `execFile('/bin/bash', ['-c', …])` with sanitized env (no full `process.env` dump), repo cwd, timeout/maxBuffer, and a light dangerous-pattern guard. Workflow YAML is **trusted operator content** — not a multi-tenant sandbox.
+- **Outbound Webhooks**: Dispatch event notifications; HMAC SHA-256 signatures (`X-SourceHub-Signature-256`) are attached when a webhook secret is configured. Every delivery is recorded with its status and duration, and a built-in ping test is included.
+- **CI sandboxing (pragmatic)**: Workflow `run:` steps execute via `execFile('/bin/bash', ['-c', …])` with sanitized env (no full `process.env` dump), an isolated worktree cwd, timeout/maxBuffer, and a light dangerous-pattern guard. Workflow YAML is **trusted operator content** — not a multi-tenant sandbox.
+- **Input validation**: Branch names, commit ids and file paths are validated before they reach git. A path that resolves outside the repository is refused, so no request can read or write a file outside the working copy.
 
 ---
 
@@ -279,7 +292,14 @@ This checks if the SourceHub daemon is running, starts it if necessary, and open
 | `SOURCEHUB_DATA_DIR` | `~/.sourcehub` | Directory storing SQLite database (`sourcehub.db`), worktrees, and logs. |
 | `NODE_ENV` | `development` | Set to `production` when serving static frontend bundles. |
 
-**Threat model (single-operator forge):** Default bind is `127.0.0.1` for both production and `npm run dev`. Loopback + unset `SOURCEHUB_TOKEN` allows unauthenticated local use. For LAN exposure: set a strong `SOURCEHUB_TOKEN` (e.g. `openssl rand -hex 32`), bind `HOST=0.0.0.0`, and paste the same token (or a PAT) into Settings → Access Tokens so the SPA can authenticate. Anyone who can reach the bind address without a valid shared secret or PAT cannot use the API or Smart HTTP.
+**Threat model (single-operator forge):** Default bind is `127.0.0.1` for both production and `npm run dev`. Loopback + unset `SOURCEHUB_TOKEN` allows unauthenticated local use — a request only counts as local when the bind address *and* the peer address are loopback and no `X-Forwarded-For` header is present, so a reverse proxy in front of SourceHub does not silently expose it. For LAN exposure: set a strong `SOURCEHUB_TOKEN` (e.g. `openssl rand -hex 32`), bind `HOST=0.0.0.0`, and paste the same token (or a PAT) into Settings → Access Tokens so the SPA can authenticate. Anyone who can reach the bind address without a valid shared secret or PAT cannot use the API or Smart HTTP.
+
+**Operator settings** (stored in SQLite, changeable at runtime):
+
+| Setting | Default | Description |
+| :--- | :--- | :--- |
+| `protected_branches` | `main,master` | Branches that cannot be deleted or pushed to directly. |
+| `merge_require_checks` | `true` | Require passing CI checks before a pull request may merge. |
 
 AI provider settings (Ollama URL, default model) and user profile preferences can be configured directly in the **Settings** tab and **Profile Modal** within the web interface.
 
@@ -295,15 +315,23 @@ SourceHub/
 │   └── sourcehub.svg           # High-contrast logo & icon assets
 ├── scripts/
 │   ├── install-service.sh      # Systemd user service installer
-│   └── uninstall-service.sh    # Systemd user service uninstaller
+│   ├── uninstall-service.sh    # Systemd user service uninstaller
+│   └── smoke-test.sh           # End-to-end test against the running daemon
 ├── server/
-│   ├── auth.ts                 # Shared secret + PAT auth & workflow env helpers
+│   ├── auth.ts                 # Shared secret + PAT auth, scopes & workflow env helpers
 │   ├── agentService.ts         # Autonomous AI coding agent & worktree manager
+│   ├── auditLog.ts             # Operator audit trail
 │   ├── db.ts                   # Built-in SQLite database initialization (node:sqlite)
+│   ├── gitRefs.ts              # Ref-name / commit-id validation and argument-injection guards
 │   ├── gitService.ts           # Git CLI operations, Smart HTTP, and diff engines
 │   ├── index.ts                # Production standalone daemon (node:http)
+│   ├── operatorProfile.ts      # Commit identity for commits created by SourceHub
+│   ├── pathSafety.ts           # Path containment helpers
+│   ├── prService.ts            # Shared pull request creation & snapshotting
+│   ├── repoSettings.ts         # Protected branches & merge gating settings
 │   ├── vitePluginGitApi.ts     # API route handlers & development middleware
 │   ├── webhookService.ts       # Outbound HMAC-signed webhook dispatcher
+│   ├── worktreeManager.ts      # Isolated worktree lifecycle
 │   └── workflowService.ts      # Local Actions CI runner engine
 ├── src/
 │   ├── components/
@@ -335,9 +363,11 @@ SourceHub is built with simplicity and autonomy in mind:
 - **Code Style**: Follow TypeScript standards and ensure code passes type-checking:
   ```bash
   npm run typecheck   # client (tsconfig.json) + server/tests (tsconfig.server.json)
-  npm test
+  npm test            # unit tests (node:test)
+  npm run smoke       # end-to-end test against a throwaway daemon
   npm run build       # runs typecheck, then vite build
   ```
+- **Guard rails**: Every user-supplied ref, commit id and file path has to pass through `server/gitRefs.ts` and `server/pathSafety.ts` before it reaches git or the filesystem. The same rule applies to new endpoints.
 
 ---
 

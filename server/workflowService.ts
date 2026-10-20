@@ -6,12 +6,14 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import yaml from 'yaml';
 import {
   buildSanitizedWorkflowEnv,
   isDangerousRunScript,
   resolveSafeExecutionDir,
 } from './auth';
+import { worktreeManager } from './worktreeManager';
 
 const execFileAsync = promisify(execFile);
 
@@ -20,13 +22,15 @@ async function runWorkflowCommand(
   command: string,
   cwd: string,
   env: NodeJS.ProcessEnv,
-  timeoutMs = 120000
+  timeoutMs = 120000,
+  signal?: AbortSignal
 ): Promise<{ stdout: string; stderr: string }> {
   return execFileAsync('/bin/bash', ['-c', command], {
     cwd,
     env,
     timeout: timeoutMs,
     maxBuffer: 5 * 1024 * 1024,
+    signal,
   }) as Promise<{ stdout: string; stderr: string }>;
 }
 
@@ -66,11 +70,73 @@ function redactSecrets(text: string, secrets: Record<string, string>): string {
   return redacted;
 }
 
+/**
+ * Replace `${{ secrets.NAME }}` placeholders inside an `env:` value.
+ * Only environment values are substituted — a secret is never spliced into a
+ * shell command string, where quoting or shell metacharacters would break the
+ * command (or worse, execute).
+ */
+export function substituteSecretRefs(value: string, secrets: Record<string, string>): string {
+  let result = value;
+  for (const [name, secretValue] of Object.entries(secrets)) {
+    result = result.replaceAll(`\${{ secrets.${name} }}`, secretValue);
+    result = result.replaceAll(`\${secrets.${name}}`, secretValue);
+  }
+  return result;
+}
+
+/** True when a command still contains an unresolved secret reference. */
+export function containsSecretRef(command: string): boolean {
+  return /\$\{\{\s*secrets\.[A-Za-z0-9_]+\s*\}\}/.test(command);
+}
+
 export class WorkflowService {
   private gitService: GitService;
+  /** Abort controllers of runs that are currently executing. */
+  private running = new Map<string, AbortController>();
 
   constructor() {
     this.gitService = new GitService();
+  }
+
+  /**
+   * Mark runs that were interrupted (server restart / crash) as failed.
+   * Without this a run would stay "in_progress" forever.
+   */
+  recoverStaleRuns(): number {
+    try {
+      const rows = db
+        .prepare("SELECT id FROM workflow_runs WHERE status = 'in_progress'")
+        .all() as { id: string }[];
+      for (const row of rows) {
+        db.prepare(`
+          UPDATE workflow_runs
+          SET status = 'failed', finished_ms = ?, error = ?, duration = ?
+          WHERE id = ?
+        `).run(
+          Date.now(),
+          'Run was interrupted (the SourceHub server restarted while it was executing).',
+          'interrupted',
+          row.id
+        );
+      }
+      return rows.length;
+    } catch {
+      return 0;
+    }
+  }
+
+  /** Request cancellation of a running workflow. */
+  cancelRun(runId: string): boolean {
+    const controller = this.running.get(runId);
+    if (!controller) return false;
+    controller.abort();
+    try {
+      db.prepare(`
+        UPDATE workflow_runs SET canceled = 1, status = 'canceled', finished_ms = ? WHERE id = ?
+      `).run(Date.now(), runId);
+    } catch {}
+    return true;
   }
 
   // 1. List real workflow runs for a repository
@@ -106,9 +172,46 @@ export class WorkflowService {
         author: r.author,
         duration: r.duration,
         createdAt: r.created_at,
+        createdMs: r.created_ms ?? undefined,
+        finishedMs: r.finished_ms ?? undefined,
+        error: r.error ?? undefined,
         steps,
       };
     });
+  }
+
+  /** Single run with its steps — used by the run detail view. */
+  getRun(repoName: string, runId: string): WorkflowRun | null {
+    const row = db
+      .prepare('SELECT * FROM workflow_runs WHERE id = ? AND repo_name = ?')
+      .get(runId, repoName) as any;
+    if (!row) return null;
+
+    const stepRows = db.prepare(`
+      SELECT * FROM workflow_steps WHERE run_id = ? ORDER BY step_order ASC
+    `).all(runId) as any[];
+
+    return {
+      id: row.id,
+      workflowName: row.workflow_name,
+      event: row.event as any,
+      status: row.status as any,
+      branch: row.branch,
+      commitSha: row.commit_sha,
+      commitMessage: row.commit_message,
+      author: row.author,
+      duration: row.duration,
+      createdAt: row.created_at,
+      createdMs: row.created_ms ?? undefined,
+      finishedMs: row.finished_ms ?? undefined,
+      error: row.error ?? undefined,
+      steps: stepRows.map(s => ({
+        name: s.name,
+        status: s.status as any,
+        duration: s.duration,
+        logs: JSON.parse(s.logs || '[]'),
+      })),
+    };
   }
 
   // 2. Dispatch and execute real workflow run
@@ -120,8 +223,10 @@ export class WorkflowService {
   ): Promise<WorkflowRun> {
     const repo = await this.gitService.getRepository(repoName);
     const repoPath = repo?.path || this.gitService.getRepoPath(repoName);
-    const runId = `run-${Date.now()}`;
+    const runId = `run-${crypto.randomUUID()}`;
     const startTime = Date.now();
+    const controller = new AbortController();
+    this.running.set(runId, controller);
 
     // Get last commit info on repo
     let commitSha = 'HEAD';
@@ -136,36 +241,102 @@ export class WorkflowService {
       }
     } catch {}
 
-    let workflowName = workflowId === 'ci.yml' 
-      ? 'SourceHub CI Pipeline (.sourcehub/workflows/ci.yml)' 
-      : `${workflowId} Pipeline`;
+    let workflowName =
+      workflowId === 'ci.yml'
+        ? 'SourceHub CI Pipeline (.sourcehub/workflows/ci.yml)'
+        : `${workflowId} Pipeline`;
 
-    // Check if we need an isolated runner worktree for the branch
+    // Every run executes inside an isolated worktree so the operator's working
+    // copy is never modified by CI (not even by a build step).
     let executionDir = repoPath;
-    let isWorktree = false;
-    const worktreePath = path.join('/tmp', `sh-ci-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`);
+    let worktreePath: string | null = null;
+
+    const persistStep = (index: number, step: WorkflowStep) => {
+      try {
+        db.prepare(`
+          INSERT INTO workflow_steps (id, run_id, name, status, duration, logs, step_order, created_ms)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            status = excluded.status,
+            duration = excluded.duration,
+            logs = excluded.logs
+        `).run(
+          `step-${runId}-${index + 1}`,
+          runId,
+          step.name,
+          step.status,
+          step.duration,
+          JSON.stringify(step.logs),
+          index + 1,
+          Date.now()
+        );
+      } catch (e) {
+        console.warn('[WorkflowRunner] could not persist step:', (e as Error).message);
+      }
+    };
+
+    const updateRun = (fields: Record<string, any>) => {
+      const keys = Object.keys(fields);
+      if (keys.length === 0) return;
+      const setClause = keys.map(k => `${k} = ?`).join(', ');
+      const values = keys.map(k => fields[k]);
+      try {
+        db.prepare(`UPDATE workflow_runs SET ${setClause} WHERE id = ?`).run(...values, runId);
+      } catch (e) {
+        console.warn('[WorkflowRunner] could not update run:', (e as Error).message);
+      }
+    };
 
     try {
-      const currentBranch = await this.gitService.getCurrentBranch(repoName);
-      if (branch && branch !== currentBranch) {
-        try {
-          // Safe parameterized worktree addition (prevents shell injection)
-          await execFileAsync('git', ['worktree', 'add', '--detach', worktreePath, branch], { cwd: repoPath });
-          isWorktree = true;
-          executionDir = worktreePath;
+      // Insert run in DB
+      db.prepare(`
+        INSERT INTO workflow_runs (
+          id, repo_name, workflow_name, workflow_path, event, status,
+          branch, commit_sha, commit_message, author, duration, created_at,
+          created_ms, started_ms
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        runId,
+        repoName,
+        workflowName,
+        `.sourcehub/workflows/${workflowId}`,
+        event,
+        'in_progress',
+        branch,
+        commitSha,
+        commitMsg,
+        author,
+        '...',
+        'Just now',
+        Date.now(),
+        Date.now()
+      );
 
-          // Symlink node_modules if present in root repo
-          const nmSrc = path.join(repoPath, 'node_modules');
-          const nmDst = path.join(worktreePath, 'node_modules');
-          if (fs.existsSync(nmSrc) && !fs.existsSync(nmDst)) {
-            try {
-              fs.symlinkSync(nmSrc, nmDst, 'junction');
-            } catch {}
-          }
-        } catch (wtErr: any) {
-          console.warn(`[WorkflowRunner] Could not create isolated worktree, falling back to repoPath:`, wtErr.message);
-          executionDir = repoPath;
+      // Isolate the run in its own worktree
+      try {
+        const handle = await worktreeManager.create(repoPath, {
+          purpose: 'ci',
+          ref: branch,
+          detach: true,
+          repoKey: repoName,
+        });
+        worktreePath = handle.path;
+        executionDir = handle.path;
+
+        // Symlink node_modules if present in root repo
+        const nmSrc = path.join(repoPath, 'node_modules');
+        const nmDst = path.join(handle.path, 'node_modules');
+        if (fs.existsSync(nmSrc) && !fs.existsSync(nmDst)) {
+          try {
+            fs.symlinkSync(nmSrc, nmDst, 'junction');
+          } catch {}
         }
+      } catch (wtErr: any) {
+        console.warn(
+          `[WorkflowRunner] Could not create isolated worktree, falling back to repoPath:`,
+          wtErr.message
+        );
+        executionDir = repoPath;
       }
 
       // Check for declared workflow YAML
@@ -211,30 +382,15 @@ export class WorkflowService {
         }
       }
 
-      // Insert run in DB
-      db.prepare(`
-        INSERT INTO workflow_runs (
-          id, repo_name, workflow_name, workflow_path, event, status,
-          branch, commit_sha, commit_message, author, duration, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        runId,
-        repoName,
-        workflowName,
-        workflowFilePath,
-        event,
-        'in_progress',
-        branch,
-        commitSha,
-        commitMsg,
-        author,
-        '...',
-        'Just now'
-      );
-
       const decryptedSecrets = getDecryptedSecrets(repoName);
       const steps: WorkflowStep[] = [];
       let allPassed = true;
+      let canceled = false;
+
+      const finishStep = (index: number, step: WorkflowStep) => {
+        steps.push(step);
+        persistStep(index, step);
+      };
 
       if (declaredSteps.length > 0) {
         // Execute declared YAML steps
@@ -243,8 +399,19 @@ export class WorkflowService {
           const stepName = stepDef.name || (stepDef.run ? stepDef.run.split('\n')[0] : `Step ${i + 1}`);
           const stepStart = Date.now();
 
+          if (controller.signal.aborted) {
+            canceled = true;
+            finishStep(i, {
+              name: stepName,
+              status: 'failed',
+              duration: '0.0s',
+              logs: ['Canceled by operator.'],
+            });
+            break;
+          }
+
           if (!allPassed) {
-            steps.push({
+            finishStep(i, {
               name: stepName,
               status: 'failed',
               duration: '0.0s',
@@ -254,27 +421,40 @@ export class WorkflowService {
           }
 
           if (stepDef.uses) {
-            steps.push({
+            // SourceHub does not implement third-party actions. The step is
+            // reported as skipped rather than as a fake success.
+            finishStep(i, {
               name: stepName,
-              status: 'success',
+              status: 'skipped',
               duration: `${((Date.now() - stepStart) / 1000).toFixed(1)}s`,
-              logs: [`Executed action hook: ${stepDef.uses}`, `Checked out branch: ${branch}`],
+              logs: [
+                `Skipped: actions are not executed by the SourceHub runner ("${stepDef.uses}").`,
+                'Move the action body into a `run:` step to have it executed locally.',
+              ],
             });
             continue;
           }
 
           if (stepDef.run) {
-            // Prepare command and inject secrets into the command string for ${{ secrets.X }} placeholders.
-            // Secrets are ALSO available as env vars; avoid dumping full process.env.
-            let command = stepDef.run;
-            for (const [sKey, sVal] of Object.entries(decryptedSecrets)) {
-              command = command.replaceAll(`\${{ secrets.${sKey} }}`, sVal);
-              command = command.replaceAll(`\${secrets.${sKey}}`, sVal);
+            const command = stepDef.run;
+
+            if (containsSecretRef(command)) {
+              allPassed = false;
+              finishStep(i, {
+                name: stepName,
+                status: 'failed',
+                duration: `${((Date.now() - stepStart) / 1000).toFixed(1)}s`,
+                logs: [
+                  'Refused to run step: secrets must not be interpolated into a shell command.',
+                  'Reference the secret as an environment variable instead (for example $API_TOKEN).',
+                ],
+              });
+              continue;
             }
 
             if (isDangerousRunScript(command)) {
               allPassed = false;
-              steps.push({
+              finishStep(i, {
                 name: stepName,
                 status: 'failed',
                 duration: `${((Date.now() - stepStart) / 1000).toFixed(1)}s`,
@@ -288,7 +468,7 @@ export class WorkflowService {
               safeCwd = resolveSafeExecutionDir(repoPath, executionDir);
             } catch (pathErr: any) {
               allPassed = false;
-              steps.push({
+              finishStep(i, {
                 name: stepName,
                 status: 'failed',
                 duration: `${((Date.now() - stepStart) / 1000).toFixed(1)}s`,
@@ -297,33 +477,58 @@ export class WorkflowService {
               continue;
             }
 
-            const stepEnv = buildSanitizedWorkflowEnv(decryptedSecrets, stepDef.env, {
+            // Secrets are passed as environment variables only.
+            const stepEnvValues: Record<string, string> = {};
+            for (const [k, v] of Object.entries(stepDef.env || {})) {
+              stepEnvValues[k] = substituteSecretRefs(String(v), decryptedSecrets);
+            }
+
+            const stepEnv = buildSanitizedWorkflowEnv(decryptedSecrets, stepEnvValues, {
               SOURCEHUB_BRANCH: branch,
               SOURCEHUB_COMMIT: commitSha,
               SOURCEHUB_REPO: repoName,
+              SOURCEHUB_RUN_ID: runId,
             });
 
             // Workflows are trusted operator content (same trust boundary as local shell).
             console.log(`[WorkflowRunner] Running trusted step in ${safeCwd}: ${stepName}`);
 
             try {
-              const { stdout, stderr } = await runWorkflowCommand(command, safeCwd, stepEnv, 120000);
+              const { stdout, stderr } = await runWorkflowCommand(
+                command,
+                safeCwd,
+                stepEnv,
+                120000,
+                controller.signal
+              );
 
               const rawLogs = (stdout + '\n' + stderr).split('\n').filter(Boolean);
               const sanitizedLogs = rawLogs.map(line => redactSecrets(line, decryptedSecrets));
 
-              steps.push({
+              finishStep(i, {
                 name: stepName,
                 status: 'success',
                 duration: `${((Date.now() - stepStart) / 1000).toFixed(1)}s`,
                 logs: sanitizedLogs.length > 0 ? sanitizedLogs : ['Step completed with exit code 0.'],
               });
             } catch (err: any) {
+              if (controller.signal.aborted) {
+                canceled = true;
+                finishStep(i, {
+                  name: stepName,
+                  status: 'failed',
+                  duration: `${((Date.now() - stepStart) / 1000).toFixed(1)}s`,
+                  logs: ['Canceled by operator.'],
+                });
+                break;
+              }
               allPassed = false;
-              const errLogs = ((err.stdout || '') + '\n' + (err.stderr || err.message)).split('\n').filter(Boolean);
+              const errLogs = ((err.stdout || '') + '\n' + (err.stderr || err.message))
+                .split('\n')
+                .filter(Boolean);
               const sanitizedLogs = errLogs.map(line => redactSecrets(line, decryptedSecrets));
 
-              steps.push({
+              finishStep(i, {
                 name: stepName,
                 status: 'failed',
                 duration: `${((Date.now() - stepStart) / 1000).toFixed(1)}s`,
@@ -337,14 +542,20 @@ export class WorkflowService {
         // Step 1: Environment & Repository Verification
         const step1Start = Date.now();
         try {
-          const { stdout } = await runWorkflowCommand('git status -s && git branch --show-current', executionDir, buildSanitizedWorkflowEnv({}, undefined, {}), 30000);
-          steps.push({
+          const { stdout } = await runWorkflowCommand(
+            'git status -s && git branch --show-current',
+            executionDir,
+            buildSanitizedWorkflowEnv({}, undefined, {}),
+            30000,
+            controller.signal
+          );
+          finishStep(0, {
             name: 'Verify Environment & Git State',
             status: 'success',
             duration: `${((Date.now() - step1Start) / 1000).toFixed(1)}s`,
             logs: [
               `Local runner initialized.`,
-              `Branch under test: ${branch} (${isWorktree ? 'isolated runner worktree' : 'main workspace'})`,
+              `Branch under test: ${branch} (isolated runner worktree)`,
               `Working directory: ${executionDir}`,
               `Node.js: ${process.version} | Platform: ${process.platform} (${process.arch})`,
               stdout.trim() ? `Working directory changes:\n${stdout.trim()}` : 'Working tree clean.',
@@ -352,7 +563,7 @@ export class WorkflowService {
           });
         } catch (err: any) {
           allPassed = false;
-          steps.push({
+          finishStep(0, {
             name: 'Verify Environment & Git State',
             status: 'failed',
             duration: `${((Date.now() - step1Start) / 1000).toFixed(1)}s`,
@@ -364,9 +575,15 @@ export class WorkflowService {
         if (fs.existsSync(path.join(executionDir, 'package.json'))) {
           const step2Start = Date.now();
           try {
-            const { stdout, stderr } = await runWorkflowCommand('npm run build', executionDir, buildSanitizedWorkflowEnv({}, undefined, {}), 60000);
+            const { stdout, stderr } = await runWorkflowCommand(
+              'npm run build',
+              executionDir,
+              buildSanitizedWorkflowEnv({}, undefined, {}),
+              60000,
+              controller.signal
+            );
             const rawLines = (stdout + '\n' + stderr).split('\n').filter(Boolean);
-            steps.push({
+            finishStep(1, {
               name: 'Type Check & Application Build',
               status: 'success',
               duration: `${((Date.now() - step2Start) / 1000).toFixed(1)}s`,
@@ -374,8 +591,10 @@ export class WorkflowService {
             });
           } catch (err: any) {
             allPassed = false;
-            const rawLines = ((err.stdout || '') + '\n' + (err.stderr || err.message)).split('\n').filter(Boolean);
-            steps.push({
+            const rawLines = ((err.stdout || '') + '\n' + (err.stderr || err.message))
+              .split('\n')
+              .filter(Boolean);
+            finishStep(1, {
               name: 'Type Check & Application Build',
               status: 'failed',
               duration: `${((Date.now() - step2Start) / 1000).toFixed(1)}s`,
@@ -387,8 +606,14 @@ export class WorkflowService {
         // Step 3: Wire Protocol & Integrity Checks
         const step3Start = Date.now();
         try {
-          const { stdout } = await runWorkflowCommand('git rev-parse --is-inside-work-tree', executionDir, buildSanitizedWorkflowEnv({}, undefined, {}), 15000);
-          steps.push({
+          const { stdout } = await runWorkflowCommand(
+            'git rev-parse --is-inside-work-tree',
+            executionDir,
+            buildSanitizedWorkflowEnv({}, undefined, {}),
+            15000,
+            controller.signal
+          );
+          finishStep(steps.length, {
             name: 'Verify Git Wire Protocol & Object Graph',
             status: 'success',
             duration: `${((Date.now() - step3Start) / 1000).toFixed(1)}s`,
@@ -399,7 +624,7 @@ export class WorkflowService {
             ],
           });
         } catch (err: any) {
-          steps.push({
+          finishStep(steps.length, {
             name: 'Verify Git Wire Protocol & Object Graph',
             status: 'failed',
             duration: `${((Date.now() - step3Start) / 1000).toFixed(1)}s`,
@@ -409,51 +634,45 @@ export class WorkflowService {
       }
 
       const totalDuration = `${((Date.now() - startTime) / 1000).toFixed(1)}s`;
-      const finalStatus = allPassed ? 'success' : 'failed';
+      const finalStatus = canceled ? 'canceled' : allPassed ? 'success' : 'failed';
 
-      // Update workflow_runs
-      db.prepare(`
-        UPDATE workflow_runs
-        SET status = ?, duration = ?
-        WHERE id = ?
-      `).run(finalStatus, totalDuration, runId);
-
-      // Insert steps into workflow_steps
-      steps.forEach((step, index) => {
-        const stepId = `step-${runId}-${index + 1}`;
-        db.prepare(`
-          INSERT INTO workflow_steps (id, run_id, name, status, duration, logs, step_order)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `).run(
-          stepId,
-          runId,
-          step.name,
-          step.status,
-          step.duration,
-          JSON.stringify(step.logs),
-          index + 1
-        );
+      updateRun({
+        status: finalStatus,
+        duration: totalDuration,
+        finished_ms: Date.now(),
+        canceled: canceled ? 1 : 0,
+        error: canceled ? 'Run canceled by operator.' : null,
       });
 
       return {
         id: runId,
         workflowName,
         event,
-        status: finalStatus,
+        status: finalStatus as any,
         branch,
         commitSha,
         commitMessage: commitMsg,
         author,
         duration: totalDuration,
         createdAt: 'Just now',
+        createdMs: Date.now(),
+        finishedMs: Date.now(),
         steps,
       };
+    } catch (err: any) {
+      const totalDuration = `${((Date.now() - startTime) / 1000).toFixed(1)}s`;
+      updateRun({
+        status: 'failed',
+        duration: totalDuration,
+        finished_ms: Date.now(),
+        error: err.message || 'Workflow run failed',
+      });
+      throw err;
     } finally {
-      // Clean up isolated worktree if created (safe parameterized git calls)
-      if (isWorktree) {
+      this.running.delete(runId);
+      if (worktreePath) {
         try {
-          await execFileAsync('git', ['worktree', 'remove', '--force', worktreePath], { cwd: repoPath });
-          await execFileAsync('git', ['worktree', 'prune'], { cwd: repoPath });
+          await worktreeManager.remove(repoPath, worktreePath);
         } catch {}
       }
     }

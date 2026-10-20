@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 import { db } from './db';
 
 export interface WebhookPayload {
@@ -118,7 +118,7 @@ export class WebhookService {
       clearTimeout(timeout);
       const durationMs = Date.now() - start;
 
-      return {
+      const result: WebhookDeliveryResult = {
         webhookId: hook.id,
         url: hook.url,
         success: response.ok,
@@ -126,16 +126,59 @@ export class WebhookService {
         statusText: response.statusText,
         durationMs,
       };
+      this.recordDelivery(hook, event, result);
+      return result;
     } catch (err: any) {
       clearTimeout(timeout);
       const durationMs = Date.now() - start;
-      return {
+      const result: WebhookDeliveryResult = {
         webhookId: hook.id,
         url: hook.url,
         success: false,
         error: err.message || 'Connection failed',
         durationMs,
       };
+      this.recordDelivery(hook, event, result);
+      return result;
+    }
+  }
+
+  /** Persist a delivery so operators can audit what was sent and when. */
+  private recordDelivery(hook: any, event: string, result: WebhookDeliveryResult): void {
+    try {
+      db.prepare(`
+        INSERT INTO webhook_deliveries (
+          id, webhook_id, repo_name, event, url, status, status_text, error,
+          duration_ms, success, created_ms
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        `dlv-${crypto.randomUUID()}`,
+        result.webhookId,
+        hook.repo_name || null,
+        event,
+        result.url,
+        result.status ?? null,
+        result.statusText ?? null,
+        result.error ?? null,
+        result.durationMs,
+        result.success ? 1 : 0,
+        Date.now()
+      );
+    } catch (e) {
+      console.warn('[WebhookService] could not record delivery:', (e as Error).message);
+    }
+  }
+
+  /** Recent deliveries for a webhook, newest first. */
+  listDeliveries(webhookId: string, limit = 25): any[] {
+    try {
+      return db
+        .prepare(
+          'SELECT * FROM webhook_deliveries WHERE webhook_id = ? ORDER BY created_ms DESC LIMIT ?'
+        )
+        .all(webhookId, limit);
+    } catch {
+      return [];
     }
   }
 }

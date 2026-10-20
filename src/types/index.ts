@@ -123,12 +123,24 @@ export interface PullRequest {
   targetBranch: string;
   createdAt: string;
   updatedAt: string;
+  /** Epoch milliseconds of creation — the authoritative timestamp */
+  createdMs?: number;
+  updatedMs?: number;
   checksStatus: 'passed' | 'running' | 'failed' | 'pending';
   checksSummary: string;
   workflowRunId?: string;
   isAIBusy?: boolean;
   comments: PRReviewComment[];
   diffs: DiffFile[];
+  commits?: Commit[];
+  /** Line counters captured when the PR was created */
+  additions?: number;
+  deletions?: number;
+  mergedSha?: string;
+  mergeStrategy?: string;
+  /** Whether the server blocks merges until the CI checks pass. */
+  mergeRequiresChecks?: boolean;
+  commentCount?: number;
 }
 
 export interface PRMergeability {
@@ -136,7 +148,25 @@ export interface PRMergeability {
   conflictedFiles: string[];
 }
 
-export type WorkflowStatus = 'success' | 'running' | 'failed' | 'queued' | 'cancelled';
+export interface AuditEntry {
+  id: string;
+  repoName: string | null;
+  actor: string;
+  action: string;
+  target: string | null;
+  detail: string | null;
+  createdMs: number;
+}
+
+export type WorkflowStatus =
+  | 'success'
+  | 'running'
+  | 'in_progress'
+  | 'failed'
+  | 'queued'
+  | 'canceled'
+  | 'cancelled'
+  | 'skipped';
 
 export interface BlameLine {
   lineNumber: number;
@@ -151,7 +181,7 @@ export interface BlameLine {
 
 export interface JobStep {
   name: string;
-  status: 'success' | 'running' | 'failed' | 'queued';
+  status: 'success' | 'running' | 'failed' | 'queued' | 'skipped';
   duration: string;
   logs: string[];
 }
@@ -169,6 +199,9 @@ export interface WorkflowRun {
   author: string;
   duration: string;
   createdAt: string;
+  createdMs?: number;
+  finishedMs?: number;
+  error?: string;
   steps: JobStep[];
 }
 
@@ -192,7 +225,12 @@ export type AgentTimelineEventType =
   | 'agent.pr_updated'
   | 'agent.checks_requested'
   | 'agent.checks_completed'
+  | 'agent.checks_failed'
   | 'agent.comment_added'
+  | 'agent.commit_failed'
+  | 'agent.commit_warning'
+  | 'agent.context_loaded'
+  | 'agent.files_parsed'
   | 'agent.ready_for_review'
   | 'agent.failed';
 

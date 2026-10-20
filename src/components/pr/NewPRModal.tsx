@@ -20,8 +20,6 @@ export const NewPRModal: React.FC<NewPRModalProps> = ({
   defaultBase,
   onPRCreated,
 }) => {
-  if (!isOpen) return null;
-
   const [baseBranch, setBaseBranch] = useState(defaultBase || branches[0] || 'main');
   const [headBranch, setHeadBranch] = useState(branches.find(b => b !== baseBranch) || branches[0] || 'main');
   const [title, setTitle] = useState('');
@@ -32,6 +30,10 @@ export const NewPRModal: React.FC<NewPRModalProps> = ({
   const [commits, setCommits] = useState<Commit[]>([]);
   const [diffs, setDiffs] = useState<DiffFile[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  // The early return has to happen after the hooks — returning before them
+  // changes the number of hooks between renders and breaks React's rules.
+  if (!isOpen) return null;
 
   // Compare branches whenever base or head changes
   useEffect(() => {
@@ -189,7 +191,7 @@ export const NewPRModal: React.FC<NewPRModalProps> = ({
                 <>
                   <div className="flex items-center space-x-1.5 text-hub-success-text font-bold">
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Able to merge automatically</span>
+                    <span>Comparing {headBranch} into {baseBranch}</span>
                   </div>
                   <div className="flex items-center space-x-3 font-mono text-hub-muted">
                     <span>{commits.length} commit{commits.length === 1 ? '' : 's'}</span>

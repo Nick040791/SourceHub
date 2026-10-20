@@ -19,7 +19,8 @@ import {
   Cloud,
   Zap,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Settings
 } from 'lucide-react';
 import { 
   Secret, 
@@ -30,7 +31,8 @@ import {
   AIProviderId,
   ThinkingEffort,
   AISettingsState,
-  AIProviderConfig
+  AIProviderConfig,
+  AuditEntry
 } from '../../types';
 import { api, getStoredApiToken, setStoredApiToken } from '../../services/api';
 
@@ -156,15 +158,43 @@ const DEFAULT_PROVIDERS: Record<AIProviderId, AIProviderConfig> = {
 interface SettingsViewProps {
   repoName: string;
   webhooks?: Webhook[];
-  initialSection?: 'secrets' | 'keys' | 'tokens' | 'webhooks' | 'providers';
+  initialSection?: 'secrets' | 'keys' | 'tokens' | 'webhooks' | 'providers' | 'repository';
+  /** Called after the repository was renamed or deleted. */
+  onRepositoryChanged?: (action: 'renamed' | 'deleted', repoName?: string) => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
   repoName,
   webhooks: initialWebhooks = [],
   initialSection = 'secrets',
+  onRepositoryChanged,
 }) => {
-  const [activeSection, setActiveSection] = useState<'secrets' | 'keys' | 'tokens' | 'webhooks' | 'providers'>(initialSection);
+  const [activeSection, setActiveSection] = useState<'secrets' | 'keys' | 'tokens' | 'webhooks' | 'providers' | 'repository'>(initialSection);
+
+  // Repository management state
+  const [renameValue, setRenameValue] = useState(repoName);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
+
+  const loadAudit = async () => {
+    try {
+      setAuditEntries(await api.fetchAuditLog(repoName, 50));
+    } catch {
+      setAuditEntries([]);
+    }
+  };
+
+  useEffect(() => {
+    setRenameValue(repoName);
+    loadAudit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repoName]);
+
+  useEffect(() => {
+    if (activeSection === 'repository') loadAudit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSection]);
 
   useEffect(() => {
     if (initialSection) {
@@ -531,6 +561,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         >
           <Cpu className="w-4 h-4 text-hub-purple-text" />
           <span>AI Model Providers</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSection('repository')}
+          className={`w-full flex items-center space-x-2 px-3 py-2 rounded-md transition-colors ${
+            activeSection === 'repository' ? 'bg-hub-subtle text-hub-text font-bold' : 'text-hub-muted hover:text-white'
+          }`}
+        >
+          <Settings className="w-4 h-4 text-hub-muted" />
+          <span>Repository & Audit</span>
         </button>
       </div>
 
@@ -1027,6 +1067,118 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* REPOSITORY MANAGEMENT & AUDIT SECTION */}
+        {activeSection === 'repository' && (
+          <div className="space-y-4">
+            <div className="pb-3 border-b border-hub-border">
+              <h3 className="text-sm font-bold text-hub-text flex items-center space-x-2">
+                <Settings className="w-4 h-4 text-hub-accent" />
+                <span>Repository Management</span>
+              </h3>
+              <p className="text-xs text-hub-muted mt-0.5">
+                Rename or delete <code className="bg-hub-subtle px-1 rounded">{repoName}</code> and review the operator
+                audit trail.
+              </p>
+            </div>
+
+            <div className="space-y-3 border border-hub-border rounded-xl p-4 bg-hub-subtle">
+              <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+                <div className="flex-1">
+                  <label className="block text-hub-muted font-bold text-[11px] uppercase tracking-wider mb-1">
+                    Repository name
+                  </label>
+                  <input
+                    type="text"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    className="w-full bg-hub-bg border border-hub-border rounded px-3 py-2 text-sm text-hub-text focus:outline-none focus:border-hub-accent"
+                  />
+                </div>
+                <button
+                  onClick={async () => {
+                    if (!renameValue.trim() || renameValue.trim() === repoName) return;
+                    setIsRenaming(true);
+                    try {
+                      await api.renameRepository(repoName, renameValue.trim());
+                      onRepositoryChanged?.('renamed', renameValue.trim());
+                    } catch (err: any) {
+                      alert(`Rename failed: ${err.message}`);
+                    } finally {
+                      setIsRenaming(false);
+                    }
+                  }}
+                  disabled={isRenaming || !renameValue.trim() || renameValue.trim() === repoName}
+                  className="px-3 py-2 rounded-md bg-hub-accent hover:brightness-110 text-zinc-950 text-xs font-semibold transition-colors disabled:opacity-50 flex items-center space-x-1.5"
+                >
+                  {isRenaming ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Settings className="w-3.5 h-3.5" />}
+                  <span>Rename</span>
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-hub-border/60">
+                <div>
+                  <p className="text-xs font-semibold text-hub-text">Delete repository</p>
+                  <p className="text-[11px] text-hub-muted">
+                    Removes the working copy and all pull requests, issues and secrets of this repository.
+                  </p>
+                </div>
+                <button
+                  onClick={async () => {
+                    if (!confirm(`Delete '${repoName}' and all of its data? This cannot be undone.`)) return;
+                    setIsDeleting(true);
+                    try {
+                      await api.deleteRepository(repoName);
+                      onRepositoryChanged?.('deleted');
+                    } catch (err: any) {
+                      alert(`Delete failed: ${err.message}`);
+                    } finally {
+                      setIsDeleting(false);
+                    }
+                  }}
+                  disabled={isDeleting}
+                  className="px-3 py-2 rounded-md bg-hub-danger/15 hover:bg-hub-danger/25 border border-hub-danger/40 text-hub-danger-text text-xs font-semibold transition-colors disabled:opacity-50 flex items-center space-x-1.5"
+                >
+                  {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  <span>Delete</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="border border-hub-border rounded-xl overflow-hidden">
+              <div className="bg-hub-subtle px-4 py-2 border-b border-hub-border flex items-center justify-between text-xs font-semibold text-hub-text">
+                <span>Audit Trail</span>
+                <button
+                  onClick={loadAudit}
+                  className="text-hub-muted hover:text-white transition-colors flex items-center space-x-1"
+                >
+                  <Loader2 className="w-3 h-3" />
+                  <span>Refresh</span>
+                </button>
+              </div>
+              {auditEntries.length === 0 ? (
+                <div className="px-4 py-6 text-center text-xs text-hub-muted">
+                  No recorded actions yet.
+                </div>
+              ) : (
+                <div className="divide-y divide-hub-border/50">
+                  {auditEntries.map(entry => (
+                    <div key={entry.id} className="px-4 py-2.5 text-xs flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <span className="font-mono text-hub-accent">{entry.action}</span>
+                        {entry.target && <span className="ml-2 text-hub-text">{entry.target}</span>}
+                        {entry.detail && <span className="ml-2 text-hub-muted">{entry.detail}</span>}
+                      </div>
+                      <span className="text-hub-muted font-mono text-[11px] shrink-0">
+                        {new Date(entry.createdMs).toLocaleString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

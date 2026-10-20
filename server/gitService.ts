@@ -3,6 +3,11 @@ import { promisify } from 'node:util';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { assertValidRefname, assertValidSha, assertSafePositional } from './gitRefs';
+import { resolveWithin, normalizeRepoRelative } from './pathSafety';
+import { worktreeManager } from './worktreeManager';
+import { identityArgs } from './operatorProfile';
+import { isProtectedBranch, getProtectedBranches } from './repoSettings';
 
 const execFileAsync = promisify(execFile);
 
@@ -495,23 +500,49 @@ export class GitService {
     }
   }
 
+  /**
+   * True when a local branch with that name exists.
+   * `getCommits` falls back to HEAD for unknown refs, so it cannot be used
+   * to validate a branch name.
+   */
+  async branchExists(name: string, branch: string): Promise<boolean> {
+    const repoPath = this.getRepoPath(name);
+    try {
+      assertValidRefname(branch, 'branch name');
+      await runGit(repoPath, ['rev-parse', '--verify', `refs/heads/${branch}`]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async listBranches(name: string): Promise<string[]> {
     const repoPath = this.getRepoPath(name);
     const raw = await runGit(repoPath, ['branch', '-a', '--format=%(refname:short)']);
     return raw.split('\n').map(b => b.trim()).filter(Boolean);
   }
 
+  /**
+   * Create a branch without checking it out.
+   * Branch names are validated before they reach git: `git branch -D main`
+   * would otherwise delete a branch.
+   */
   async createBranch(name: string, branchName: string, baseBranch?: string): Promise<void> {
     const repoPath = this.getRepoPath(name);
-    const args = ['branch', branchName];
-    if (baseBranch) args.push(baseBranch);
+    assertValidRefname(branchName, 'branch name');
+    const args = ['branch', '--'];
+    args.push(branchName);
+    if (baseBranch) {
+      assertValidRefname(baseBranch, 'base branch name');
+      args.push(baseBranch);
+    }
     await runGit(repoPath, args);
   }
 
   async getCommits(name: string, branch: string = 'HEAD', limit: number = 20): Promise<GitCommitEntry[]> {
     const repoPath = this.getRepoPath(name);
     try {
-      let targetRef = branch;
+      let targetRef = assertValidRefname(branch, 'branch name');
       try {
         await runGit(repoPath, ['rev-parse', '--verify', targetRef]);
       } catch {
@@ -550,6 +581,8 @@ export class GitService {
   async getCommitsBetween(name: string, base: string, head: string): Promise<GitCommitEntry[]> {
     const repoPath = this.getRepoPath(name);
     try {
+      assertValidRefname(base, 'base branch name');
+      assertValidRefname(head, 'head branch name');
       const format = '%H|%h|%s|%an|%ae|%cr|%(trailers:key=SourceHub-Agent-Run,valueonly=true)';
       const raw = await runGit(repoPath, [
         'log',
@@ -581,6 +614,8 @@ export class GitService {
   async getBranchDiff(name: string, base: string, head: string): Promise<DiffFile[]> {
     const repoPath = this.getRepoPath(name);
     try {
+      assertValidRefname(base, 'base branch name');
+      assertValidRefname(head, 'head branch name');
       const rawDiff = await runGitSafe(repoPath, ['diff', `${base}...${head}`]);
       return parseUnifiedDiffString(rawDiff);
     } catch (e) {
@@ -589,75 +624,224 @@ export class GitService {
     }
   }
 
+  /**
+   * Merge a source branch into a target branch.
+   *
+   * The merge always happens inside an isolated worktree so the operator's
+   * working copy is never touched. The target ref is then moved with a
+   * compare-and-swap update, so a branch that changed while the merge was
+   * being prepared is never silently overwritten.
+   */
   async mergePullRequest(
     name: string,
     targetBranch: string,
     sourceBranch: string,
     strategy: 'squash' | 'merge' | 'rebase' = 'squash',
-    commitMessage?: string
-  ): Promise<{ success: boolean; commitSha?: string; message: string }> {
+    commitMessage?: string,
+    options: { expectedBaseSha?: string } = {}
+  ): Promise<{
+    success: boolean;
+    commitSha?: string;
+    strategy: string;
+    warnings: string[];
+    message: string;
+  }> {
     const repoPath = this.getRepoPath(name);
-    const worktreePath = path.join('/tmp', `sh-wt-merge-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`);
-    try {
-      // 1. Create isolated detached worktree at targetBranch
-      await runGit(repoPath, ['worktree', 'add', '--detach', worktreePath, targetBranch]);
+    assertValidRefname(targetBranch, 'target branch name');
+    assertValidRefname(sourceBranch, 'source branch name');
 
-      // 2. Perform merge in isolated worktree based on strategy
+    if (targetBranch === sourceBranch) {
+      throw new Error('Source and target branches are identical.');
+    }
+
+    const warnings: string[] = [];
+
+    // 1. Record the target tip so the ref update can be made atomic.
+    let baseSha: string;
+    try {
+      baseSha = (await runGit(repoPath, ['rev-parse', targetBranch])).trim();
+    } catch {
+      throw new Error(`Target branch '${targetBranch}' does not exist.`);
+    }
+    if (options.expectedBaseSha && options.expectedBaseSha !== baseSha) {
+      throw new Error(
+        `Target branch '${targetBranch}' changed since the merge was prepared. Review the latest changes and try again.`
+      );
+    }
+
+    try {
+      await runGit(repoPath, ['rev-parse', '--verify', sourceBranch]);
+    } catch {
+      throw new Error(`Source branch '${sourceBranch}' does not exist.`);
+    }
+
+    const identity = identityArgs();
+
+    // Inspect the main worktree *before* the ref moves: after the update the
+    // working tree would look dirty simply because of the merge itself.
+    let advanceMainWorktree = false;
+    let mainWorktreeHasChanges = false;
+    try {
+      const currentBranch = await this.getCurrentBranch(name);
+      if (currentBranch === targetBranch) {
+        mainWorktreeHasChanges =
+          (await runGit(repoPath, ['status', '--porcelain'])).trim().length > 0;
+        advanceMainWorktree = !mainWorktreeHasChanges;
+      }
+    } catch {}
+
+    // 2. Work in an isolated worktree.
+    //    - squash / merge: detached at the target branch
+    //    - rebase: detached at the source branch (rebasing rewrites the
+    //      source commits, so the source branch itself stays untouched)
+    const handle = await worktreeManager.create(repoPath, {
+      purpose: 'merge',
+      ref: strategy === 'rebase' ? sourceBranch : targetBranch,
+      detach: true,
+      repoKey: name,
+    });
+
+    try {
+      let sha = '';
+
       if (strategy === 'squash') {
-        await runGit(worktreePath, ['merge', '--squash', sourceBranch]);
+        await runGit(handle.path, ['merge', '--squash', sourceBranch]);
+        const staged = await runGit(handle.path, ['status', '--porcelain']);
+        if (!staged.trim()) {
+          throw new Error(
+            'Nothing to merge — the source branch has no changes relative to the target branch.'
+          );
+        }
         const msg = commitMessage || `Merge PR: ${sourceBranch} into ${targetBranch}`;
-        await runGit(worktreePath, ['commit', '-m', msg, '--author=Forge Operator <operator@sourcehub.local>']);
+        await runGit(handle.path, [...identity, 'commit', '-m', msg]);
+        sha = (await runGit(handle.path, ['rev-parse', 'HEAD'])).trim();
       } else if (strategy === 'rebase') {
-        await runGit(worktreePath, ['checkout', sourceBranch]);
-        await runGit(worktreePath, ['rebase', targetBranch]);
+        await runGit(handle.path, ['rebase', targetBranch]);
+        sha = (await runGit(handle.path, ['rev-parse', 'HEAD'])).trim();
+        if (!(await this.isAncestor(repoPath, targetBranch, sha))) {
+          throw new Error(
+            'Rebase produced a history that does not fast-forward the target branch. Merge aborted.'
+          );
+        }
       } else {
         const msg = commitMessage || `Merge branch '${sourceBranch}' into ${targetBranch}`;
-        await runGit(worktreePath, ['merge', '--no-ff', sourceBranch, '-m', msg]);
+        await runGit(handle.path, [
+          ...identity,
+          'merge',
+          '--no-ff',
+          sourceBranch,
+          '-m',
+          msg,
+        ]);
+        sha = (await runGit(handle.path, ['rev-parse', 'HEAD'])).trim();
       }
 
-      // 3. Get new commit SHA
-      const sha = (await runGit(worktreePath, ['rev-parse', 'HEAD'])).trim();
+      // 3. Move the target branch atomically.
+      await this.updateRefChecked(repoPath, `refs/heads/${targetBranch}`, sha, baseSha);
 
-      // 4. Update the branch ref in the repository
-      await runGit(repoPath, ['update-ref', `refs/heads/${targetBranch}`, sha]);
-
-      // 5. If main worktree is on targetBranch and is clean, advance it
-      try {
-        const currentBranch = await this.getCurrentBranch(name);
-        if (currentBranch === targetBranch) {
-          const isDirty = (await runGit(repoPath, ['status', '--porcelain'])).trim().length > 0;
-          if (!isDirty) {
-            await runGit(repoPath, ['reset', '--hard', sha]);
-          }
-        }
-      } catch {}
+      // 4. Advance the main worktree when that is safe.
+      if (advanceMainWorktree) {
+        try {
+          await runGit(repoPath, ['reset', '--hard', sha]);
+        } catch {}
+      } else if (mainWorktreeHasChanges) {
+        warnings.push(
+          `The working copy has uncommitted changes, so it was left untouched. Run "git reset --hard ${sha.slice(0, 7)}" to sync it with the merge.`
+        );
+      }
 
       return {
         success: true,
         commitSha: sha,
+        strategy,
+        warnings,
         message: `Successfully merged ${sourceBranch} into ${targetBranch} using ${strategy}`,
       };
     } catch (err: any) {
-      try {
-        await runGit(worktreePath, ['merge', '--abort']);
-      } catch {}
+      await this.abortMergeInWorktree(handle.path);
       throw new Error(`Merge failed: ${err.message}`);
     } finally {
-      try {
-        await runGit(repoPath, ['worktree', 'remove', '--force', worktreePath]);
-      } catch {}
-      try {
-        await runGit(repoPath, ['worktree', 'prune']);
-      } catch {}
+      await worktreeManager.remove(repoPath, handle.path);
     }
   }
 
+  /** True when `ancestor` is reachable from `descendant`. */
+  private async isAncestor(repoPath: string, ancestor: string, descendant: string): Promise<boolean> {
+    try {
+      await execFileAsync('git', ['merge-base', '--is-ancestor', ancestor, descendant], {
+        cwd: repoPath,
+        maxBuffer: 1024 * 1024,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Update a ref only when it still points at `expectedOldSha`.
+   * Prevents a concurrent branch move from being silently overwritten.
+   */
+  private async updateRefChecked(
+    repoPath: string,
+    ref: string,
+    newSha: string,
+    expectedOldSha: string
+  ): Promise<void> {
+    try {
+      await runGit(repoPath, ['update-ref', ref, newSha, expectedOldSha]);
+    } catch (err: any) {
+      throw new Error(
+        `Could not update ${ref}: the branch moved while the merge was running. Review the latest changes and try again. (${
+          err.stderr || err.message
+        })`
+      );
+    }
+  }
+
+  /** Abort an in-progress merge or rebase inside a worktree. */
+  private async abortMergeInWorktree(worktreePath: string): Promise<void> {
+    try {
+      const gitDir = path.join(worktreePath, '.git');
+      let resolvedGitDir = gitDir;
+      try {
+        const stat = await fs.stat(gitDir);
+        if (stat.isFile()) {
+          const content = await fs.readFile(gitDir, 'utf8');
+          const match = content.match(/gitdir:\s*(.+)/);
+          if (match) resolvedGitDir = match[1].trim();
+        }
+      } catch {}
+
+      const hasRebaseState = await fs
+        .stat(path.join(resolvedGitDir, 'rebase-merge'))
+        .then(() => true)
+        .catch(() => false) || (await fs
+        .stat(path.join(resolvedGitDir, 'rebase-apply'))
+        .then(() => true)
+        .catch(() => false));
+
+      if (hasRebaseState) {
+        await runGitSafe(worktreePath, ['rebase', '--abort']);
+      } else {
+        await runGitSafe(worktreePath, ['merge', '--abort']);
+      }
+    } catch {}
+  }
+
+  /**
+   * Check whether `head` can be merged into `base`.
+   * Uses `git merge-tree` when available and falls back to a real merge
+   * attempt in a throwaway worktree on older git versions.
+   */
   async checkMergeConflict(
     name: string,
     base: string,
     head: string
   ): Promise<{ canMerge: boolean; conflictedFiles: string[] }> {
     const repoPath = this.getRepoPath(name);
+    assertValidRefname(base, 'base branch name');
+    assertValidRefname(head, 'head branch name');
     try {
       await execFileAsync('git', ['merge-tree', '--write-tree', '--messages', base, head], {
         cwd: repoPath,
@@ -677,27 +861,97 @@ export class GitService {
           }
         }
       }
+      if (conflictedFiles.length > 0) {
+        return { canMerge: false, conflictedFiles };
+      }
+      // `git merge-tree` is unavailable (git < 2.38) or failed for another
+      // reason — fall back to attempting the merge for real.
+      return await this.checkMergeConflictByTrial(name, base, head);
+    }
+  }
+
+  /** Determine mergeability by attempting the merge in a disposable worktree. */
+  private async checkMergeConflictByTrial(
+    name: string,
+    base: string,
+    head: string
+  ): Promise<{ canMerge: boolean; conflictedFiles: string[] }> {
+    const repoPath = this.getRepoPath(name);
+    let handle: { path: string; id: string } | null = null;
+    try {
+      handle = await worktreeManager.create(repoPath, {
+        purpose: 'merge-check',
+        ref: base,
+        detach: true,
+        repoKey: name,
+      });
+      await runGit(handle.path, ['merge', '--no-commit', '--no-ff', head]);
+      return { canMerge: true, conflictedFiles: [] };
+    } catch {
+      const conflictedFiles: string[] = [];
+      if (handle) {
+        try {
+          const raw = await runGitSafe(handle.path, ['diff', '--name-only', '--diff-filter=U']);
+          for (const file of raw.split('\n').map(f => f.trim()).filter(Boolean)) {
+            if (!conflictedFiles.includes(file)) conflictedFiles.push(file);
+          }
+        } catch {}
+      }
       return {
         canMerge: false,
-        conflictedFiles: conflictedFiles.length > 0 ? conflictedFiles : ['Conflicting files detected'],
+        conflictedFiles:
+          conflictedFiles.length > 0 ? conflictedFiles : ['Conflicting files detected'],
       };
+    } finally {
+      if (handle) {
+        await this.abortMergeInWorktree(handle.path);
+        await worktreeManager.remove(repoPath, handle.path);
+      }
     }
   }
 
   async deleteBranch(name: string, branchName: string): Promise<boolean> {
     const repoPath = this.getRepoPath(name);
+    assertValidRefname(branchName, 'branch name');
+
+    if (isProtectedBranch(branchName)) {
+      throw new Error(`Cannot delete protected branch '${branchName}'.`);
+    }
+
     const currentBranch = await this.getCurrentBranch(name);
     if (currentBranch === branchName) {
       throw new Error(`Cannot delete currently active branch '${branchName}'. Switch to another branch first.`);
     }
-    await runGit(repoPath, ['branch', '-D', branchName]);
+
+    // A branch that is checked out in a worktree cannot be deleted either.
+    const worktrees = await this.listWorktreeBranches(name);
+    if (worktrees.includes(branchName)) {
+      throw new Error(`Cannot delete branch '${branchName}' — it is checked out in a worktree.`);
+    }
+
+    await runGit(repoPath, ['branch', '-D', '--', branchName]);
     return true;
+  }
+
+  /** Branches currently checked out in one of the repository's worktrees. */
+  async listWorktreeBranches(name: string): Promise<string[]> {
+    const repoPath = this.getRepoPath(name);
+    const branches: string[] = [];
+    try {
+      const raw = await runGitSafe(repoPath, ['worktree', 'list', '--porcelain']);
+      for (const line of raw.split('\n')) {
+        if (line.startsWith('branch ')) {
+          branches.push(line.substring('branch '.length).trim().replace(/^refs\/heads\//, ''));
+        }
+      }
+    } catch {}
+    return branches;
   }
 
   async getTree(name: string, ref: string = 'HEAD', subPath: string = ''): Promise<GitTreeEntry[]> {
     const repoPath = this.getRepoPath(name);
     try {
-      let targetRef = ref;
+      let targetRef = assertValidRefname(ref, 'ref');
       try {
         await runGit(repoPath, ['rev-parse', '--verify', targetRef]);
       } catch {
@@ -775,25 +1029,25 @@ export class GitService {
 
   async getBlob(name: string, ref: string = 'HEAD', filePath: string): Promise<string> {
     const repoPath = this.getRepoPath(name);
-    let targetRef = ref;
+    let targetRef = assertValidRefname(ref, 'ref');
     try {
       await runGit(repoPath, ['rev-parse', '--verify', targetRef]);
     } catch {
       targetRef = 'HEAD';
     }
-    const safePath = path.normalize(filePath).replace(/^(\.\.(\/|\\|$))+/, '');
+    const safePath = this.toRepoRelativePath(repoPath, filePath);
     return await runGit(repoPath, ['show', `${targetRef}:${safePath}`]);
   }
 
   async getBlame(name: string, ref: string = 'HEAD', filePath: string): Promise<BlameLine[]> {
     const repoPath = this.getRepoPath(name);
-    let targetRef = ref;
+    let targetRef = assertValidRefname(ref, 'ref');
     try {
       await runGit(repoPath, ['rev-parse', '--verify', targetRef]);
     } catch {
       targetRef = 'HEAD';
     }
-    const safePath = path.normalize(filePath).replace(/^(\.\.(\/|\\|$))+/, '');
+    const safePath = this.toRepoRelativePath(repoPath, filePath);
     try {
       const raw = await runGit(repoPath, ['blame', '--porcelain', targetRef, '--', safePath]);
       return parsePorcelainBlame(raw);
@@ -803,10 +1057,24 @@ export class GitService {
     }
   }
 
+  /**
+   * Convert a caller-supplied path into a repository-relative path.
+   * Rejects anything that resolves outside the repository, so a request for
+   * `../../etc/passwd` can never reach the filesystem or git plumbing.
+   */
+  private toRepoRelativePath(repoPath: string, filePath: string): string {
+    const absolute = resolveWithin(repoPath, filePath, 'file path');
+    const relative = path.relative(repoPath, absolute);
+    if (!relative || relative.startsWith('..')) {
+      throw new Error(`Invalid file path: ${JSON.stringify(String(filePath))}`);
+    }
+    return relative.split(path.sep).join('/');
+  }
+
   async getAllTrackedFiles(name: string, ref: string = 'HEAD'): Promise<string[]> {
     const repoPath = this.getRepoPath(name);
     try {
-      const out = await runGit(repoPath, ['ls-tree', '-r', '--name-only', ref]);
+      const out = await runGit(repoPath, ['ls-tree', '-r', '--name-only', assertValidRefname(ref, 'ref')]);
       return out.split('\n').map(s => s.trim()).filter(Boolean);
     } catch {
       try {
@@ -821,6 +1089,8 @@ export class GitService {
   async getUnifiedDiff(name: string, base: string, head: string): Promise<string> {
     const repoPath = this.getRepoPath(name);
     try {
+      assertValidRefname(base, 'base branch name');
+      assertValidRefname(head, 'head branch name');
       return await runGit(repoPath, ['diff', `${base}...${head}`]);
     } catch {
       try {
@@ -974,6 +1244,7 @@ export class GitService {
 
   async createRepository(name: string, description: string = ''): Promise<RepoSummary> {
     const cleanName = name.replace(/[^a-zA-Z0-9._-]/g, '');
+    if (!cleanName) throw new Error('Invalid repository name');
     const repoPath = path.join(this.rootDir, cleanName);
 
     await fs.mkdir(repoPath, { recursive: true });
@@ -986,8 +1257,10 @@ export class GitService {
     const readmeContent = `# ${cleanName}\n\n${description || 'A new repository on SourceHub.'}\n`;
     await fs.writeFile(path.join(repoPath, 'README.md'), readmeContent, 'utf8');
 
+    // An explicit identity is required: `git commit` fails on hosts that do
+    // not have a global user.name / user.email configured.
     await runGit(repoPath, ['add', 'README.md']);
-    await runGit(repoPath, ['commit', '-m', 'Initial commit']);
+    await runGit(repoPath, [...identityArgs(), 'commit', '-m', 'Initial commit']);
 
     const repo = await this.getRepository(cleanName);
     if (!repo) throw new Error('Failed to create repository');
@@ -996,6 +1269,11 @@ export class GitService {
 
   // --- Real Branch Modification via Git Worktrees ---
 
+  /**
+   * Commit a set of files onto a branch without touching the operator's
+   * working copy. The files are written inside an isolated worktree that is
+   * removed again as soon as the commit exists.
+   */
   async commitFilesToBranch(
     name: string,
     branch: string,
@@ -1005,64 +1283,170 @@ export class GitService {
     trailer?: string
   ): Promise<{ commitSha: string; filesCommitted: string[] }> {
     const repoPath = this.getRepoPath(name);
-    const worktreeId = `sh-wt-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-    const worktreePath = path.join('/tmp', worktreeId);
+    assertValidRefname(branch, 'branch name');
+
+    const handle = await worktreeManager.create(repoPath, {
+      purpose: 'agent',
+      ref: branch,
+      detach: false,
+      repoKey: name,
+    });
 
     try {
-      // 1. Add temporary worktree for the target branch
-      await runGit(repoPath, ['worktree', 'add', worktreePath, branch]);
-
-      // 2. Write all requested files into the worktree
+      // 1. Write all requested files into the worktree
       const committedPaths: string[] = [];
       for (const file of files) {
-        const normalized = path.normalize(file.path).replace(/^(\.\.(\/|\\|$))+/, '');
-        const fullPath = path.join(worktreePath, normalized);
+        const relative = normalizeRepoRelative(file.path);
+        const fullPath = resolveWithin(handle.path, relative, 'file path');
         await fs.mkdir(path.dirname(fullPath), { recursive: true });
         await fs.writeFile(fullPath, file.content, 'utf8');
-        committedPaths.push(normalized);
+        committedPaths.push(relative);
       }
 
-      // 3. Stage changes
-      await runGit(worktreePath, ['add', '-A']);
+      // 2. Stage changes
+      await runGit(handle.path, ['add', '-A']);
 
-      // 4. Check if there are staged changes
-      const status = await runGit(worktreePath, ['status', '--porcelain']);
+      // 3. Check if there are staged changes
+      const status = await runGit(handle.path, ['status', '--porcelain']);
       if (!status.trim()) {
-        const currentSha = await runGit(worktreePath, ['rev-parse', 'HEAD']);
+        const currentSha = await runGit(handle.path, ['rev-parse', 'HEAD']);
         return { commitSha: currentSha, filesCommitted: [] };
       }
 
-      // 5. Build commit message with optional trailer
+      // 4. Build commit message with optional trailer
       let fullMessage = message.trim();
       if (trailer) {
         fullMessage += `\n\n${trailer.trim()}`;
       }
 
-      // 6. Commit inside the worktree
-      await runGit(worktreePath, [
-        '-c', `user.name=${author}`,
-        '-c', 'user.email=helper@sourcehub.local',
+      // 5. Commit inside the worktree
+      await runGit(handle.path, [
+        '-c',
+        `user.name=${author}`,
+        '-c',
+        'user.email=helper@sourcehub.local',
         'commit',
-        '-m', fullMessage
+        '-m',
+        fullMessage,
       ]);
 
-      const sha = await runGit(worktreePath, ['rev-parse', 'HEAD']);
+      const sha = await runGit(handle.path, ['rev-parse', 'HEAD']);
       return { commitSha: sha, filesCommitted: committedPaths };
     } finally {
-      // 7. Clean up the temporary worktree
-      try {
-        await runGit(repoPath, ['worktree', 'remove', worktreePath, '--force']);
-      } catch (err) {
-        console.warn(`Could not cleanly remove worktree at ${worktreePath}:`, err);
-        try {
-          await fs.rm(worktreePath, { recursive: true, force: true });
-          await runGit(repoPath, ['worktree', 'prune']);
-        } catch {}
-      }
+      // 6. Clean up the temporary worktree
+      await worktreeManager.remove(repoPath, handle.path);
     }
   }
 
-  // --- Smart HTTP Git Clone Handlers ---
+  /**
+   * Delete a repository from disk.
+   * Worktrees of the repository are removed first, because git refuses to
+   * delete a repository that still has registered worktrees.
+   */
+  async deleteRepository(name: string): Promise<void> {
+    const repoPath = this.getRepoPath(name);
+    const exists = await this.isGitRepo(repoPath);
+    if (!exists) throw new Error(`Repository '${name}' not found`);
+
+    // Remove any worktrees that belong to this repository.
+    try {
+      const raw = await runGitSafe(repoPath, ['worktree', 'list', '--porcelain']);
+      for (const line of raw.split('\n')) {
+        if (line.startsWith('worktree ')) {
+          const worktreePath = line.substring('worktree '.length).trim();
+          if (worktreePath && path.resolve(worktreePath) !== path.resolve(repoPath)) {
+            await runGitSafe(repoPath, ['worktree', 'remove', '--force', worktreePath]);
+          }
+        }
+      }
+      await runGitSafe(repoPath, ['worktree', 'prune']);
+    } catch {}
+
+    await fs.rm(repoPath, { recursive: true, force: true });
+
+    // Drop the managed worktree directory of this repository as well.
+    const worktreeDir = path.join(worktreeManager.root, name.replace(/[^a-zA-Z0-9._-]/g, '_'));
+    await fs.rm(worktreeDir, { recursive: true, force: true }).catch(() => {});
+  }
+
+  /**
+   * Rename a repository directory.
+   * Git keeps the remote configuration in `.git/config`, so a rename also
+   * updates the `origin` URL to the new path.
+   */
+  async renameRepository(name: string, newName: string): Promise<RepoSummary> {
+    const repoPath = this.getRepoPath(name);
+    const exists = await this.isGitRepo(repoPath);
+    if (!exists) throw new Error(`Repository '${name}' not found`);
+
+    const cleanName = newName.replace(/[^a-zA-Z0-9._-]/g, '');
+    if (!cleanName) throw new Error('Invalid repository name');
+    if (cleanName === name) throw new Error('The new name is identical to the current one');
+
+    const targetPath = path.join(this.rootDir, cleanName);
+    if (await this.isGitRepo(targetPath)) {
+      throw new Error(`A repository named '${cleanName}' already exists`);
+    }
+
+    await fs.rename(repoPath, targetPath);
+
+    // Keep the origin remote pointing at the new location.
+    try {
+      const remotes = await this.getRemotes(cleanName);
+      const origin = remotes.find(r => r.name === 'origin');
+      if (origin) {
+        const oldFetch = origin.fetchUrl.replace(new RegExp(`/${name}(\\.git)?$`), `/${cleanName}$1`);
+        const oldPush = origin.pushUrl.replace(new RegExp(`/${name}(\\.git)?$`), `/${cleanName}$1`);
+        await runGit(targetPath, ['remote', 'set-url', 'origin', oldFetch]);
+        await runGit(targetPath, ['remote', 'set-url', '--push', 'origin', oldPush]).catch(() => {});
+      }
+    } catch {}
+
+    const repo = await this.getRepository(cleanName);
+    if (!repo) throw new Error('Failed to rename repository');
+    return repo;
+  }
+
+  // --- Smart HTTP Git Clone & Push Handlers ---
+
+  /**
+   * Install a `pre-receive` hook that refuses updates to protected branches.
+   * This is how a local forge protects `main` from a direct `git push`,
+   * exactly as a hosted forge does.
+   */
+  async ensureProtectedBranchHooks(repoPath: string): Promise<void> {
+    const protectedBranches = getProtectedBranches();
+    if (protectedBranches.length === 0) return;
+
+    const gitDir = path.join(repoPath, '.git');
+    const hooksDir = path.join(gitDir, 'hooks');
+    const hookPath = path.join(hooksDir, 'pre-receive');
+
+    const pattern = protectedBranches.map(b => `refs/heads/${b}`).join('|');
+    const script = `#!/bin/sh
+# Installed by SourceHub - refuses pushes to protected branches.
+while read oldrev newrev refname; do
+  case "$refname" in
+    ${pattern})
+      echo "SourceHub: '$refname' is a protected branch and cannot be pushed to directly." >&2
+      echo "SourceHub: open a pull request instead." >&2
+      exit 1
+      ;;
+  esac
+done
+exit 0
+`;
+
+    try {
+      const current = await fs.readFile(hookPath, 'utf8').catch(() => null);
+      if (current === script) return;
+      await fs.mkdir(hooksDir, { recursive: true });
+      await fs.writeFile(hookPath, script, { mode: 0o755 });
+      await fs.chmod(hookPath, 0o755).catch(() => {});
+    } catch (e) {
+      console.warn(`Could not install protected branch hook for ${repoPath}:`, (e as Error).message);
+    }
+  }
 
   async handleGitInfoRefs(name: string, service: string, res: ServerResponse): Promise<void> {
     const repoPath = this.getRepoPath(name);
@@ -1073,30 +1457,35 @@ export class GitService {
       return;
     }
 
-    if (service !== 'git-upload-pack') {
+    if (service !== 'git-upload-pack' && service !== 'git-receive-pack') {
       res.statusCode = 400;
-      res.end('Only git-upload-pack is supported for read/clone operations');
+      res.end('Only git-upload-pack and git-receive-pack are supported');
       return;
     }
 
+    if (service === 'git-receive-pack') {
+      await this.ensureProtectedBranchHooks(repoPath);
+    }
+
     res.statusCode = 200;
-    res.setHeader('Content-Type', 'application/x-git-upload-pack-advertisement');
+    res.setHeader('Content-Type', `application/x-${service}-advertisement`);
     res.setHeader('Cache-Control', 'no-cache');
 
-    const serviceHeader = '# service=git-upload-pack\n';
+    const serviceHeader = `# service=${service}\n`;
     const hexLen = (serviceHeader.length + 4).toString(16).padStart(4, '0');
     res.write(`${hexLen}${serviceHeader}0000`);
 
-    const child = spawn('git', ['upload-pack', '--stateless-rpc', '--advertise-refs', repoPath]);
+    const command = service === 'git-receive-pack' ? 'receive-pack' : 'upload-pack';
+    const child = spawn('git', [command, '--stateless-rpc', '--advertise-refs', repoPath]);
     child.on('error', err => {
-      console.error('git upload-pack spawn error:', err);
+      console.error(`git ${command} spawn error:`, err);
       if (!res.headersSent) {
         res.statusCode = 500;
         res.end('Git server error');
       }
     });
     child.stdout.pipe(res);
-    child.stderr.on('data', d => console.error('git upload-pack stderr:', d.toString()));
+    child.stderr.on('data', d => console.error(`git ${command} stderr:`, d.toString()));
   }
 
   async handleGitUploadPack(name: string, req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -1123,6 +1512,34 @@ export class GitService {
     req.pipe(child.stdin);
     child.stdout.pipe(res);
     child.stderr.on('data', d => console.error('git upload-pack execution stderr:', d.toString()));
+  }
+
+  async handleGitReceivePack(name: string, req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const repoPath = this.getRepoPath(name);
+    const exists = await this.isGitRepo(repoPath);
+    if (!exists) {
+      res.statusCode = 404;
+      res.end('Repository not found');
+      return;
+    }
+
+    await this.ensureProtectedBranchHooks(repoPath);
+
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/x-git-receive-pack-result');
+    res.setHeader('Cache-Control', 'no-cache');
+
+    const child = spawn('git', ['receive-pack', '--stateless-rpc', repoPath]);
+    child.on('error', err => {
+      console.error('git receive-pack execution spawn error:', err);
+      if (!res.headersSent) {
+        res.statusCode = 500;
+        res.end('Git server error');
+      }
+    });
+    req.pipe(child.stdin);
+    child.stdout.pipe(res);
+    child.stderr.on('data', d => console.error('git receive-pack execution stderr:', d.toString()));
   }
 
   // ==========================================
@@ -1264,21 +1681,27 @@ export class GitService {
   async getWorkingDiff(name: string, filePath: string, staged: boolean = false): Promise<DiffFile | null> {
     const repoPath = this.getRepoPath(name);
     try {
+      // The path must stay inside the repository: `git diff --no-index` reads
+      // arbitrary files when handed a path outside the work tree.
+      const absolutePath = resolveWithin(repoPath, filePath, 'file path');
+      const relativePath = path.relative(repoPath, absolutePath).split(path.sep).join('/');
+      if (!relativePath) return null;
+
       // Check if file is untracked
       let isTracked = true;
       try {
-        await runGit(repoPath, ['ls-files', '--error-unmatch', '--', filePath]);
+        await runGit(repoPath, ['ls-files', '--error-unmatch', '--', relativePath]);
       } catch {
         isTracked = false;
       }
 
       let rawDiff = '';
       if (!isTracked) {
-        rawDiff = await runGitSafe(repoPath, ['diff', '--no-index', '--', '/dev/null', filePath]);
+        rawDiff = await runGitSafe(repoPath, ['diff', '--no-index', '--', '/dev/null', relativePath]);
       } else if (staged) {
-        rawDiff = await runGitSafe(repoPath, ['diff', '--cached', '--', filePath]);
+        rawDiff = await runGitSafe(repoPath, ['diff', '--cached', '--', relativePath]);
       } else {
-        rawDiff = await runGitSafe(repoPath, ['diff', '--', filePath]);
+        rawDiff = await runGitSafe(repoPath, ['diff', '--', relativePath]);
       }
 
       const diffs = parseUnifiedDiffString(rawDiff);
@@ -1287,7 +1710,7 @@ export class GitService {
       // If empty diff but file is untracked, try reading it directly
       if (!isTracked) {
         try {
-          const content = await fs.readFile(path.join(repoPath, filePath), 'utf-8');
+          const content = await fs.readFile(absolutePath, 'utf-8');
           const lines = content.split('\n');
           const diffLines: DiffLine[] = lines.map((l, i) => ({
             type: 'add' as const,
@@ -1295,12 +1718,12 @@ export class GitService {
             content: l,
           }));
           const patch =
-            `diff --git a/${filePath} b/${filePath}\n--- /dev/null\n+++ b/${filePath}\n@@ -0,0 +1,${lines.length} @@\n` +
+            `diff --git a/${relativePath} b/${relativePath}\n--- /dev/null\n+++ b/${relativePath}\n@@ -0,0 +1,${lines.length} @@\n` +
             lines.map(l => `+${l}`).join('\n') +
             '\n';
 
           return {
-            filename: filePath,
+            filename: relativePath,
             status: 'added',
             additions: lines.length,
             deletions: 0,
@@ -1327,16 +1750,21 @@ export class GitService {
     }
   }
 
+  /** Validate caller-supplied paths and convert them to repo-relative form. */
+  private toRepoRelativePaths(repoPath: string, paths: string[]): string[] {
+    return paths.map(p => this.toRepoRelativePath(repoPath, p));
+  }
+
   async stageFiles(name: string, paths: string[]): Promise<void> {
     const repoPath = this.getRepoPath(name);
     if (!paths || paths.length === 0) return;
-    await runGit(repoPath, ['add', '--', ...paths]);
+    await runGit(repoPath, ['add', '--', ...this.toRepoRelativePaths(repoPath, paths)]);
   }
 
   async unstageFiles(name: string, paths: string[]): Promise<void> {
     const repoPath = this.getRepoPath(name);
     if (!paths || paths.length === 0) return;
-    await runGit(repoPath, ['restore', '--staged', '--', ...paths]);
+    await runGit(repoPath, ['restore', '--staged', '--', ...this.toRepoRelativePaths(repoPath, paths)]);
   }
 
   async stageAll(name: string): Promise<void> {
@@ -1351,17 +1779,18 @@ export class GitService {
 
   async discardFileChanges(name: string, filePath: string): Promise<void> {
     const repoPath = this.getRepoPath(name);
+    const relativePath = this.toRepoRelativePath(repoPath, filePath);
     let isTracked = true;
     try {
-      await runGit(repoPath, ['ls-files', '--error-unmatch', '--', filePath]);
+      await runGit(repoPath, ['ls-files', '--error-unmatch', '--', relativePath]);
     } catch {
       isTracked = false;
     }
 
     if (isTracked) {
-      await runGitSafe(repoPath, ['restore', '--staged', '--worktree', '--', filePath]);
+      await runGitSafe(repoPath, ['restore', '--staged', '--worktree', '--', relativePath]);
     } else {
-      await runGitSafe(repoPath, ['clean', '-f', '--', filePath]);
+      await runGitSafe(repoPath, ['clean', '-f', '--', relativePath]);
     }
   }
 
@@ -1413,7 +1842,7 @@ export class GitService {
   ): Promise<{ sha: string }> {
     const repoPath = this.getRepoPath(name);
     if (files && files.length > 0) {
-      await runGit(repoPath, ['add', '--', ...files]);
+      await runGit(repoPath, ['add', '--', ...this.toRepoRelativePaths(repoPath, files)]);
     } else {
       const stagedFiles = (await runGitSafe(repoPath, ['diff', '--cached', '--name-only'])).trim();
       if (!stagedFiles) {
@@ -1421,7 +1850,7 @@ export class GitService {
       }
     }
 
-    const args = ['commit', '-m', summary];
+    const args = [...identityArgs(), 'commit', '-m', summary];
     if (description && description.trim()) {
       args.push('-m', description.trim());
     }
@@ -1560,13 +1989,18 @@ export class GitService {
 
   async switchBranch(name: string, branchName: string): Promise<void> {
     const repoPath = this.getRepoPath(name);
+    assertValidRefname(branchName, 'branch name');
     await runGit(repoPath, ['checkout', branchName]);
   }
 
   async createAndSwitchBranch(name: string, branchName: string, baseBranch?: string): Promise<void> {
     const repoPath = this.getRepoPath(name);
+    assertValidRefname(branchName, 'branch name');
     const args = ['checkout', '-b', branchName];
-    if (baseBranch) args.push(baseBranch);
+    if (baseBranch) {
+      assertValidRefname(baseBranch, 'base branch name');
+      args.push(baseBranch);
+    }
     await runGit(repoPath, args);
   }
 }
