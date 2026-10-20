@@ -290,6 +290,19 @@ db.exec(`
   );
 `);
 
+// Operator audit log.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id TEXT PRIMARY KEY,
+    repo_name TEXT,
+    actor TEXT NOT NULL,
+    action TEXT NOT NULL,
+    target TEXT,
+    detail TEXT,
+    created_ms INTEGER NOT NULL
+  );
+`);
+
 /** Next repo-scoped PR number for inserts. Single-process SQLite => no race. */
 export function nextPullRequestNumber(repoName: string): number {
   const row = db.prepare(

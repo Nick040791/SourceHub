@@ -148,6 +148,16 @@ export interface PRMergeability {
   conflictedFiles: string[];
 }
 
+export interface AuditEntry {
+  id: string;
+  repoName: string | null;
+  actor: string;
+  action: string;
+  target: string | null;
+  detail: string | null;
+  createdMs: number;
+}
+
 export type WorkflowStatus =
   | 'success'
   | 'running'

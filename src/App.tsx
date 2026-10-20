@@ -147,6 +147,21 @@ export const App: React.FC = () => {
     }
   };
 
+  // React to a repository that was renamed or deleted in the settings view.
+  const handleRepositoryChanged = async (action: 'renamed' | 'deleted', repoName?: string) => {
+    const repos = await api.fetchRepositories().catch(() => [] as Repository[]);
+    setRepositories(repos);
+    if (action === 'deleted') {
+      setSelectedRepo(repos[0] || mockRepo);
+      setActiveTab('code');
+      return;
+    }
+    if (repoName) {
+      const updated = repos.find(r => r.name === repoName);
+      if (updated) setSelectedRepo(updated);
+    }
+  };
+
   // Sync open PR count from real API
   useEffect(() => {
     if (selectedRepo?.name) {
@@ -260,6 +275,7 @@ export const App: React.FC = () => {
             <SettingsView
               repoName={selectedRepo.name}
               initialSection={settingsSection}
+              onRepositoryChanged={handleRepositoryChanged}
             />
           )}
         </React.Suspense>

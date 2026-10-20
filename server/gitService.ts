@@ -1338,6 +1338,75 @@ export class GitService {
     }
   }
 
+  /**
+   * Delete a repository from disk.
+   * Worktrees of the repository are removed first, because git refuses to
+   * delete a repository that still has registered worktrees.
+   */
+  async deleteRepository(name: string): Promise<void> {
+    const repoPath = this.getRepoPath(name);
+    const exists = await this.isGitRepo(repoPath);
+    if (!exists) throw new Error(`Repository '${name}' not found`);
+
+    // Remove any worktrees that belong to this repository.
+    try {
+      const raw = await runGitSafe(repoPath, ['worktree', 'list', '--porcelain']);
+      for (const line of raw.split('\n')) {
+        if (line.startsWith('worktree ')) {
+          const worktreePath = line.substring('worktree '.length).trim();
+          if (worktreePath && path.resolve(worktreePath) !== path.resolve(repoPath)) {
+            await runGitSafe(repoPath, ['worktree', 'remove', '--force', worktreePath]);
+          }
+        }
+      }
+      await runGitSafe(repoPath, ['worktree', 'prune']);
+    } catch {}
+
+    await fs.rm(repoPath, { recursive: true, force: true });
+
+    // Drop the managed worktree directory of this repository as well.
+    const worktreeDir = path.join(worktreeManager.root, name.replace(/[^a-zA-Z0-9._-]/g, '_'));
+    await fs.rm(worktreeDir, { recursive: true, force: true }).catch(() => {});
+  }
+
+  /**
+   * Rename a repository directory.
+   * Git keeps the remote configuration in `.git/config`, so a rename also
+   * updates the `origin` URL to the new path.
+   */
+  async renameRepository(name: string, newName: string): Promise<RepoSummary> {
+    const repoPath = this.getRepoPath(name);
+    const exists = await this.isGitRepo(repoPath);
+    if (!exists) throw new Error(`Repository '${name}' not found`);
+
+    const cleanName = newName.replace(/[^a-zA-Z0-9._-]/g, '');
+    if (!cleanName) throw new Error('Invalid repository name');
+    if (cleanName === name) throw new Error('The new name is identical to the current one');
+
+    const targetPath = path.join(this.rootDir, cleanName);
+    if (await this.isGitRepo(targetPath)) {
+      throw new Error(`A repository named '${cleanName}' already exists`);
+    }
+
+    await fs.rename(repoPath, targetPath);
+
+    // Keep the origin remote pointing at the new location.
+    try {
+      const remotes = await this.getRemotes(cleanName);
+      const origin = remotes.find(r => r.name === 'origin');
+      if (origin) {
+        const oldFetch = origin.fetchUrl.replace(new RegExp(`/${name}(\\.git)?$`), `/${cleanName}$1`);
+        const oldPush = origin.pushUrl.replace(new RegExp(`/${name}(\\.git)?$`), `/${cleanName}$1`);
+        await runGit(targetPath, ['remote', 'set-url', 'origin', oldFetch]);
+        await runGit(targetPath, ['remote', 'set-url', '--push', 'origin', oldPush]).catch(() => {});
+      }
+    } catch {}
+
+    const repo = await this.getRepository(cleanName);
+    if (!repo) throw new Error('Failed to rename repository');
+    return repo;
+  }
+
   // --- Smart HTTP Git Clone & Push Handlers ---
 
   /**

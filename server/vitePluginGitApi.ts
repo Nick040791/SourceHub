@@ -14,7 +14,9 @@ import {
 import { assertValidRefname, assertValidSha } from './gitRefs';
 import { mergeRequiresChecks } from './repoSettings';
 import { capturePullRequestSnapshot } from './prService';
+import { recordAudit, listAudit } from './auditLog';
 import { worktreeManager } from './worktreeManager';
+import type { RepoSummary } from './gitService';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import os from 'node:os';
 import crypto from 'node:crypto';
@@ -337,6 +339,12 @@ export async function handleApiAndGit(
           }
         }
 
+        // GET /api/v1/audit (global audit log)
+        if (pathname === '/api/v1/audit' && req.method === 'GET') {
+          const limit = Math.min(parseInt(searchParams.get('limit') || '100', 10) || 100, 500);
+          return sendJson(res, 200, listAudit(null, limit));
+        }
+
         // ==========================================
         // 3. REPOSITORY SPECIFIC ENDPOINTS
         // ==========================================
@@ -358,6 +366,11 @@ export async function handleApiAndGit(
             const body = await readJsonBody(req);
             if (!body.name) return sendError(res, 400, 'Repository name is required');
             const newRepo = await gitService.createRepository(body.name, body.description);
+            recordAudit('repo.created', {
+              repoName: newRepo.name,
+              target: newRepo.name,
+              detail: body.description || null,
+            });
             return sendJson(res, 201, newRepo);
           }
 
@@ -368,6 +381,99 @@ export async function handleApiAndGit(
             const repo = await gitService.getRepository(repoName);
             if (!repo) return sendError(res, 404, 'Repository not found');
             return sendJson(res, 200, repo);
+          }
+
+          // DELETE /api/v1/repos/:name — delete a repository and its metadata.
+          // The name has to be repeated as a confirmation query parameter.
+          if (parts.length === 1 && req.method === 'DELETE') {
+            const confirm = searchParams.get('confirm');
+            if (confirm !== repoName) {
+              return sendError(
+                res,
+                400,
+                'Deleting a repository requires ?confirm=<repository name> to be set to the repository name.'
+              );
+            }
+            try {
+              await gitService.deleteRepository(repoName);
+            } catch (e: any) {
+              return sendError(res, 400, e.message);
+            }
+
+            // Remove the metadata that belonged to the repository.
+            try {
+              const prIds = (
+                db.prepare('SELECT id FROM pull_requests WHERE repo_name = ?').all(repoName) as {
+                  id: number;
+                }[]
+              ).map(r => r.id);
+              for (const prId of prIds) {
+                db.prepare('DELETE FROM pr_comments WHERE pr_id = ?').run(prId);
+              }
+              db.prepare('DELETE FROM pull_requests WHERE repo_name = ?').run(repoName);
+
+              const issueIds = (
+                db.prepare('SELECT id FROM issues WHERE repo_name = ?').all(repoName) as { id: number }[]
+              ).map(r => r.id);
+              for (const issueId of issueIds) {
+                db.prepare('DELETE FROM issue_comments WHERE issue_id = ?').run(issueId);
+              }
+              db.prepare('DELETE FROM issues WHERE repo_name = ?').run(repoName);
+
+              db.prepare('DELETE FROM secrets WHERE repo_name = ?').run(repoName);
+              db.prepare('DELETE FROM webhooks WHERE repo_name = ?').run(repoName);
+              db.prepare('DELETE FROM workflow_runs WHERE repo_name = ?').run(repoName);
+              db.prepare('DELETE FROM agent_runs WHERE repo_name = ?').run(repoName);
+            } catch (e) {
+              console.warn('Could not clean up repository metadata:', (e as Error).message);
+            }
+
+            recordAudit('repo.deleted', { repoName, target: repoName });
+            return sendJson(res, 200, { success: true, deleted: repoName });
+          }
+
+          // POST /api/v1/repos/:name/rename — rename a repository directory.
+          if (parts.length === 2 && parts[1] === 'rename' && req.method === 'POST') {
+            const body = await readJsonBody(req);
+            if (!body.newName) return sendError(res, 400, 'newName is required');
+            let renamed: RepoSummary;
+            try {
+              renamed = await gitService.renameRepository(repoName, body.newName);
+            } catch (e: any) {
+              return sendError(res, 400, e.message);
+            }
+            try {
+              db.prepare('UPDATE pull_requests SET repo_name = ? WHERE repo_name = ?').run(
+                renamed.name,
+                repoName
+              );
+              db.prepare('UPDATE issues SET repo_name = ? WHERE repo_name = ?').run(
+                renamed.name,
+                repoName
+              );
+              db.prepare('UPDATE secrets SET repo_name = ? WHERE repo_name = ?').run(
+                renamed.name,
+                repoName
+              );
+              db.prepare('UPDATE webhooks SET repo_name = ? WHERE repo_name = ?').run(
+                renamed.name,
+                repoName
+              );
+            } catch (e) {
+              console.warn('Could not move repository metadata:', (e as Error).message);
+            }
+            recordAudit('repo.renamed', {
+              repoName: renamed.name,
+              target: renamed.name,
+              detail: `renamed from ${repoName}`,
+            });
+            return sendJson(res, 200, renamed);
+          }
+
+          // GET /api/v1/repos/:name/audit — audit trail for one repository.
+          if (parts.length === 2 && parts[1] === 'audit' && req.method === 'GET') {
+            const limit = Math.min(parseInt(searchParams.get('limit') || '100', 10) || 100, 500);
+            return sendJson(res, 200, listAudit(repoName, limit));
           }
 
           const subResource = parts[1];
@@ -383,6 +489,11 @@ export async function handleApiAndGit(
             if (!body.name) return sendError(res, 400, 'Branch name is required');
             try {
               await gitService.createBranch(repoName, body.name, body.base);
+              recordAudit('branch.created', {
+                repoName,
+                target: body.name,
+                detail: body.base ? `from ${body.base}` : null,
+              });
               return sendJson(res, 201, { message: `Branch ${body.name} created` });
             } catch (e: any) {
               return sendError(res, 400, e.message);
@@ -393,6 +504,7 @@ export async function handleApiAndGit(
             const branchName = decodeURIComponent(parts.slice(2).join('/'));
             try {
               await gitService.deleteBranch(repoName, branchName);
+              recordAudit('branch.deleted', { repoName, target: branchName });
               return sendJson(res, 200, { message: `Branch ${branchName} deleted` });
             } catch (err: any) {
               return sendError(res, 400, err.message);
@@ -849,6 +961,11 @@ export async function handleApiAndGit(
               );
 
               const prId = Number(resDb.lastInsertRowid);
+              recordAudit('pull_request.created', {
+                repoName,
+                target: `#${prNumber}`,
+                detail: `${sourceBranch} -> ${targetBranch}`,
+              });
               webhookService.dispatch(repoName, 'pull_request.opened', {
                 id: prId,
                 number: prNumber,
@@ -1068,6 +1185,12 @@ export async function handleApiAndGit(
                   );
                 }
               }
+
+              recordAudit('pull_request.merged', {
+                repoName,
+                target: `#${p.number ?? p.id}`,
+                detail: `${strategy} — ${mergeResult.commitSha?.substring(0, 7)}`,
+              });
 
               webhookService.dispatch(repoName, 'pull_request.merged', {
                 id: prId,

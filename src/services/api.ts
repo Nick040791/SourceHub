@@ -1,4 +1,4 @@
-import { Repository, FileItem, Commit, PullRequest, Secret, PersonalAccessToken, SSHKey, DiffFile, WorkflowRun, AgentRun, Webhook, WorkingCopyStatus, GitRemote, GitStashEntry, PRMergeability, NetworkInfo, UserProfile, BlameLine, AISettingsState, AIProviderId, AIProviderConfig, ThinkingEffort } from '../types';
+import { Repository, FileItem, Commit, PullRequest, Secret, PersonalAccessToken, SSHKey, DiffFile, WorkflowRun, AgentRun, Webhook, WorkingCopyStatus, GitRemote, GitStashEntry, PRMergeability, NetworkInfo, UserProfile, BlameLine, AISettingsState, AIProviderId, AIProviderConfig, ThinkingEffort, AuditEntry } from '../types';
 
 /** localStorage key for operator shared secret or PAT used by the SPA. */
 export const SOURCEHUB_API_TOKEN_KEY = 'sourcehub_api_token';
@@ -63,6 +63,40 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Failed to create repository');
     }
+    return await res.json();
+  },
+
+  async renameRepository(name: string, newName: string): Promise<Repository> {
+    const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(name)}/rename`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newName }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to rename repository');
+    }
+    return await res.json();
+  },
+
+  async deleteRepository(name: string): Promise<void> {
+    const res = await apiFetch(
+      `/api/v1/repos/${encodeURIComponent(name)}?confirm=${encodeURIComponent(name)}`,
+      { method: 'DELETE' }
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to delete repository');
+    }
+  },
+
+  async fetchAuditLog(repoName?: string, limit = 100): Promise<AuditEntry[]> {
+    const query = `?limit=${limit}`;
+    const path = repoName
+      ? `/api/v1/repos/${encodeURIComponent(repoName)}/audit${query}`
+      : `/api/v1/audit${query}`;
+    const res = await apiFetch(path);
+    if (!res.ok) throw new Error('Failed to fetch audit log');
     return await res.json();
   },
 

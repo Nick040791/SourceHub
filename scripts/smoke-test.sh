@@ -172,6 +172,26 @@ else
   sed -n '1,5p' "$WORK/clone.err"
 fi
 
+echo "==> audit log"
+AUDIT="$(body_of "$BASE/api/v1/audit")"
+check "audit log records the merge" "1" \
+  "$(echo "$AUDIT" | grep -c 'pull_request.merged')"
+
+echo "==> repository management"
+check "renaming a repository works" "200" \
+  "$(status_of -X POST "$BASE/api/v1/repos/$REPO/rename" -H 'Content-Type: application/json' -d '{"newName":"renamed-repo"}')"
+check "renamed repository is listed" "1" \
+  "$(body_of "$BASE/api/v1/repos" | grep -c '"renamed-repo"')"
+check "old repository name is gone" "404" \
+  "$(status_of "$BASE/api/v1/repos/$REPO")"
+
+check "deleting without confirmation is refused" "400" \
+  "$(status_of -X DELETE "$BASE/api/v1/repos/renamed-repo")"
+check "deleting with confirmation works" "200" \
+  "$(status_of -X DELETE "$BASE/api/v1/repos/renamed-repo?confirm=renamed-repo")"
+check "deleted repository is gone from disk" "0" \
+  "$([ -d "$REPOS/renamed-repo" ] && echo 1 || echo 0)"
+
 echo
 echo "passed: $PASS   failed: $FAIL"
 [[ $FAIL -eq 0 ]]
