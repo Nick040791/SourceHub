@@ -1,6 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import yaml from 'yaml';
+import { substituteSecretRefs, containsSecretRef } from '../server/workflowService';
 
 describe('WorkflowRunner: YAML Parsing & Step Evaluation', () => {
   const sampleWorkflowYaml = `
@@ -25,6 +26,8 @@ jobs:
 
       - name: Deploy Staging
         run: 'curl -H "Authorization: Bearer \${{ secrets.API_TOKEN }}" https://api.sourcehub.local/deploy'
+        env:
+          DEPLOY_TOKEN: \${{ secrets.API_TOKEN }}
 `;
 
   test('parses workflow name and event triggers', () => {
@@ -45,16 +48,24 @@ jobs:
     assert.equal(steps[2].name, 'Deploy Staging');
   });
 
-  test('substitutes secrets accurately into command strings', () => {
-    const secretsMap = {
-      API_TOKEN: 'secret_live_token_xyz999',
-    };
+  test('substitutes secrets into environment values', () => {
+    const secretsMap = { API_TOKEN: 'secret_live_token_xyz999' };
+    const value = substituteSecretRefs('${{ secrets.API_TOKEN }}', secretsMap);
+    assert.equal(value, 'secret_live_token_xyz999');
+  });
 
-    let command = 'curl -H "Authorization: Bearer ${{ secrets.API_TOKEN }}" https://api.sourcehub.local/deploy';
-    for (const [key, val] of Object.entries(secretsMap)) {
-      command = command.replaceAll(`\${{ secrets.${key} }}`, val);
-    }
+  test('substitutes secrets without surrounding spaces', () => {
+    const secretsMap = { API_TOKEN: 'abc123' };
+    assert.equal(substituteSecretRefs('${secrets.API_TOKEN}', secretsMap), 'abc123');
+  });
 
-    assert.equal(command, 'curl -H "Authorization: Bearer secret_live_token_xyz999" https://api.sourcehub.local/deploy');
+  test('detects secret references inside shell commands', () => {
+    // A secret must never be interpolated into a shell command string: the
+    // value could contain quotes or shell metacharacters.
+    assert.equal(
+      containsSecretRef('curl -H "Authorization: Bearer ${{ secrets.API_TOKEN }}" https://x'),
+      true
+    );
+    assert.equal(containsSecretRef('npm run build'), false);
   });
 });
