@@ -138,6 +138,15 @@ export const App: React.FC = () => {
     }
   };
 
+  // Keep the branch list in sync after a branch was deleted from the
+  // pull request view, so the deleted branch cannot be selected again.
+  const handleBranchDeleted = async () => {
+    if (selectedRepo?.name) {
+      const updated = await api.fetchRepository(selectedRepo.name).catch(() => null);
+      if (updated) setSelectedRepo(updated);
+    }
+  };
+
   // Sync open PR count from real API
   useEffect(() => {
     if (selectedRepo?.name) {
@@ -225,6 +234,7 @@ export const App: React.FC = () => {
               defaultBase={selectedRepo.defaultBranch}
               onNavigateToAgentRun={handleNavigateToAgentRun}
               onNavigateToActionsRun={handleNavigateToActionsRun}
+              onBranchDeleted={handleBranchDeleted}
             />
           )}
 

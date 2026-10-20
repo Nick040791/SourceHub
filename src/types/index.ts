@@ -138,6 +138,8 @@ export interface PullRequest {
   deletions?: number;
   mergedSha?: string;
   mergeStrategy?: string;
+  /** Whether the server blocks merges until the CI checks pass. */
+  mergeRequiresChecks?: boolean;
   commentCount?: number;
 }
 
@@ -146,7 +148,15 @@ export interface PRMergeability {
   conflictedFiles: string[];
 }
 
-export type WorkflowStatus = 'success' | 'running' | 'failed' | 'queued' | 'canceled' | 'skipped';
+export type WorkflowStatus =
+  | 'success'
+  | 'running'
+  | 'in_progress'
+  | 'failed'
+  | 'queued'
+  | 'canceled'
+  | 'cancelled'
+  | 'skipped';
 
 export interface BlameLine {
   lineNumber: number;

@@ -392,10 +392,13 @@ export const api = {
   },
 
   async fetchProviderModels(provider: string, url?: string, apiKey?: string): Promise<{ models: string[]; defaultModel: string }> {
-    const params = new URLSearchParams({ provider });
-    if (url) params.append('url', url);
-    if (apiKey) params.append('apiKey', apiKey);
-    const res = await apiFetch(`/api/v1/ai/models?${params.toString()}`);
+    // The API key is sent in the body: putting it in the query string leaks
+    // it into server logs, proxies and browser history.
+    const res = await apiFetch('/api/v1/ai/models', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, url, apiKey }),
+    });
     if (!res.ok) throw new Error(`Failed to discover models for ${provider}`);
     return await res.json();
   },
@@ -433,6 +436,24 @@ export const api = {
     const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/actions/runs`);
     if (!res.ok) throw new Error('Failed to fetch workflow runs');
     return await res.json();
+  },
+
+  async fetchWorkflowRun(repoName: string, runId: string): Promise<WorkflowRun> {
+    const res = await apiFetch(
+      `/api/v1/repos/${encodeURIComponent(repoName)}/actions/runs/${encodeURIComponent(runId)}`
+    );
+    if (!res.ok) throw new Error('Failed to fetch workflow run');
+    return await res.json();
+  },
+
+  async cancelWorkflowRun(repoName: string, runId: string): Promise<boolean> {
+    const res = await apiFetch(
+      `/api/v1/repos/${encodeURIComponent(repoName)}/actions/runs/${encodeURIComponent(runId)}/cancel`,
+      { method: 'POST' }
+    );
+    if (!res.ok) throw new Error('Failed to cancel workflow run');
+    const data = await res.json();
+    return Boolean(data?.canceled);
   },
 
   async dispatchWorkflow(repoName: string, workflowId: string = 'ci.yml', branch: string = 'main'): Promise<WorkflowRun> {
