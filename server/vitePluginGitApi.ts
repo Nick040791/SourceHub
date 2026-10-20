@@ -752,6 +752,7 @@ export async function handleApiAndGit(
                   workflowRunId: p.workflow_run_id || undefined,
                   mergedSha: p.merged_sha || undefined,
                   mergeStrategy: p.merge_strategy || undefined,
+                  mergeRequiresChecks: mergeRequiresChecks(),
                   commentCount: p.comment_count,
                   additions,
                   deletions,
@@ -784,11 +785,15 @@ export async function handleApiAndGit(
 
               // The branches must actually exist — otherwise the pull request
               // would be permanently empty.
-              try {
-                await gitService.getCommits(repoName, sourceBranch, 1);
-                await gitService.getCommits(repoName, targetBranch, 1);
-              } catch (e: any) {
-                return sendError(res, 400, `Branch not found: ${e.message}`);
+              const [sourceExists, targetExists] = await Promise.all([
+                gitService.branchExists(repoName, sourceBranch),
+                gitService.branchExists(repoName, targetBranch),
+              ]);
+              if (!sourceExists) {
+                return sendError(res, 400, `Source branch '${sourceBranch}' does not exist`);
+              }
+              if (!targetExists) {
+                return sendError(res, 400, `Target branch '${targetBranch}' does not exist`);
               }
 
               const prNumber = nextPullRequestNumber(repoName);
@@ -902,6 +907,7 @@ export async function handleApiAndGit(
                 workflowRunId: p.workflow_run_id || undefined,
                 mergedSha: p.merged_sha || undefined,
                 mergeStrategy: p.merge_strategy || undefined,
+                mergeRequiresChecks: mergeRequiresChecks(),
                 isAIBusy: agentService.isPROperationActive(repoName, p.id),
                 comments: comments.map(c => ({
                   id: `c-${c.id}`,

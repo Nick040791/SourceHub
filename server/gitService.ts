@@ -500,6 +500,22 @@ export class GitService {
     }
   }
 
+  /**
+   * True when a local branch with that name exists.
+   * `getCommits` falls back to HEAD for unknown refs, so it cannot be used
+   * to validate a branch name.
+   */
+  async branchExists(name: string, branch: string): Promise<boolean> {
+    const repoPath = this.getRepoPath(name);
+    try {
+      assertValidRefname(branch, 'branch name');
+      await runGit(repoPath, ['rev-parse', '--verify', `refs/heads/${branch}`]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async listBranches(name: string): Promise<string[]> {
     const repoPath = this.getRepoPath(name);
     const raw = await runGit(repoPath, ['branch', '-a', '--format=%(refname:short)']);
