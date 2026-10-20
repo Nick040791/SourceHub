@@ -239,12 +239,13 @@ export const api = {
   async mergePR(
     repoName: string,
     id: number,
-    strategy: 'squash' | 'merge' | 'rebase' = 'squash'
-  ): Promise<{ success: boolean; commitSha?: string; message: string }> {
+    strategy: 'squash' | 'merge' | 'rebase' = 'squash',
+    deleteBranch = false
+  ): Promise<{ success: boolean; commitSha?: string; message: string; branchPruned?: boolean }> {
     const res = await apiFetch(`/api/v1/repos/${encodeURIComponent(repoName)}/pulls/${id}/merge`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ strategy }),
+      body: JSON.stringify({ strategy, deleteBranch }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));

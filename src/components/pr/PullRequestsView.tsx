@@ -45,6 +45,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
   const [selectedPR, setSelectedPR] = useState<PullRequest | null>(null);
   const [activeSubTab, setActiveSubTab] = useState<'conversation' | 'commits' | 'checks' | 'files'>('conversation');
   const [mergeStrategy, setMergeStrategy] = useState<'squash' | 'merge' | 'rebase'>('squash');
+  const [deleteBranchOnMerge, setDeleteBranchOnMerge] = useState(false);
   const [isMerging, setIsMerging] = useState(false);
   const [isLoadingPRs, setIsLoadingPRs] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
@@ -149,7 +150,7 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
     setIsMerging(true);
     setMergeError(null);
     try {
-      await api.mergePR(repoName, selectedPR.id, mergeStrategy);
+      await api.mergePR(repoName, selectedPR.id, mergeStrategy, deleteBranchOnMerge);
       // Brief pause to allow Vite HMR/file-watcher to settle if working tree was modified
       await new Promise(r => setTimeout(r, 600));
       await loadPRDetail(selectedPR.id);
@@ -747,6 +748,19 @@ export const PullRequestsView: React.FC<PullRequestsViewProps> = ({
                                 <option value="merge">Create a merge commit (--no-ff)</option>
                                 <option value="rebase">Rebase and merge</option>
                               </select>
+
+                              <label
+                                className="flex items-center space-x-1.5 text-[11px] text-hub-muted cursor-pointer select-none"
+                title="Delete the source branch once the merge succeeded"
+              >
+                                <input
+                  type="checkbox"
+                  checked={deleteBranchOnMerge}
+                  onChange={(e) => setDeleteBranchOnMerge(e.target.checked)}
+                  className="accent-hub-accent"
+                />
+                <span>Delete branch</span>
+              </label>
 
                               <button
                                 onClick={handleMerge}

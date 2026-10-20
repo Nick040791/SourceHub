@@ -1192,6 +1192,24 @@ export async function handleApiAndGit(
                 detail: `${strategy} — ${mergeResult.commitSha?.substring(0, 7)}`,
               });
 
+              // Optionally prune the source branch once it is merged. The
+              // branch is only removed when the operator asked for it and it
+              // is not a protected branch.
+              let branchPruned = false;
+              if (body.deleteBranch === true) {
+                try {
+                  await gitService.deleteBranch(repoName, p.source_branch);
+                  branchPruned = true;
+                  recordAudit('branch.deleted', {
+                    repoName,
+                    target: p.source_branch,
+                    detail: 'pruned after merge',
+                  });
+                } catch (e: any) {
+                  console.warn(`Could not prune merged branch ${p.source_branch}:`, e.message);
+                }
+              }
+
               webhookService.dispatch(repoName, 'pull_request.merged', {
                 id: prId,
                 number: p.number ?? prId,
@@ -1207,6 +1225,7 @@ export async function handleApiAndGit(
                 ...mergeResult,
                 number: p.number ?? p.id,
                 closedIssues,
+                branchPruned,
               });
             }
 
