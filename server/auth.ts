@@ -13,6 +13,7 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { db } from './db';
+import { isWorktreePath } from './worktreeManager';
 
 export const PAT_PREFIX = 'sh_pat_';
 export const TOKEN_HEADER = 'x-sourcehub-token';
@@ -24,7 +25,9 @@ export function isLoopbackHost(host: string | undefined | null): boolean {
   if (!host) return false;
   const h = host.trim().toLowerCase();
   // Strip IPv6 brackets; ignore zone id / port-like suffixes callers may pass
-  const bare = h.replace(/^\[/, '').replace(/\]$/, '').split('%')[0];
+  let bare = h.replace(/^\[/, '').replace(/\]$/, '').split('%')[0];
+  // Node reports IPv4 peers on dual-stack sockets as ::ffff:127.0.0.1
+  if (bare.startsWith('::ffff:')) bare = bare.slice('::ffff:'.length);
   if (LOOPBACK_HOSTS.has(bare)) return true;
   if (bare === '0:0:0:0:0:0:0:1') return true;
   return false;
@@ -113,8 +116,63 @@ export function extractPresentedCredential(req: IncomingMessage): PresentedCrede
 }
 
 export type AuthResult =
-  | { ok: true; method: 'shared_secret' | 'pat' | 'loopback_open' }
+  | { ok: true; method: 'shared_secret' | 'pat' | 'loopback_open'; scopes: string[] }
   | { ok: false; status: number; error: string };
+
+/** All scopes granted to a fully trusted operator credential. */
+export const ADMIN_SCOPES = ['admin', 'repo:read', 'repo:write'];
+
+/**
+ * Scope required to reach a given route.
+ * - global configuration routes require `admin`
+ * - reads require `repo:read`
+ * - everything else requires `repo:write`
+ */
+export function requiredScopeFor(pathname: string, method: string = 'GET'): string {
+  if (pathname.startsWith('/git/')) {
+    // Cloning / fetching is a read; pushing is a write.
+    return pathname.includes('git-receive-pack') ? 'repo:write' : 'repo:read';
+  }
+  if (
+    pathname.startsWith('/api/v1/tokens') ||
+    pathname.startsWith('/api/v1/keys') ||
+    pathname.startsWith('/api/v1/settings') ||
+    pathname.startsWith('/api/v1/user')
+  ) {
+    return 'admin';
+  }
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
+    return 'repo:read';
+  }
+  return 'repo:write';
+}
+
+/** True when `granted` satisfies `required` (admin implies everything). */
+export function scopeSatisfies(granted: string[], required: string): boolean {
+  if (granted.includes('admin')) return true;
+  if (required === 'repo:read') return granted.includes('repo:read') || granted.includes('repo:write');
+  if (required === 'repo:write') return granted.includes('repo:write');
+  return granted.includes(required);
+}
+
+/**
+ * True when the request really originates from the local machine.
+ *
+ * A reverse proxy on the same host connects over loopback but forwards
+ * `X-Forwarded-For`, so the presence of that header means the real client is
+ * remote and a credential must be presented.
+ */
+export function isLocalRequest(req: IncomingMessage, bindHost?: string): boolean {
+  const headers = req.headers || {};
+  const forwarded = headers['x-forwarded-for'];
+  if (forwarded) return false;
+
+  const remote = req.socket?.remoteAddress;
+  if (remote && !isLoopbackHost(remote)) return false;
+
+  const host = bindHost ?? process.env.HOST ?? '127.0.0.1';
+  return isLoopbackHost(host);
+}
 
 /**
  * Authenticate an API / Smart HTTP request.
@@ -127,13 +185,13 @@ export function authenticateRequest(req: IncomingMessage, bindHost?: string): Au
 
   if (presented.kind !== 'none') {
     if (shared && timingSafeEqualString(presented.value, shared)) {
-      return { ok: true, method: 'shared_secret' };
+      return { ok: true, method: 'shared_secret', scopes: ADMIN_SCOPES };
     }
     if (presented.value.startsWith(PAT_PREFIX)) {
       const pat = findValidPat(presented.value);
       if (pat) {
         touchPatLastUsed(pat.id);
-        return { ok: true, method: 'pat' };
+        return { ok: true, method: 'pat', scopes: pat.scopes };
       }
     }
     // Wrong credential presented — always reject (do not fall through to open loopback)
@@ -149,30 +207,36 @@ export function authenticateRequest(req: IncomingMessage, bindHost?: string): Au
     };
   }
 
-  // SOURCEHUB_TOKEN unset: allow only when bound to loopback
-  if (isLoopbackHost(host)) {
-    return { ok: true, method: 'loopback_open' };
+  // SOURCEHUB_TOKEN unset: allow only when the request is genuinely local
+  if (isLocalRequest(req, host)) {
+    return { ok: true, method: 'loopback_open', scopes: ADMIN_SCOPES };
   }
 
   return {
     ok: false,
     status: 401,
-    error: 'Authentication required for non-loopback bind. Set SOURCEHUB_TOKEN.',
+    error: 'Authentication required for non-loopback access. Set SOURCEHUB_TOKEN.',
   };
 }
 
-function findValidPat(token: string): { id: string } | null {
+function findValidPat(token: string): { id: string; scopes: string[] } | null {
   try {
     const rows = db
       .prepare(
-        `SELECT id, token_hash, expires_at FROM tokens WHERE token_hash IS NOT NULL AND token_hash != ''`
+        `SELECT id, token_hash, expires_at, scopes FROM tokens WHERE token_hash IS NOT NULL AND token_hash != ''`
       )
-      .all() as { id: string; token_hash: string; expires_at: string }[];
+      .all() as { id: string; token_hash: string; expires_at: string; scopes: string }[];
 
     for (const row of rows) {
       if (!verifyTokenHash(token, row.token_hash)) continue;
       if (row.expires_at && isExpired(row.expires_at)) continue;
-      return { id: row.id };
+      let scopes: string[] = [];
+      try {
+        const parsed = JSON.parse(row.scopes || '[]');
+        if (Array.isArray(parsed)) scopes = parsed.filter(s => typeof s === 'string');
+      } catch {}
+      if (scopes.length === 0) scopes = ['repo:read'];
+      return { id: row.id, scopes };
     }
   } catch (e) {
     console.warn('[Auth] PAT lookup failed:', e);
@@ -210,13 +274,26 @@ export function enforceAuth(
     return false;
   }
   const result = authenticateRequest(req, bindHost);
-  if (result.ok) return false;
+  if (!result.ok) {
+    res.statusCode = result.status;
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('WWW-Authenticate', 'Bearer realm="SourceHub"');
+    res.end(JSON.stringify({ error: result.error }));
+    return true;
+  }
 
-  res.statusCode = result.status;
-  res.setHeader('Content-Type', 'application/json');
-  res.setHeader('WWW-Authenticate', 'Bearer realm="SourceHub"');
-  res.end(JSON.stringify({ error: result.error }));
-  return true;
+  const required = requiredScopeFor(pathname, req.method || 'GET');
+  if (!scopeSatisfies(result.scopes, required)) {
+    res.statusCode = 403;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({
+      error: `Token scope "${required}" is required for this request.`,
+      requiredScope: required,
+      grantedScopes: result.scopes,
+    }));
+    return true;
+  }
+  return false;
 }
 
 /** Build sanitized env for workflow step execution (no full process.env dump). */
@@ -267,10 +344,8 @@ export function isDangerousRunScript(command: string): boolean {
 export function resolveSafeExecutionDir(repoPath: string, candidate: string): string {
   const resolvedRepo = path.resolve(repoPath);
   const resolved = path.resolve(candidate);
-  const tmpPrefix = path.resolve('/tmp');
-  const isCiWorktree =
-    resolved.startsWith(tmpPrefix + path.sep) && path.basename(resolved).startsWith('sh-ci-');
-  if (resolved !== resolvedRepo && !resolved.startsWith(resolvedRepo + path.sep) && !isCiWorktree) {
+  const isManagedWorktree = isWorktreePath(resolved);
+  if (resolved !== resolvedRepo && !resolved.startsWith(resolvedRepo + path.sep) && !isManagedWorktree) {
     throw new Error(`Workflow execution path escapes repository root: ${candidate}`);
   }
   return resolved;
