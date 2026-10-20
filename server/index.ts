@@ -6,6 +6,9 @@ import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import { handleApiAndGit } from './vitePluginGitApi';
 import { assertSafeBindOrThrow } from './auth';
+import { GitService } from './gitService';
+import { WorkflowService } from './workflowService';
+import { worktreeManager } from './worktreeManager';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -169,6 +172,33 @@ const server = http.createServer(async (req, res) => {
 // Refuse non-loopback binds without SOURCEHUB_TOKEN (matches README / Vite path)
 assertSafeBindOrThrow(HOST);
 
+// Recover state that was interrupted by a crash or restart: workflow runs
+// would otherwise stay "in_progress" forever and worktrees would leak.
+async function recoverInterruptedState(): Promise<void> {
+  try {
+    const workflowService = new WorkflowService();
+    const recovered = workflowService.recoverStaleRuns();
+    if (recovered > 0) {
+      console.log(`► Recovered ${recovered} interrupted workflow run(s)`);
+    }
+  } catch (e) {
+    console.warn('Could not recover interrupted workflow runs:', (e as Error).message);
+  }
+
+  try {
+    const gitService = new GitService();
+    const repos = await gitService.listRepositories();
+    for (const repo of repos) {
+      const removed = await worktreeManager.cleanupStale(repo.path, repo.name);
+      if (removed.length > 0) {
+        console.log(`► Cleaned ${removed.length} stale worktree(s) in ${repo.name}`);
+      }
+    }
+  } catch (e) {
+    console.warn('Could not clean stale worktrees:', (e as Error).message);
+  }
+}
+
 server.listen(PORT, HOST, () => {
   const networks = getNetworkAddresses();
   console.log('\n╔════════════════════════════════════════════════════════════╗');
@@ -186,6 +216,10 @@ server.listen(PORT, HOST, () => {
     console.log('► Auth:     loopback open (set SOURCEHUB_TOKEN for LAN / shared secret)');
   }
   console.log('────────────────────────────────────────────────────────────\n');
+
+  recoverInterruptedState().catch(e =>
+    console.warn('State recovery failed:', (e as Error).message)
+  );
 });
 
 // Graceful shutdown
