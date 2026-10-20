@@ -3,16 +3,21 @@ import { GitService } from './gitService';
 import { AgentService } from './agentService';
 import { WorkflowService } from './workflowService';
 import { webhookService } from './webhookService';
-import { db, nextPullRequestNumber } from './db';
-import { encryptSecret, maskSecret } from './crypto';
+import { db, nextPullRequestNumber, nextIssueNumber } from './db';
+import { encryptSecret, maskSecret, computeSshFingerprint } from './crypto';
 import {
   enforceAuth,
   generatePat,
   formatTokenDisplay,
   assertSafeBindOrThrow,
 } from './auth';
+import { assertValidRefname, assertValidSha } from './gitRefs';
+import { mergeRequiresChecks } from './repoSettings';
+import { capturePullRequestSnapshot } from './prService';
+import { worktreeManager } from './worktreeManager';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import os from 'node:os';
+import crypto from 'node:crypto';
 import { execSync } from 'node:child_process';
 
 function parseUrl(urlStr: string) {
@@ -125,9 +130,12 @@ export async function handleApiAndGit(
             const body = await readJsonBody(req);
             if (!body.name) return sendError(res, 400, 'Token name is required');
             const { token, prefix, last4, hash } = generatePat();
-            const id = `tok-${Date.now()}`;
+            const id = `tok-${crypto.randomUUID()}`;
             const createdAt = new Date().toISOString();
             const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
+            const scopes = Array.isArray(body.scopes) && body.scopes.length > 0
+              ? body.scopes.filter((s: any) => typeof s === 'string')
+              : ['repo:read', 'repo:write'];
             db.prepare(`
               INSERT INTO tokens (id, name, token_prefix, token_hash, token_last4, scopes, created_at, expires_at, last_used)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -137,7 +145,7 @@ export async function handleApiAndGit(
               prefix,
               hash,
               last4,
-              JSON.stringify(body.scopes || ['repo:read']),
+              JSON.stringify(scopes),
               createdAt,
               expiresAt,
               null
@@ -148,7 +156,7 @@ export async function handleApiAndGit(
               name: body.name,
               tokenPrefix: formatTokenDisplay(prefix, last4),
               token,
-              scopes: body.scopes || ['repo:read'],
+              scopes,
               createdAt,
               expiresAt,
             });
@@ -180,32 +188,43 @@ export async function handleApiAndGit(
           if (req.method === 'POST') {
             const body = await readJsonBody(req);
             if (!body.title || !body.publicKey) return sendError(res, 400, 'Title and public key are required');
-            const id = `key-${Date.now()}`;
+            const id = `key-${crypto.randomUUID()}`;
+            const fingerprint = computeSshFingerprint(body.publicKey);
             db.prepare(`
-              INSERT INTO ssh_keys (id, title, key_type, public_key, fingerprint, type, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO ssh_keys (id, title, key_type, public_key, fingerprint, type, created_at, created_ms)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             `).run(
               id,
               body.title,
               body.keyType || 'ssh-ed25519',
               body.publicKey,
-              'SHA256:user-added-key',
+              fingerprint,
               body.type || 'user',
-              'Just now'
+              'Just now',
+              Date.now()
             );
-            return sendJson(res, 201, { id, title: body.title });
+            return sendJson(res, 201, { id, title: body.title, fingerprint });
           }
         }
 
         // ==========================================
         // 2b. AI PROVIDERS, MODELS & SETTINGS
         // ==========================================
-        if (pathname === '/api/v1/ai/models' && req.method === 'GET') {
-          const provider = (searchParams.get('provider') || 'ollama') as any;
-          const customUrl = searchParams.get('url') || undefined;
-          const customApiKey = searchParams.get('apiKey') || undefined;
-          const data = await agentService.discoverModels(provider, customUrl, customApiKey);
-          return sendJson(res, 200, data);
+        if (pathname === '/api/v1/ai/models') {
+          // POST accepts the API key in the body; API keys must not travel in
+          // a query string (they end up in logs, proxies and history).
+          if (req.method === 'POST') {
+            const body = await readJsonBody(req);
+            const provider = (body.provider || 'ollama') as any;
+            const data = await agentService.discoverModels(provider, body.url, body.apiKey);
+            return sendJson(res, 200, data);
+          }
+          if (req.method === 'GET') {
+            const provider = (searchParams.get('provider') || 'ollama') as any;
+            const customUrl = searchParams.get('url') || undefined;
+            const data = await agentService.discoverModels(provider, customUrl);
+            return sendJson(res, 200, data);
+          }
         }
 
         if (pathname === '/api/v1/ai/test' && req.method === 'POST') {
@@ -356,8 +375,12 @@ export async function handleApiAndGit(
           if (subResource === 'branches' && req.method === 'POST') {
             const body = await readJsonBody(req);
             if (!body.name) return sendError(res, 400, 'Branch name is required');
-            await gitService.createBranch(repoName, body.name, body.base);
-            return sendJson(res, 201, { message: `Branch ${body.name} created` });
+            try {
+              await gitService.createBranch(repoName, body.name, body.base);
+              return sendJson(res, 201, { message: `Branch ${body.name} created` });
+            } catch (e: any) {
+              return sendError(res, 400, e.message);
+            }
           }
 
           if (subResource === 'branches' && parts.length >= 3 && req.method === 'DELETE') {
@@ -373,6 +396,11 @@ export async function handleApiAndGit(
           // --- Commits ---
           if (subResource === 'commits' && parts.length >= 3 && req.method === 'GET') {
             const commitSha = parts[2];
+            try {
+              assertValidSha(commitSha, 'commit sha');
+            } catch (e: any) {
+              return sendError(res, 400, e.message);
+            }
             try {
               const diffs = await gitService.getBranchDiff(repoName, `${commitSha}^`, commitSha);
               return sendJson(res, 200, diffs);
@@ -689,15 +717,20 @@ export async function handleApiAndGit(
               `).all(repoName) as any[];
 
               const prs = await Promise.all(prRows.map(async p => {
-                let additions = 0;
-                let deletions = 0;
-                try {
-                  const diffs = await gitService.getBranchDiff(repoName, p.target_branch, p.source_branch);
-                  for (const d of diffs) {
-                    additions += d.additions;
-                    deletions += d.deletions;
-                  }
-                } catch {}
+                let additions = p.additions ?? 0;
+                let deletions = p.deletions ?? 0;
+
+                // Legacy pull requests (created before snapshots existed) still
+                // need their counters computed from git.
+                if (!p.diff_snapshot && additions === 0 && deletions === 0) {
+                  try {
+                    const diffs = await gitService.getBranchDiff(repoName, p.target_branch, p.source_branch);
+                    for (const d of diffs) {
+                      additions += d.additions;
+                      deletions += d.deletions;
+                    }
+                  } catch {}
+                }
 
                 return {
                   id: p.id,
@@ -711,10 +744,14 @@ export async function handleApiAndGit(
                   sourceBranch: p.source_branch,
                   targetBranch: p.target_branch,
                   createdAt: p.created_at,
+                  createdMs: p.created_ms ?? undefined,
                   updatedAt: p.updated_at,
-                  checksStatus: p.checks_status || 'passed',
-                  checksSummary: p.checks_summary || 'All checks passed',
+                  updatedMs: p.updated_ms ?? undefined,
+                  checksStatus: p.checks_status || 'pending',
+                  checksSummary: p.checks_summary || 'Checks have not run yet',
                   workflowRunId: p.workflow_run_id || undefined,
+                  mergedSha: p.merged_sha || undefined,
+                  mergeStrategy: p.merge_strategy || undefined,
                   commentCount: p.comment_count,
                   additions,
                   deletions,
@@ -734,10 +771,46 @@ export async function handleApiAndGit(
                 return sendError(res, 400, 'Title, source/head branch, and target/base branch are required');
               }
 
+              try {
+                assertValidRefname(sourceBranch, 'source branch name');
+                assertValidRefname(targetBranch, 'target branch name');
+              } catch (e: any) {
+                return sendError(res, 400, e.message);
+              }
+
+              if (sourceBranch === targetBranch) {
+                return sendError(res, 400, 'Source and target branches must be different');
+              }
+
+              // The branches must actually exist — otherwise the pull request
+              // would be permanently empty.
+              try {
+                await gitService.getCommits(repoName, sourceBranch, 1);
+                await gitService.getCommits(repoName, targetBranch, 1);
+              } catch (e: any) {
+                return sendError(res, 400, `Branch not found: ${e.message}`);
+              }
+
               const prNumber = nextPullRequestNumber(repoName);
+              const now = Date.now();
+
+              // Snapshot the diff so the pull request keeps its contents even
+              // after the source branch is deleted.
+              const snapshot = await capturePullRequestSnapshot(
+                gitService,
+                repoName,
+                sourceBranch,
+                targetBranch
+              );
+
               const resDb = db.prepare(`
-                INSERT INTO pull_requests (repo_name, number, title, body, state, author, is_agent, agent_run_id, source_branch, target_branch, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO pull_requests (
+                  repo_name, number, title, body, state, author, is_agent, agent_run_id,
+                  source_branch, target_branch, created_at, updated_at, created_ms, updated_ms,
+                  checks_status, checks_summary, base_sha, head_sha, merge_base,
+                  diff_snapshot, commits_snapshot, additions, deletions
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               `).run(
                 repoName,
                 prNumber,
@@ -750,7 +823,18 @@ export async function handleApiAndGit(
                 sourceBranch,
                 targetBranch,
                 'Just now',
-                'Just now'
+                'Just now',
+                now,
+                now,
+                'pending',
+                'Checks have not run yet',
+                snapshot.baseSha,
+                snapshot.headSha,
+                snapshot.mergeBase,
+                snapshot.diffSnapshot,
+                snapshot.commitsSnapshot,
+                snapshot.additions,
+                snapshot.deletions
               );
 
               const prId = Number(resDb.lastInsertRowid);
@@ -776,10 +860,27 @@ export async function handleApiAndGit(
 
               const comments = db.prepare('SELECT * FROM pr_comments WHERE pr_id = ? ORDER BY id ASC').all(prId) as any[];
 
-              const [commits, diffs] = await Promise.all([
-                gitService.getCommitsBetween(repoName, p.target_branch, p.source_branch),
-                gitService.getBranchDiff(repoName, p.target_branch, p.source_branch),
-              ]);
+              let commits: any[] = [];
+              let diffs: any[] = [];
+              try {
+                [commits, diffs] = await Promise.all([
+                  gitService.getCommitsBetween(repoName, p.target_branch, p.source_branch),
+                  gitService.getBranchDiff(repoName, p.target_branch, p.source_branch),
+                ]);
+              } catch {}
+
+              // Fall back to the snapshot taken when the PR was created so a
+              // merged or closed PR keeps its contents after branch deletion.
+              if (commits.length === 0 && p.commits_snapshot) {
+                try {
+                  commits = JSON.parse(p.commits_snapshot);
+                } catch {}
+              }
+              if (diffs.length === 0 && p.diff_snapshot) {
+                try {
+                  diffs = JSON.parse(p.diff_snapshot);
+                } catch {}
+              }
 
               return sendJson(res, 200, {
                 id: p.id,
@@ -793,10 +894,14 @@ export async function handleApiAndGit(
                 sourceBranch: p.source_branch,
                 targetBranch: p.target_branch,
                 createdAt: p.created_at,
+                createdMs: p.created_ms ?? undefined,
                 updatedAt: p.updated_at,
-                checksStatus: p.checks_status || 'passed',
-                checksSummary: p.checks_summary || 'All checks passed',
+                updatedMs: p.updated_ms ?? undefined,
+                checksStatus: p.checks_status || 'pending',
+                checksSummary: p.checks_summary || 'Checks have not run yet',
                 workflowRunId: p.workflow_run_id || undefined,
+                mergedSha: p.merged_sha || undefined,
+                mergeStrategy: p.merge_strategy || undefined,
                 isAIBusy: agentService.isPROperationActive(repoName, p.id),
                 comments: comments.map(c => ({
                   id: `c-${c.id}`,
@@ -804,9 +909,12 @@ export async function handleApiAndGit(
                   isAgent: Boolean(c.is_agent),
                   content: c.content,
                   createdAt: c.created_at,
+                  createdMs: c.created_ms ?? undefined,
                 })),
                 commits,
                 diffs,
+                additions: p.additions ?? 0,
+                deletions: p.deletions ?? 0,
               });
             }
 
@@ -823,10 +931,21 @@ export async function handleApiAndGit(
             if (parts.length === 4 && parts[3] === 'comments' && req.method === 'POST') {
               const body = await readJsonBody(req);
               if (!body.content) return sendError(res, 400, 'Content is required');
+              const parent = db
+                .prepare('SELECT id FROM pull_requests WHERE id = ? AND repo_name = ?')
+                .get(prId, repoName);
+              if (!parent) return sendError(res, 404, 'Pull request not found');
               db.prepare(`
-                INSERT INTO pr_comments (pr_id, author, is_agent, content, created_at)
-                VALUES (?, ?, ?, ?, ?)
-              `).run(prId, body.author || 'Forge Operator', body.isAgent ? 1 : 0, body.content, 'Just now');
+                INSERT INTO pr_comments (pr_id, author, is_agent, content, created_at, created_ms)
+                VALUES (?, ?, ?, ?, ?, ?)
+              `).run(
+                prId,
+                body.author || 'Forge Operator',
+                body.isAgent ? 1 : 0,
+                body.content,
+                'Just now',
+                Date.now()
+              );
               return sendJson(res, 201, { message: 'Comment added' });
             }
 
@@ -835,46 +954,112 @@ export async function handleApiAndGit(
               const p = db.prepare('SELECT * FROM pull_requests WHERE id = ? AND repo_name = ?').get(prId, repoName) as any;
               if (!p) return sendError(res, 404, 'Pull request not found');
 
-              const body = await readJsonBody(req);
-              const strategy = body.strategy || 'squash';
+              if (p.state === 'merged') {
+                return sendError(res, 409, `Pull Request #${p.number ?? p.id} has already been merged.`);
+              }
+              if (p.state !== 'open') {
+                return sendError(res, 409, `Pull Request #${p.number ?? p.id} is ${p.state} and cannot be merged.`);
+              }
 
-              const mergeResult = await gitService.mergePullRequest(
+              const body = await readJsonBody(req);
+              const strategy = ['squash', 'merge', 'rebase'].includes(body.strategy)
+                ? body.strategy
+                : 'squash';
+
+              // CI gating: a pull request may only merge once its checks pass.
+              if (mergeRequiresChecks()) {
+                const status = p.checks_status || 'pending';
+                if (status !== 'passed') {
+                  return sendError(
+                    res,
+                    409,
+                    status === 'failed'
+                      ? 'CI checks failed — fix the failing checks before merging.'
+                      : 'CI checks have not passed yet — wait for the workflow run to finish.'
+                  );
+                }
+              }
+
+              // Mergeability is verified on the server; the client check is
+              // only a hint and can be stale.
+              const mergeability = await gitService.checkMergeConflict(
                 repoName,
                 p.target_branch,
-                p.source_branch,
-                strategy,
-                body.commitMessage || `Merge PR #${p.id}: ${p.title}`
+                p.source_branch
               );
+              if (!mergeability.canMerge) {
+                return sendJson(res, 409, {
+                  error: `Merge conflicts detected in: ${mergeability.conflictedFiles.join(', ')}`,
+                  conflictedFiles: mergeability.conflictedFiles,
+                });
+              }
 
-              db.prepare("UPDATE pull_requests SET state = 'merged', updated_at = 'Just now' WHERE id = ?").run(prId);
+              let mergeResult;
+              try {
+                mergeResult = await gitService.mergePullRequest(
+                  repoName,
+                  p.target_branch,
+                  p.source_branch,
+                  strategy,
+                  body.commitMessage || `Merge PR #${p.number ?? p.id}: ${p.title}`
+                );
+              } catch (e: any) {
+                return sendError(res, 409, e.message || 'Merge failed');
+              }
+
+              const now = Date.now();
+              db.prepare(`
+                UPDATE pull_requests
+                SET state = 'merged', updated_at = 'Just now', updated_ms = ?,
+                    merged_sha = ?, merge_strategy = ?, merged_ms = ?
+                WHERE id = ?
+              `).run(now, mergeResult.commitSha || null, strategy, now, prId);
 
               db.prepare(`
-                INSERT INTO pr_comments (pr_id, author, is_agent, content, created_at)
-                VALUES (?, ?, ?, ?, ?)
-              `).run(prId, 'SourceHub Forge', 0, `Merged into \`${p.target_branch}\` with commit \`${mergeResult.commitSha?.substring(0, 7)}\`.`, 'Just now');
+                INSERT INTO pr_comments (pr_id, author, is_agent, content, created_at, created_ms)
+                VALUES (?, ?, ?, ?, ?, ?)
+              `).run(
+                prId,
+                'SourceHub Forge',
+                0,
+                `Merged into \`${p.target_branch}\` with commit \`${mergeResult.commitSha?.substring(0, 7)}\` (${strategy}).`,
+                'Just now',
+                now
+              );
 
-              // Auto-close issues referenced in PR body or title (e.g. Fixes #1, Closes #2, Resolves #3)
+              // Auto-close issues referenced in PR body or title (e.g. Fixes #1, Closes #2)
               const fullText = `${p.title}\n${p.body || ''}`;
               const issueRegex = /(?:fixes|closes|resolves)\s+#(\d+)/gi;
               let match: RegExpExecArray | null;
               const closedIssues: number[] = [];
               while ((match = issueRegex.exec(fullText)) !== null) {
-                const issueId = parseInt(match[1], 10);
-                if (!closedIssues.includes(issueId)) {
-                  closedIssues.push(issueId);
-                  const issueRow = db.prepare('SELECT * FROM issues WHERE id = ? AND repo_name = ?').get(issueId, repoName) as any;
-                  if (issueRow && issueRow.status === 'open') {
-                    db.prepare("UPDATE issues SET status = 'closed' WHERE id = ? AND repo_name = ?").run(issueId, repoName);
-                    db.prepare(`
-                      INSERT INTO issue_comments (issue_id, author, content, created_at)
-                      VALUES (?, ?, ?, ?)
-                    `).run(issueId, 'SourceHub Forge', `Closed automatically by Pull Request #${prId}.`, 'Just now');
-                  }
+                const issueNumber = parseInt(match[1], 10);
+                if (Number.isNaN(issueNumber) || closedIssues.includes(issueNumber)) continue;
+                closedIssues.push(issueNumber);
+                // Issue numbers are repo-scoped, so look them up by number.
+                const issueRow = db
+                  .prepare('SELECT * FROM issues WHERE repo_name = ? AND number = ?')
+                  .get(repoName, issueNumber) as any;
+                if (issueRow && issueRow.status === 'open') {
+                  db.prepare(
+                    "UPDATE issues SET status = 'closed' WHERE id = ? AND repo_name = ?"
+                  ).run(issueRow.id, repoName);
+                  db.prepare(`
+                    INSERT INTO issue_comments (issue_id, author, content, created_at, created_ms)
+                    VALUES (?, ?, ?, ?, ?)
+                  `).run(
+                    issueRow.id,
+                    'SourceHub Forge',
+                    `Closed automatically by Pull Request #${p.number ?? p.id}.`,
+                    'Just now',
+                    now
+                  );
                 }
               }
 
               webhookService.dispatch(repoName, 'pull_request.merged', {
                 id: prId,
+                number: p.number ?? prId,
                 repoName,
                 title: p.title,
                 sourceBranch: p.source_branch,
@@ -883,30 +1068,40 @@ export async function handleApiAndGit(
                 closedIssues,
               }).catch(e => console.warn('[Webhook] pull_request.merged dispatch failed:', e.message));
 
-              return sendJson(res, 200, { ...mergeResult, closedIssues });
+              return sendJson(res, 200, {
+                ...mergeResult,
+                number: p.number ?? p.id,
+                closedIssues,
+              });
             }
 
             // POST /api/v1/repos/:name/pulls/:id/close
             if (parts.length === 4 && parts[3] === 'close' && req.method === 'POST') {
               const p = db.prepare('SELECT * FROM pull_requests WHERE id = ? AND repo_name = ?').get(prId, repoName) as any;
               if (!p) return sendError(res, 404, 'Pull request not found');
+              if (p.state === 'merged') {
+                return sendError(res, 409, 'Merged pull requests cannot be closed.');
+              }
 
               const body = await readJsonBody(req);
               const comment = body.comment?.trim();
+              const now = Date.now();
 
-              db.prepare("UPDATE pull_requests SET state = 'closed', updated_at = 'Just now' WHERE id = ?").run(prId);
+              db.prepare(
+                "UPDATE pull_requests SET state = 'closed', updated_at = 'Just now', updated_ms = ? WHERE id = ?"
+              ).run(now, prId);
 
               if (comment) {
                 db.prepare(`
-                  INSERT INTO pr_comments (pr_id, author, is_agent, content, created_at)
-                  VALUES (?, ?, ?, ?, ?)
-                `).run(prId, 'Forge Operator', 0, comment, 'Just now');
+                  INSERT INTO pr_comments (pr_id, author, is_agent, content, created_at, created_ms)
+                  VALUES (?, ?, ?, ?, ?, ?)
+                `).run(prId, 'Forge Operator', 0, comment, 'Just now', now);
               }
 
               db.prepare(`
-                INSERT INTO pr_comments (pr_id, author, is_agent, content, created_at)
-                VALUES (?, ?, ?, ?, ?)
-              `).run(prId, 'Forge Operator', 0, 'Closed this pull request.', 'Just now');
+                INSERT INTO pr_comments (pr_id, author, is_agent, content, created_at, created_ms)
+                VALUES (?, ?, ?, ?, ?, ?)
+              `).run(prId, 'Forge Operator', 0, 'Closed this pull request.', 'Just now', now);
 
               return sendJson(res, 200, { success: true, state: 'closed' });
             }
@@ -915,13 +1110,19 @@ export async function handleApiAndGit(
             if (parts.length === 4 && parts[3] === 'reopen' && req.method === 'POST') {
               const p = db.prepare('SELECT * FROM pull_requests WHERE id = ? AND repo_name = ?').get(prId, repoName) as any;
               if (!p) return sendError(res, 404, 'Pull request not found');
+              if (p.state === 'merged') {
+                return sendError(res, 409, 'Merged pull requests cannot be reopened.');
+              }
 
-              db.prepare("UPDATE pull_requests SET state = 'open', updated_at = 'Just now' WHERE id = ?").run(prId);
+              const now = Date.now();
+              db.prepare(
+                "UPDATE pull_requests SET state = 'open', updated_at = 'Just now', updated_ms = ? WHERE id = ?"
+              ).run(now, prId);
 
               db.prepare(`
-                INSERT INTO pr_comments (pr_id, author, is_agent, content, created_at)
-                VALUES (?, ?, ?, ?, ?)
-              `).run(prId, 'Forge Operator', 0, 'Reopened this pull request.', 'Just now');
+                INSERT INTO pr_comments (pr_id, author, is_agent, content, created_at, created_ms)
+                VALUES (?, ?, ?, ?, ?, ?)
+              `).run(prId, 'Forge Operator', 0, 'Reopened this pull request.', 'Just now', now);
 
               return sendJson(res, 200, { success: true, state: 'open' });
             }
@@ -932,14 +1133,21 @@ export async function handleApiAndGit(
               if (!p) return sendError(res, 404, 'Pull request not found');
 
               const body = await readJsonBody(req);
+              const now = Date.now();
               if (body.state) {
-                db.prepare("UPDATE pull_requests SET state = ?, updated_at = 'Just now' WHERE id = ?").run(body.state, prId);
+                db.prepare(
+                  "UPDATE pull_requests SET state = ?, updated_at = 'Just now', updated_ms = ? WHERE id = ?"
+                ).run(body.state, now, prId);
               }
               if (body.title) {
-                db.prepare("UPDATE pull_requests SET title = ?, updated_at = 'Just now' WHERE id = ?").run(body.title, prId);
+                db.prepare(
+                  "UPDATE pull_requests SET title = ?, updated_at = 'Just now', updated_ms = ? WHERE id = ?"
+                ).run(body.title, now, prId);
               }
               if (body.body !== undefined) {
-                db.prepare("UPDATE pull_requests SET body = ?, updated_at = 'Just now' WHERE id = ?").run(body.body, prId);
+                db.prepare(
+                  "UPDATE pull_requests SET body = ?, updated_at = 'Just now', updated_ms = ? WHERE id = ?"
+                ).run(body.body, now, prId);
               }
               return sendJson(res, 200, { success: true });
             }
@@ -990,6 +1198,7 @@ export async function handleApiAndGit(
 
               return sendJson(res, 200, issues.map(i => ({
                 id: i.id,
+                number: i.number ?? i.id,
                 title: i.title,
                 body: i.body,
                 status: i.status,
@@ -997,6 +1206,7 @@ export async function handleApiAndGit(
                 assignedToAgent: Boolean(i.assigned_to_agent),
                 agentRunId: i.agent_run_id,
                 createdAt: i.created_at,
+                createdMs: i.created_ms ?? undefined,
                 comments: i.comment_count,
               })));
             }
@@ -1004,19 +1214,26 @@ export async function handleApiAndGit(
             if (parts.length === 2 && req.method === 'POST') {
               const body = await readJsonBody(req);
               if (!body.title) return sendError(res, 400, 'Title is required');
+              const issueNumber = nextIssueNumber(repoName);
               const resDb = db.prepare(`
-                INSERT INTO issues (repo_name, title, body, status, author, assigned_to_agent, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO issues (repo_name, number, title, body, status, author, assigned_to_agent, created_at, created_ms)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
               `).run(
                 repoName,
+                issueNumber,
                 body.title,
                 body.body || '',
                 'open',
                 body.author || 'Forge Operator',
                 body.assignedToAgent ? 1 : 0,
-                'Just now'
+                'Just now',
+                Date.now()
               );
-              return sendJson(res, 201, { id: Number(resDb.lastInsertRowid), message: 'Issue created' });
+              return sendJson(res, 201, {
+                id: Number(resDb.lastInsertRowid),
+                number: issueNumber,
+                message: 'Issue created',
+              });
             }
 
             // DELETE /repos/:name/issues?status=closed — clear (permanently delete)
@@ -1062,6 +1279,7 @@ export async function handleApiAndGit(
               if (!row) return sendError(res, 404, 'Issue not found');
               return sendJson(res, 200, {
                 id: row.id,
+                number: row.number ?? row.id,
                 title: row.title,
                 body: row.body,
                 status: row.status,
@@ -1069,6 +1287,7 @@ export async function handleApiAndGit(
                 assignedToAgent: Boolean(row.assigned_to_agent),
                 agentRunId: row.agent_run_id,
                 createdAt: row.created_at,
+                createdMs: row.created_ms ?? undefined,
                 comments: row.comment_count,
               });
             }
@@ -1168,13 +1387,32 @@ export async function handleApiAndGit(
 
           // --- Real Actions Runs & Dispatch ---
           if (subResource === 'actions') {
-            if (parts[2] === 'runs' && req.method === 'GET') {
+            // GET /api/v1/repos/:name/actions/runs (list)
+            if (parts[2] === 'runs' && parts.length === 3 && req.method === 'GET') {
               const runs = workflowService.listRuns(repoName);
               return sendJson(res, 200, runs);
             }
+            // GET /api/v1/repos/:name/actions/runs/:runId (single run with steps)
+            if (parts[2] === 'runs' && parts.length === 4 && req.method === 'GET') {
+              const run = workflowService.getRun(repoName, decodeURIComponent(parts[3]));
+              if (!run) return sendError(res, 404, 'Workflow run not found');
+              return sendJson(res, 200, run);
+            }
+            // POST /api/v1/repos/:name/actions/runs/:runId/cancel
+            if (parts[2] === 'runs' && parts.length === 5 && parts[4] === 'cancel' && req.method === 'POST') {
+              const runId = decodeURIComponent(parts[3]);
+              const run = workflowService.getRun(repoName, runId);
+              if (!run) return sendError(res, 404, 'Workflow run not found');
+              const canceled = workflowService.cancelRun(runId);
+              return sendJson(res, 200, { success: canceled, canceled });
+            }
             if (parts[2] === 'dispatch' && req.method === 'POST') {
               const body = await readJsonBody(req);
-              const run = await workflowService.dispatchWorkflow(repoName, body.workflowId || 'ci.yml', body.branch || 'main');
+              const run = await workflowService.dispatchWorkflow(
+                repoName,
+                body.workflowId || 'ci.yml',
+                body.branch || 'main'
+              );
               return sendJson(res, 201, run);
             }
           }
@@ -1201,7 +1439,7 @@ export async function handleApiAndGit(
 
           // --- Real Webhooks ---
           if (subResource === 'webhooks') {
-            if (req.method === 'GET') {
+            if (parts.length === 2 && req.method === 'GET') {
               const hooks = db.prepare('SELECT * FROM webhooks WHERE repo_name = ?').all(repoName) as any[];
               return sendJson(res, 200, hooks.map(h => ({
                 id: h.id,
@@ -1209,24 +1447,75 @@ export async function handleApiAndGit(
                 events: JSON.parse(h.events || '[]'),
                 active: Boolean(h.active),
                 createdAt: h.created_at,
+                createdMs: h.created_ms ?? undefined,
+                // The secret itself is never returned — only whether one is set.
+                secretMasked: h.secret ? '••••••••' : null,
+                hasSecret: Boolean(h.secret),
+                deliveries: webhookService.listDeliveries(h.id, 10),
               })));
             }
             if (parts.length === 2 && req.method === 'POST') {
               const body = await readJsonBody(req);
               if (!body.url) return sendError(res, 400, 'Webhook URL is required');
-              const id = `hook-${Date.now()}`;
+              const id = `hook-${crypto.randomUUID()}`;
               db.prepare(`
-                INSERT INTO webhooks (id, repo_name, url, events, active, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO webhooks (id, repo_name, url, events, active, secret, created_at, created_ms)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
               `).run(
                 id,
                 repoName,
                 body.url,
                 JSON.stringify(body.events || ['push', 'pull_request']),
                 body.active !== false ? 1 : 0,
-                'Just now'
+                body.secret || null,
+                'Just now',
+                Date.now()
               );
               return sendJson(res, 201, { id, url: body.url });
+            }
+            // PATCH /api/v1/repos/:name/webhooks/:id (update url/events/active/secret)
+            if (parts.length === 3 && req.method === 'PATCH') {
+              const id = parts[2];
+              const existing = db
+                .prepare('SELECT * FROM webhooks WHERE id = ? AND repo_name = ?')
+                .get(id, repoName) as any;
+              if (!existing) return sendError(res, 404, 'Webhook not found');
+              const body = await readJsonBody(req);
+              if (body.url !== undefined) {
+                db.prepare('UPDATE webhooks SET url = ? WHERE id = ?').run(body.url, id);
+              }
+              if (body.events !== undefined) {
+                db.prepare('UPDATE webhooks SET events = ? WHERE id = ?').run(
+                  JSON.stringify(body.events),
+                  id
+                );
+              }
+              if (body.active !== undefined) {
+                db.prepare('UPDATE webhooks SET active = ? WHERE id = ?').run(
+                  body.active ? 1 : 0,
+                  id
+                );
+              }
+              if (body.secret !== undefined) {
+                db.prepare('UPDATE webhooks SET secret = ? WHERE id = ?').run(
+                  body.secret === null || body.secret === '' ? null : String(body.secret),
+                  id
+                );
+              }
+              const updated = db
+                .prepare('SELECT * FROM webhooks WHERE id = ?')
+                .get(id) as any;
+              return sendJson(res, 200, {
+                success: true,
+                webhook: {
+                  id: updated.id,
+                  url: updated.url,
+                  events: JSON.parse(updated.events || '[]'),
+                  active: Boolean(updated.active),
+                  secretMasked: updated.secret ? '••••••••' : null,
+                  hasSecret: Boolean(updated.secret),
+                },
+              });
             }
             if (parts.length === 4 && parts[3] === 'test' && req.method === 'POST') {
               const id = parts[2];
@@ -1235,7 +1524,7 @@ export async function handleApiAndGit(
             }
             if (parts.length === 3 && req.method === 'DELETE') {
               const id = parts[2];
-              db.prepare('DELETE FROM webhooks WHERE id = ?').run(id);
+              db.prepare('DELETE FROM webhooks WHERE id = ? AND repo_name = ?').run(id, repoName);
               return sendJson(res, 200, { success: true });
             }
           }
