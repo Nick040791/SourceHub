@@ -12,6 +12,7 @@ import {
 import { Repository, UserProfile, AppTheme } from '../../types';
 import { THEME_OPTIONS, AVATAR_COLOR_GRADIENTS } from '../profile/ProfileModal';
 import { HelperAvatar } from '../agents/HelperAvatar';
+import { useClickOutside } from '../../hooks/useClickOutside';
 
 export type { AppTheme };
 
@@ -66,6 +67,10 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   const [showRepoMenu, setShowRepoMenu] = useState(false);
   const [repoSearch, setRepoSearch] = useState('');
 
+  // Close the dropdown panels when clicking outside of them
+  const repoMenuRef = useClickOutside(() => setShowRepoMenu(false), showRepoMenu);
+  const themeMenuRef = useClickOutside(() => setShowThemeMenu(false), showThemeMenu);
+
   const filteredRepos = repositories.filter(r => 
     r.name.toLowerCase().includes(repoSearch.toLowerCase())
   );
@@ -93,7 +98,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           </div>
 
           {/* Repository Switcher capsule */}
-          <div className="relative hidden sm:block">
+          <div ref={repoMenuRef} className="relative hidden sm:block">
             <button
               onClick={() => setShowRepoMenu(!showRepoMenu)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-hub-bg hover:bg-hub-subtle border transition-all text-hub-text ${
@@ -222,7 +227,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             <span className="hidden sm:inline">Menu</span>
           </button>
 
-          <div className="relative">
+          <div ref={themeMenuRef} className="relative">
             <button
               onClick={() => setShowThemeMenu(!showThemeMenu)}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-transparent hover:bg-hub-subtle border border-hub-border/80 transition-colors text-hub-muted hover:text-hub-text"
