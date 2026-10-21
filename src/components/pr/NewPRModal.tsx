@@ -31,10 +31,6 @@ export const NewPRModal: React.FC<NewPRModalProps> = ({
   const [diffs, setDiffs] = useState<DiffFile[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  // The early return has to happen after the hooks — returning before them
-  // changes the number of hooks between renders and breaks React's rules.
-  if (!isOpen) return null;
-
   // Compare branches whenever base or head changes
   useEffect(() => {
     if (!baseBranch || !headBranch || baseBranch === headBranch) {
@@ -64,6 +60,12 @@ export const NewPRModal: React.FC<NewPRModalProps> = ({
 
     return () => { isMounted = false; };
   }, [repoName, baseBranch, headBranch]);
+
+  // Early return must happen AFTER every hook. This component is always
+  // mounted (the parent toggles `isOpen`), so returning before the effect
+  // above would change the hook count between renders and crash React with
+  // "Rendered more hooks than during the previous render."
+  if (!isOpen) return null;
 
   const handleGenerateDescription = async () => {
     if (!repoName || !baseBranch || !headBranch || baseBranch === headBranch) return;
