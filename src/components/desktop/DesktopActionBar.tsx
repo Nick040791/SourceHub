@@ -21,6 +21,7 @@ import {
 import { WorkingCopyStatus, Repository } from '../../types';
 import { api } from '../../services/api';
 import { RemoteSettingsModal } from './RemoteSettingsModal';
+import { useClickOutside } from '../../hooks/useClickOutside';
 
 interface DesktopActionBarProps {
   repo: Repository;
@@ -43,6 +44,9 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [isRemoteModalOpen, setIsRemoteModalOpen] = useState(false);
   const [pushErrorModal, setPushErrorModal] = useState<{ message: string; remoteUrl?: string } | null>(null);
+
+  // Close the branch switcher when clicking outside of it
+  const branchMenuRef = useClickOutside(() => setIsBranchMenuOpen(false), isBranchMenuOpen);
 
   const branches = repo.branches || [repo.defaultBranch || 'main'];
   const filteredBranches = branches.filter(b => 
@@ -154,7 +158,7 @@ export const DesktopActionBar: React.FC<DesktopActionBarProps> = ({
           </div>
 
           {/* Current Branch Dropdown */}
-          <div className="relative">
+          <div ref={branchMenuRef} className="relative">
             <button
               onClick={() => setIsBranchMenuOpen(!isBranchMenuOpen)}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-transparent hover:bg-hub-subtle/50 border border-hub-border/45 text-hub-text font-medium transition-colors h-7"

@@ -11,6 +11,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { Repository } from '../../types';
+import { useClickOutside } from '../../hooks/useClickOutside';
 
 interface RepoHeaderProps {
   repo: Repository;
@@ -22,6 +23,9 @@ export const RepoHeader: React.FC<RepoHeaderProps> = ({ repo, showDescription = 
   const [showCloneModal, setShowCloneModal] = useState(false);
   const [cloneProtocol, setCloneProtocol] = useState<'http' | 'ssh' | 'local' | 'cli'>('http');
   const [copied, setCopied] = useState(false);
+
+  // Close the clone popover when clicking outside of it
+  const cloneMenuRef = useClickOutside(() => setShowCloneModal(false), showCloneModal);
 
   const origin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'http://localhost:5177';
   const owner = repo.owner || 'operator';
@@ -92,7 +96,7 @@ export const RepoHeader: React.FC<RepoHeaderProps> = ({ repo, showDescription = 
             <span className="px-2 min-w-[1.75rem] justify-center bg-hub-bg/50 text-hub-muted font-mono text-[11px] border-l border-hub-border/70 flex items-center">{repo.starsCount}</span>
           </div>
 
-          <div className="relative">
+          <div ref={cloneMenuRef} className="relative">
             <button
               onClick={() => setShowCloneModal(!showCloneModal)}
               className="flex items-center gap-1.5 px-3 h-7 bg-hub-accent hover:brightness-110 text-zinc-950 rounded-md text-xs font-bold shadow-sm transition-all"
